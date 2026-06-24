@@ -1,0 +1,13 @@
+{
+  "name": "@crosscode/mobile",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "expo lint",
+    "clean": "rm -rf .expo node_modules"
+  }
+}

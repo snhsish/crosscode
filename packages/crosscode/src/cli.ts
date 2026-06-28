@@ -7,6 +7,7 @@ import { homedir } from "os"
 import qrcode from "qrcode-terminal"
 import chalk from "chalk"
 import ora from "ora"
+import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
 
 const children: import("child_process").ChildProcess[] = []
@@ -60,7 +61,12 @@ async function main() {
     opencode.stdout?.on("data", d => logStream.write(d))
     opencode.stderr?.on("data", d => logStream.write(d))
 
-    const cf = spawn("cloudflared", ["tunnel", "--url", "http://localhost:4096"], {
+    const cf = spawn("cloudflared", [
+        "tunnel",
+        "--no-autoupdate",
+        "--config", "/dev/null",
+        "--url", "http://127.0.0.1:4096"
+    ], {
         stdio: ["ignore", "pipe", "pipe"]
     })
 
@@ -77,10 +83,10 @@ async function main() {
             tunnelUrl = m[0]
             spinner.succeed(chalk.green("Tunnel ready"))
 
-            const payload = Buffer.from(JSON.stringify({
+            const payload = encodeQrPayload({
                 url: tunnelUrl,
                 v: 1
-            })).toString("base64")
+            })
 
             console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
             qrcode.generate(payload, { small: true })

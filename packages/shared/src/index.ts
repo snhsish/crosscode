@@ -1,5 +1,6 @@
 export type QrPayload = {
   url: string
+  token: string
   v: number
 }
 
@@ -39,7 +40,7 @@ function fromBase64(str: string): string {
 }
 
 export function encodeQrPayload(payload: QrPayload): string {
-  return toBase64(JSON.stringify({ url: payload.url, v: payload.v }))
+  return toBase64(JSON.stringify({ url: payload.url, token: payload.token, v: payload.v }))
 }
 
 export function decodeQrPayload(encoded: string): QrPayload {
@@ -47,5 +48,5 @@ export function decodeQrPayload(encoded: string): QrPayload {
   if (typeof parsed.url !== 'string' || parsed.v !== 1) {
     throw new Error('Invalid QR payload')
   }
-  return { url: parsed.url, v: parsed.v }
+  return { url: parsed.url, token: parsed.token, v: parsed.v }
 }

@@ -20,6 +20,7 @@
   "author": "snhsish",
   "license": "MIT",
   "devDependencies": {
+    "@types/http-proxy": "^1.17.17",
     "@types/node": "^26.0.0",
     "@types/qrcode-terminal": "^0.12.2",
     "tsup": "^8.5.1",
@@ -28,6 +29,7 @@
   "dependencies": {
     "@crosscode/shared": "workspace:^",
     "chalk": "^5.6.2",
+    "http-proxy": "^1.18.1",
     "ora": "^9.4.1",
     "qrcode-terminal": "^0.12.0"
   }

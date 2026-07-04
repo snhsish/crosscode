@@ -7,6 +7,9 @@ import { homedir } from "os"
 import qrcode from "qrcode-terminal"
 import chalk from "chalk"
 import ora from "ora"
+import crypto from "crypto"
+import http from "http"
+import httpProxy from "http-proxy"
 import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
 
@@ -50,7 +53,10 @@ async function main() {
 
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
+    const sessionToken = crypto.randomBytes(32).toString("hex")
+
     const opencode = spawn("opencode", ["serve"], {
+        env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
         stdio: ["ignore", "pipe", "pipe"]
     })
 
@@ -60,6 +66,25 @@ async function main() {
     opencode.on("error", () => spinner.fail(chalk.red.italic("Failed to start opencode serve")))
     opencode.stdout?.on("data", d => logStream.write(d))
     opencode.stderr?.on("data", d => logStream.write(d))
+
+    // // proxying for authorization
+    // const proxy = httpProxy.createProxyServer({ target: "http://127.0.0.1:4096" })
+    
+    // const server = http.createServer((req, res) => {
+    //     const auth = req.headers["authorization"]
+
+    //     console.log(auth, sessionToken)
+
+    //     if (auth !== `Bearer ${sessionToken}`) {
+    //         res.writeHead(401, { "Content-Type": "application/json" })
+    //         res.end(JSON.stringify({ error: "Unauthorized" }))
+    //         return
+    //     }
+
+    //     proxy.web(req, res)
+    // })
+
+    // server.listen(4097)
 
     const cf = spawn("cloudflared", [
         "tunnel",
@@ -85,6 +110,7 @@ async function main() {
 
             const payload = encodeQrPayload({
                 url: tunnelUrl,
+                token: sessionToken,
                 v: 1
             })
 

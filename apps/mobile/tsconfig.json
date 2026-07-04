@@ -1,20 +1,30 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./src/*"
+        "./*"
       ],
-      "@/assets/*": [
-        "./assets/*"
+      "@crosscode/shared": [
+        "../../packages/shared/src"
       ]
-    }
+    },
+    "jsx": "react-native",
+    "types": [
+      "nativewind/types"
+    ],
+    "strict": true,
+    "ignoreDeprecations": "6.0"
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "index.ts",
+    "nativewind-env.d.ts",
+    "types.d.ts"
   ]
 }

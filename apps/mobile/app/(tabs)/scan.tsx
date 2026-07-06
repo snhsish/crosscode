@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useRouter } from "expo-router"
+import { useFocusEffect, useRouter } from "expo-router"
 import { View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { decodeQrPayload } from "@crosscode/shared"
@@ -15,6 +15,12 @@ export default function ScanQRScreen() {
   const [errorModalOpen, setErrorModalOpen] = React.useState<boolean>(false)
   const [error, setError] = React.useState<string>("")
   const navigated = React.useRef(false)
+
+  useFocusEffect(
+    React.useCallback(() => {
+      navigated.current = false
+    }, [])
+  )
 
   const handleScan = (data: string) => {
     if (navigated.current) return

@@ -115,7 +115,9 @@ async function main() {
             })
 
             console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+            
             qrcode.generate(payload, { small: true })
+
             console.log(chalk.grey(`URL: ${tunnelUrl}`))
             console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
         }

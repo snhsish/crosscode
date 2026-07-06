@@ -1,9 +1,9 @@
 import { CameraView, useCameraPermissions } from "expo-camera"
-import { useRef, useState } from "react"
+import { useRef } from "react"
 import { Button } from "./ui/button"
 import { Text } from "./ui/text"
 import { View } from "react-native"
-import { CameraOff, Flashlight, FlashlightOff } from "lucide-react-native"
+import { CameraOff } from "lucide-react-native"
 
 type QrScannerProps = {
     onScan: (data: string) => void

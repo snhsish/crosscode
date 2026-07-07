@@ -1,0 +1,200 @@
+import { Platform, View } from "react-native"
+import { useLocalSearchParams, useRouter } from "expo-router"
+import { Project, useProjects } from "@/store/projects.store"
+import { useEffect, useRef, useState } from "react"
+import { Session, useSessions } from "@/store/sessions.store"
+import { getSessionsByProjectDir } from "@/lib/sessions"
+import { Connection, useConnections } from "@/store/connection.store"
+import { Message, useMessages } from "@/store/messages.store"
+import { useAgents } from "@/store/agents.store"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Button } from "@/components/ui/button"
+import { ArrowLeftIcon } from "lucide-react-native"
+import { useColorScheme } from "nativewind"
+import { THEME } from "@/lib/theme"
+import { Text } from "@/components/ui/text"
+import { getMessages } from "@/lib/messages"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { TriggerRef } from "@rn-primitives/select"
+import { cn } from "@/lib/utils"
+
+const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
+
+export default function SessionScreen() {
+    const insets = useSafeAreaInsets()
+    const router = useRouter()
+    const { colorScheme } = useColorScheme()
+    const { projectId, sessionId } = useLocalSearchParams<{ projectId: string, sessionId: string }>()
+    const { connections, current } = useConnections()
+    const { projects } = useProjects()
+    const { sessions, upsertSessions } = useSessions()
+    const { getMessagesBySession, upsertMessages } = useMessages()
+    const { agents, fetchAgents } = useAgents()
+
+    const [project, setProject] = useState<Project | null>(null)
+    const [projectSessions, setProjectSessions] = useState<Session[]>([])
+    const [session, setSession] = useState<Session | null>(null)
+    const [connection, setConnection] = useState<Connection | null>(null)
+    const [refreshing, setRefreshing] = useState<boolean>(false)
+
+    const [selectedAgent, setSelectedAgent] = useState<string>("build")
+
+    const ref = useRef<TriggerRef>(null)
+    const contentInsets = {
+        top: insets.top,
+        bottom: Platform.select({ ios: insets.bottom, android: insets.bottom + 24 }),
+        left: 12,
+        right: 12,
+    }
+
+    const messages = getMessagesBySession(sessionId)
+
+    const theme = colorScheme ?? "light"
+
+    const getAndSetSessions = async () => {
+        if (!connection || !connection.url || !connection.token || !project) return
+        setRefreshing(true)
+
+        const data = await getSessionsByProjectDir(connection.url, connection.token, project.worktree)
+        if (data)
+            upsertSessions(data)
+        setRefreshing(false)
+    }
+
+    const getAndSetMessages = async () => {
+        if (!connection || !connection.url || !connection.token || !project || !session) return
+        setRefreshing(true)
+
+        const raw = await getMessages(connection.url, connection.token, sessionId)
+
+        if (raw) {
+            const data = raw.length > 0 && "info" in raw[0]
+                ? (raw as unknown as Array<{ info: Message }>).map((m) => m.info)
+                : raw
+            upsertMessages(sessionId, data)
+        }
+        setRefreshing(false)
+    }
+
+    useEffect(() => {
+        const c = connections.find((c) => c.id === current)
+        if (c) {
+            setConnection(c)
+        }
+    }, [connections, current])
+
+    useEffect(() => {
+        if (!connection || !connection.url || !connection.token) return
+
+        const currentProject = projects.find((p) => p.id === projectId)
+
+        if (!currentProject) return
+
+        setProject(currentProject)
+    }, [connection, projects, projectId])
+
+    useEffect(() => {
+        const currentSessions = sessions.filter(s => s.projectID === projectId)
+        setProjectSessions(currentSessions)
+    }, [sessions])
+
+    useEffect(() => {
+        if (project) {
+            getAndSetSessions()
+        }
+    }, [project])
+
+    useEffect(() => {
+        const currentSession = projectSessions.find((s) => s.id === sessionId)
+
+        if (currentSession) {
+            setSession(currentSession)
+        }
+    }, [projectSessions])
+
+    useEffect(() => {
+        if (session) {
+            getAndSetMessages()
+        }
+    }, [session, connection, project])
+
+    useEffect(() => {
+        if (!connection) return
+        fetchAgents(connection.url, connection.token)
+    }, [connection])
+
+    // if (!project) return <View></View>
+
+    return (
+        <View className="h-full w-full flex flex-col justify-between bg-background px-4 py-4 gap-6" style={{ paddingTop: insets.top + 10 }}>
+            <View className="flex flex-row gap-2 items-center border-b border-accent pb-2">
+                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push(`/project/${projectId}`)}>
+                    <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
+                </Button>
+
+                <View className="flex flex-col gap-0">
+                    <Text className="text-base font-semibold tracking-tight line-clamp-1">
+                        {(session?.title && session.title.length > 40) ? session?.title.slice(0, 37) + "..." : session?.title}
+                    </Text>
+                    <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
+                        {project?.name ?? project?.worktree}
+                    </Text>
+                </View>
+            </View>
+
+            <View className="flex-1 flex-col gap-2">
+                {
+                    messages.map((message, i) => (
+                        <View
+                            key={i}
+                            className={
+                                cn(
+                                    "bg-accent py-2 px-4 rounded-xl",
+                                    message.role === "user" ? "ml-auto" : null,
+                                    message.role === "user" ? "bg-primary" : null
+                                )
+                            }
+                        >
+                            <Text className={cn("text-xs tracking-tight", message.role === "user" ? "text-primary-foreground/60" : null)}>
+                                {message.role === "user" ? "You" : "OpenCode"}
+                            </Text>
+
+                            <Text className={cn("text-xs tracking-tight", message.role === "user" ? "text-primary-foreground/60" : null)}>
+                                {1}
+                            </Text>
+                        </View>
+                    ))
+                }
+            </View>
+
+            <View className="bg-accent p-2 rounded-xl">
+                <Textarea
+                    placeholder={`Ask anything... "Fix broken tests"`}
+                    className="w-full"
+                />
+
+                <View className="flex flex-row">
+                    <Select
+                        defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
+                        onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
+                    >
+                        <SelectTrigger ref={ref} className="w-fit">
+                            <SelectValue placeholder="Select an agent" />
+                        </SelectTrigger>
+                        <SelectContent insets={contentInsets}>
+                            <SelectGroup>
+                                <SelectLabel>Agents</SelectLabel>
+                                {agents.map((agent) => (
+                                    <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!" >
+                                        {capitalize(agent.name)}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        </SelectContent>
+                    </Select>
+                </View>
+            </View>
+        </View>
+    );
+}

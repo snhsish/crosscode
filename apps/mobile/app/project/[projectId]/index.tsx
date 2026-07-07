@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Session, useSessions } from "@/store/sessions.store";
 import { getSessionsByProjectDir } from "@/lib/sessions";
 import { Connection, useConnections } from "@/store/connection.store";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "lucide-react-native";
@@ -34,7 +34,6 @@ export default function ProjectPageScreen() {
         setRefreshing(true)
 
         const data = await getSessionsByProjectDir(connection.url, connection.token, project.worktree)
-        console.log("data", data)
         if (data) upsertSessions(data)
         setRefreshing(false)
     }
@@ -50,7 +49,6 @@ export default function ProjectPageScreen() {
         if (!connection || !connection.url || !connection.token) return
 
         const currentProject = projects.find((p) => p.id === projectId)
-        console.log("proj", currentProject)
 
         if (!currentProject) return
 
@@ -86,10 +84,10 @@ export default function ProjectPageScreen() {
                 {
                     projectSessions.map((s) => (
                         <Pressable
-                            onPress={() => router.push(`/project/${projectId}/session/${s.id}`)}
-                            className="active:opacity-70"
+                            onPress={() => router.push(`/project/${projectId}/${s.id}`)}
+                            className="active:opacity-70" key={s.id}
                         >
-                            <Card key={s.id} className="w-full">
+                            <Card className="w-full">
                                 <CardHeader className="flex-row p-0!">
                                     <View className="flex-1 gap-1.5">
                                         <CardTitle className="text-base font-medium tracking-tight">

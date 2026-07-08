@@ -1,11 +1,11 @@
-import { Platform, View } from "react-native"
+import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Project, useProjects } from "@/store/projects.store"
 import { useEffect, useRef, useState } from "react"
 import { Session, useSessions } from "@/store/sessions.store"
 import { getSessionsByProjectDir } from "@/lib/sessions"
 import { Connection, useConnections } from "@/store/connection.store"
-import { Message, useMessages } from "@/store/messages.store"
+import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TriggerRef } from "@rn-primitives/select"
 import { cn } from "@/lib/utils"
+import MarkdownRenderer from "@/components/markdown"
+import { AgentSelectTrigger } from "@/components/agent-mode-select"
 
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
@@ -39,6 +41,7 @@ export default function SessionScreen() {
     const [refreshing, setRefreshing] = useState<boolean>(false)
 
     const [selectedAgent, setSelectedAgent] = useState<string>("build")
+    const [message, setMessage] = useState<string>("")
 
     const ref = useRef<TriggerRef>(null)
     const contentInsets = {
@@ -70,7 +73,7 @@ export default function SessionScreen() {
 
         if (raw) {
             const data = raw.length > 0 && "info" in raw[0]
-                ? (raw as unknown as Array<{ info: Message }>).map((m) => m.info)
+                ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
                 : raw
             upsertMessages(sessionId, data)
         }
@@ -127,74 +130,112 @@ export default function SessionScreen() {
     // if (!project) return <View></View>
 
     return (
-        <View className="h-full w-full flex flex-col justify-between bg-background px-4 py-4 gap-6" style={{ paddingTop: insets.top + 10 }}>
-            <View className="flex flex-row gap-2 items-center border-b border-accent pb-2">
-                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push(`/project/${projectId}`)}>
-                    <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
-                </Button>
+        <KeyboardAvoidingView behavior="padding" className="flex-1">
+            <View className="flex-1 bg-background">
+                <View className="flex flex-row gap-2 items-center border-b border-accent pb-2 px-4" style={{ paddingTop: insets.top + 10 }}>
+                    <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push(`/project/${projectId}`)}>
+                        <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
+                    </Button>
 
-                <View className="flex flex-col gap-0">
-                    <Text className="text-base font-semibold tracking-tight line-clamp-1">
-                        {(session?.title && session.title.length > 40) ? session?.title.slice(0, 37) + "..." : session?.title}
-                    </Text>
-                    <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
-                        {project?.name ?? project?.worktree}
-                    </Text>
+                    <View className="flex flex-col gap-0">
+                        <Text className="text-base font-semibold tracking-tight line-clamp-1">
+                            {(session?.title && session.title.length > 40) ? session?.title.slice(0, 37) + "..." : session?.title}
+                        </Text>
+                        <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
+                            {project?.name ?? project?.worktree}
+                        </Text>
+                    </View>
                 </View>
-            </View>
 
-            <View className="flex-1 flex-col gap-2">
-                {
-                    messages.map((message, i) => (
-                        <View
-                            key={i}
-                            className={
-                                cn(
-                                    "bg-accent py-2 px-4 rounded-xl",
-                                    message.role === "user" ? "ml-auto" : null,
-                                    message.role === "user" ? "bg-primary" : null
-                                )
-                            }
-                        >
-                            <Text className={cn("text-xs tracking-tight", message.role === "user" ? "text-primary-foreground/60" : null)}>
-                                {message.role === "user" ? "You" : "OpenCode"}
-                            </Text>
+                <ScrollView keyboardShouldPersistTaps="handled" className="flex-1 px-4 pt-2">
+                    <View className="gap-2 pb-56">
+                        {
+                            messages.map((message, i) => (
+                                <View
+                                    key={i}
+                                    className={
+                                        cn(
+                                            "flex flex-col gap-0 p-4 rounded-xl",
+                                            message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
+                                        )
+                                    }
+                                >
+                                    {message.parts?.map((part, j) => {
+                                        switch (part.type) {
+                                            case "text":
+                                                return (
+                                                    <MarkdownRenderer key={j}>
+                                                        {part.text}
+                                                    </MarkdownRenderer>
+                                                )
+                                            case "reasoning":
+                                                return (
+                                                    <Text key={j} className="text-xs text-muted-foreground italic">
+                                                        {part.text}
+                                                    </Text>
+                                                )
+                                            case "tool-invocation":
+                                                return (
+                                                    <View key={j} className="flex-row items-center gap-1">
+                                                        <Text className="text-xs text-muted-foreground">
+                                                            Tool: <Text className="underline">{part.toolInvocation.toolName}</Text>
+                                                        </Text>
+                                                    </View>
+                                                )
+                                            case "source-url":
+                                                return (
+                                                    <Text key={j} className="text-xs underline decoration-dotted">
+                                                        {part.title ?? part.url}
+                                                    </Text>
+                                                )
+                                            case "file":
+                                                return (
+                                                    <Text key={j} className="text-xs text-muted-foreground">
+                                                        File: <Text className="underline">{part.filename ?? part.url}</Text>
+                                                    </Text>
+                                                )
+                                            case "step-start":
+                                                return null
+                                        }
+                                    })}
+                                </View>
+                            ))
+                        }
+                    </View>
+                </ScrollView>
 
-                            <Text className={cn("text-xs tracking-tight", message.role === "user" ? "text-primary-foreground/60" : null)}>
-                                {1}
-                            </Text>
+                <View className="absolute bottom-0 left-0 right-0 p-4">
+                    <View className="p-2 rounded-3xl bg-accent">
+                        <Textarea
+                            placeholder={`Ask anything... "Fix broken tests"`}
+                            style={{ borderWidth: 0, backgroundColor: "transparent" }}
+                            className="w-full"
+                        />
+
+                        <View className="flex flex-row">
+                            <Select
+                                defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
+                                onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
+
+                            >
+                                <AgentSelectTrigger ref={ref} className="w-fit">
+                                    <SelectValue placeholder="Select an agent" />
+                                </AgentSelectTrigger>
+                                <SelectContent insets={contentInsets}>
+                                    <SelectGroup>
+                                        <SelectLabel>Agents</SelectLabel>
+                                        {agents.map((agent) => (
+                                            <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!" >
+                                                {capitalize(agent.name)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectGroup>
+                                </SelectContent>
+                            </Select>
                         </View>
-                    ))
-                }
-            </View>
-
-            <View className="bg-accent p-2 rounded-xl">
-                <Textarea
-                    placeholder={`Ask anything... "Fix broken tests"`}
-                    className="w-full"
-                />
-
-                <View className="flex flex-row">
-                    <Select
-                        defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
-                        onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
-                    >
-                        <SelectTrigger ref={ref} className="w-fit">
-                            <SelectValue placeholder="Select an agent" />
-                        </SelectTrigger>
-                        <SelectContent insets={contentInsets}>
-                            <SelectGroup>
-                                <SelectLabel>Agents</SelectLabel>
-                                {agents.map((agent) => (
-                                    <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!" >
-                                        {capitalize(agent.name)}
-                                    </SelectItem>
-                                ))}
-                            </SelectGroup>
-                        </SelectContent>
-                    </Select>
+                    </View>
                 </View>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 }

@@ -3,6 +3,24 @@ import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { FileDiff } from "./sessions.store"
 
+export type ToolInvocation = {
+    state: "call" | "result" | "error"
+    toolCallId: string
+    toolName: string
+    args?: unknown
+    result?: unknown
+    error?: unknown
+    step?: number
+}
+
+export type Part =
+    | { type: "text"; text: string }
+    | { type: "reasoning"; text: string }
+    | { type: "tool-invocation"; toolInvocation: ToolInvocation }
+    | { type: "source-url"; url: string; title?: string }
+    | { type: "file"; mime: string; url: string; filename?: string }
+    | { type: "step-start"; snapshot?: string }
+
 export type UserMessage = {
     id: string
     sessionID: string
@@ -24,6 +42,7 @@ export type UserMessage = {
     tools?: {
         [key: string]: boolean
     }
+    parts?: Part[]
 }
 
 export type AssistantMessage = {
@@ -55,6 +74,7 @@ export type AssistantMessage = {
         }
     }
     finish?: string
+    parts?: Part[]
 }
 
 export type ProviderAuthError = {
@@ -98,7 +118,6 @@ export type ApiError = {
         responseBody?: string
     }
 }
-
 
 export type Message = UserMessage | AssistantMessage
 

@@ -113,6 +113,9 @@ importers:
       react-native-screens:
         specifier: ~4.25.2
         version: 4.25.2(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
+      react-native-sse:
+        specifier: ^1.2.1
+        version: 1.2.1
       react-native-svg:
         specifier: ^15.15.5
         version: 15.15.5(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)
@@ -3615,6 +3618,9 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '>=0.82.0'
+
+  react-native-sse@1.2.1:
+    resolution: {integrity: sha512-zejanlScF+IB9tYnbdry0MT34qjBXbiV/E72qGz33W/tX1bx8MXsbB4lxiuPETc9v/008vYZ60yjIstW22VlVg==}
 
   react-native-svg@15.15.5:
     resolution: {integrity: sha512-L4go5jA+GWutdJ/JucuN20cjAbMg1HmMtAP+wZ+3JLCf6Jd0bhXQHxciRP/AQm/FlrIEZwkMcHNZP+FXAiic0w==}
@@ -7935,6 +7941,8 @@ snapshots:
       react-freeze: 1.0.4(react@19.2.3)
       react-native: 0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3)
       warn-once: 0.1.1
+
+  react-native-sse@1.2.1: {}
 
   react-native-svg@15.15.5(react-native@0.86.0(@babel/core@7.29.7)(@react-native/metro-config@0.86.0(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.3))(react@19.2.3):
     dependencies:

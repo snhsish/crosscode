@@ -20,6 +20,9 @@ import { TriggerRef } from "@rn-primitives/select"
 import { cn } from "@/lib/utils"
 import MarkdownRenderer from "@/components/markdown"
 import { AgentSelectTrigger } from "@/components/agent-mode-select"
+import { useEventStream } from "@/components/hooks/event-stream"
+import { useChatStore } from "@/store/chat.store"
+import { TypingDots } from "@/components/typing-animation"
 
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
@@ -50,10 +53,36 @@ export default function SessionScreen() {
         left: 12,
         right: 12,
     }
-
-    const messages = getMessagesBySession(sessionId)
-
     const theme = colorScheme ?? "light"
+
+    // chat stream
+    useEventStream(connection?.url, sessionId)
+    const messages = getMessagesBySession(sessionId)
+    const isStreaming = useChatStore((s) => s.streamingBySession[sessionId] ?? false)
+    const connectionStatus = useChatStore((s) => s.connectionStatus)
+    const draft = useChatStore((s) => s.draftBySession[sessionId] ?? "")
+    const setDraft = useChatStore((s) => s.setDraft)
+    const clearDraft = useChatStore((s) => s.clearDraft)
+
+    async function sendMessage() {
+        if (!connection || !connection.url) return
+
+        const text = draft.trim()
+        if (!text) return
+        clearDraft(sessionId)
+
+        await fetch(`${connection?.url}/session/${sessionId}/message`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                parts: [{ type: "text", text }],
+            }),
+        })
+    }
+
 
     const getAndSetSessions = async () => {
         if (!connection || !connection.url || !connection.token || !project) return
@@ -201,6 +230,10 @@ export default function SessionScreen() {
                                 </View>
                             ))
                         }
+
+                        <View className={cn("flex flex-col gap-0 p-4 rounded-xl")}>
+                            <TypingDots />
+                        </View>
                     </View>
                 </ScrollView>
 

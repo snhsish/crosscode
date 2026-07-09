@@ -39,13 +39,14 @@ export const useChatStore = create<ChatStore>()((set) => ({
                 [sessionId]: text,
             },
         })),
+    
     clearDraft: (sessionId) =>
         set((state) => {
             const next = { ...state.draftBySession }
             delete next[sessionId]
             return { draftBySession: next }
         }),
-
+    
     connectionStatus: "disconnected",
     setConnectionStatus: (status) => set({ connectionStatus: status }),
 

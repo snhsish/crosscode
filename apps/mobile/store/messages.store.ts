@@ -14,12 +14,14 @@ export type ToolInvocation = {
 }
 
 export type Part =
-    | { type: "text"; text: string }
-    | { type: "reasoning"; text: string }
-    | { type: "tool-invocation"; toolInvocation: ToolInvocation }
-    | { type: "source-url"; url: string; title?: string }
-    | { type: "file"; mime: string; url: string; filename?: string }
-    | { type: "step-start"; snapshot?: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "text"; text: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "reasoning"; text: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "tool-invocation"; toolInvocation: ToolInvocation }
+    | { id?: string; sessionID?: string; messageID?: string; type: "tool"; tool: string; callID?: string; state?: { status: string } }
+    | { id?: string; sessionID?: string; messageID?: string; type: "source-url"; url: string; title?: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "file"; mime: string; url: string; filename?: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "step-start"; snapshot?: string }
+    | { id?: string; sessionID?: string; messageID?: string; type: "step-finish"; reason: string; snapshot?: string; cost: number; tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } } }
 
 export type UserMessage = {
     id: string

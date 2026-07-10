@@ -9,7 +9,7 @@ import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
-import { ArrowLeftIcon } from "lucide-react-native"
+import { ArrowLeftIcon, SendIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -56,7 +56,7 @@ export default function SessionScreen() {
     const theme = colorScheme ?? "light"
 
     // chat stream
-    useEventStream(connection?.url, sessionId)
+    useEventStream(connection?.url, sessionId, connection?.token)
     const messages = getMessagesBySession(sessionId)
     const isStreaming = useChatStore((s) => s.streamingBySession[sessionId] ?? false)
     const connectionStatus = useChatStore((s) => s.connectionStatus)
@@ -64,14 +64,31 @@ export default function SessionScreen() {
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
 
-    async function sendMessage() {
+    function sendMessage() {
         if (!connection || !connection.url) return
 
         const text = draft.trim()
         if (!text) return
         clearDraft(sessionId)
 
-        await fetch(`${connection?.url}/session/${sessionId}/message`, {
+        const now = Date.now()
+        const userMsg: Message = {
+            id: `local-${now}`,
+            sessionID: sessionId,
+            role: "user",
+            time: { created: now },
+            agent: selectedAgent,
+            model: {
+                providerID: "...",
+                modelID: "..."
+            },
+            parts: [{ type: "text", text }],
+        }
+
+        upsertMessages(sessionId, [userMsg])
+
+        const baseUrl = connection.url.replace(/\/+$/, "")
+        fetch(`${baseUrl}/session/${sessionId}/message`, {
             method: "POST",
             headers: {
                 "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
@@ -80,6 +97,8 @@ export default function SessionScreen() {
             body: JSON.stringify({
                 parts: [{ type: "text", text }],
             }),
+        }).catch((err) => {
+            console.error("Failed to send message:", err)
         })
     }
 
@@ -98,13 +117,20 @@ export default function SessionScreen() {
         if (!connection || !connection.url || !connection.token || !project || !session) return
         setRefreshing(true)
 
-        const raw = await getMessages(connection.url, connection.token, sessionId)
+        const baseUrl = connection.url.replace(/\/+$/, "")
+        const raw = await getMessages(baseUrl, connection.token, sessionId)
 
         if (raw) {
             const data = raw.length > 0 && "info" in raw[0]
                 ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
                 : raw
-            upsertMessages(sessionId, data)
+
+            const existing = getMessagesBySession(sessionId)
+            const nonLocal = existing.filter(m => !m.id.startsWith("local-"))
+            const existingIds = new Set(nonLocal.map(m => m.id))
+            const deduped = data.filter(m => !existingIds.has(m.id))
+
+            upsertMessages(sessionId, [...nonLocal, ...deduped])
         }
         setRefreshing(false)
     }
@@ -193,37 +219,48 @@ export default function SessionScreen() {
                                         switch (part.type) {
                                             case "text":
                                                 return (
-                                                    <MarkdownRenderer key={j}>
+                                                    <MarkdownRenderer key={part.id ?? j}>
                                                         {part.text}
                                                     </MarkdownRenderer>
                                                 )
                                             case "reasoning":
                                                 return (
-                                                    <Text key={j} className="text-xs text-muted-foreground italic">
+                                                    <Text key={part.id ?? j} className="text-xs text-muted-foreground italic">
                                                         {part.text}
                                                     </Text>
                                                 )
                                             case "tool-invocation":
                                                 return (
-                                                    <View key={j} className="flex-row items-center gap-1">
+                                                    <View key={part.id ?? j} className="flex-row items-center gap-1">
                                                         <Text className="text-xs text-muted-foreground">
                                                             Tool: <Text className="underline">{part.toolInvocation.toolName}</Text>
                                                         </Text>
                                                     </View>
                                                 )
+                                            case "tool":
+                                                return (
+                                                    <View key={part.id ?? j} className="flex-row items-center gap-1">
+                                                        <Text className="text-xs text-muted-foreground">
+                                                            Tool: <Text className="underline">{part.tool}</Text>
+                                                            {part.state ? <Text> ({part.state.status})</Text> : null}
+                                                        </Text>
+                                                    </View>
+                                                )
                                             case "source-url":
                                                 return (
-                                                    <Text key={j} className="text-xs underline decoration-dotted">
+                                                    <Text key={part.id ?? j} className="text-xs underline decoration-dotted">
                                                         {part.title ?? part.url}
                                                     </Text>
                                                 )
                                             case "file":
                                                 return (
-                                                    <Text key={j} className="text-xs text-muted-foreground">
+                                                    <Text key={part.id ?? j} className="text-xs text-muted-foreground">
                                                         File: <Text className="underline">{part.filename ?? part.url}</Text>
                                                     </Text>
                                                 )
                                             case "step-start":
+                                                return null
+                                            case "step-finish":
                                                 return null
                                         }
                                     })}
@@ -231,9 +268,13 @@ export default function SessionScreen() {
                             ))
                         }
 
-                        <View className={cn("flex flex-col gap-0 p-4 rounded-xl")}>
-                            <TypingDots />
-                        </View>
+                        {
+                            isStreaming && (
+                                <View className={cn("flex flex-col gap-0 p-4")}>
+                                    <TypingDots />
+                                </View>
+                            )
+                        }
                     </View>
                 </ScrollView>
 
@@ -243,9 +284,10 @@ export default function SessionScreen() {
                             placeholder={`Ask anything... "Fix broken tests"`}
                             style={{ borderWidth: 0, backgroundColor: "transparent" }}
                             className="w-full"
+                            onChangeText={(t) => setDraft(sessionId, t)}
                         />
 
-                        <View className="flex flex-row">
+                        <View className="flex flex-row justify-between items-center">
                             <Select
                                 defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
                                 onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
@@ -265,6 +307,16 @@ export default function SessionScreen() {
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
+
+                            <Button
+                                className="rounded-full"
+                                size="icon"
+                                onPress={sendMessage}
+                            >
+                                <SendIcon
+                                    size={20} color={THEME[theme].background}
+                                />
+                            </Button>
                         </View>
                     </View>
                 </View>

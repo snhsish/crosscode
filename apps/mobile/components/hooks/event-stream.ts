@@ -1,92 +1,86 @@
-import EventSource from "react-native-sse"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
-import { useMessages, Message, AssistantMessage, Part } from "@/store/messages.store"
+import { useMessages, Message, Part } from "@/store/messages.store"
+import { getMessages } from "@/lib/messages"
 
-export function useEventStream(url?: string, sessionId?: string) {
+export function useEventStream(url?: string, sessionId?: string, token?: string) {
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
     useEffect(() => {
-        if (!url || !sessionId) return
+        if (!url || !sessionId || !token) return
 
-        const es = new EventSource(`${url}/event`)
-
+        const baseUrl = url.replace(/\/+$/, "")
+        const sid = sessionId
+        const tok = token
         const setConnectionStatus = useChatStore.getState().setConnectionStatus
         const setStreaming = useChatStore.getState().setStreaming
         const setActiveMessageId = useChatStore.getState().setActiveMessageId
 
-        es.addEventListener("open", () => {
-            setConnectionStatus("connected")
-        })
+        async function poll() {
+            try {
+                const raw = await getMessages(baseUrl, tok, sid)
+                if (!raw) return
 
-        es.addEventListener("error", () => {
-            setConnectionStatus("error")
-        })
+                const data = raw.length > 0 && "info" in raw[0]
+                    ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
+                    : raw
 
-        es.addEventListener("message", (e) => {
-            const evt = JSON.parse(e.data!)
-            const props = evt.properties
+                const store = useMessages.getState()
+                const existing = store.getMessagesBySession(sid)
+                const existingMap = new Map(existing.map(m => [m.id, m]))
+                let changed = false
 
-            switch (evt.type) {
-                case "message.updated": {
-                    const info = props.info as AssistantMessage
-                    if (info.sessionID !== sessionId) return
-
-                    if (info.role === "assistant") {
-                        setStreaming(sessionId, !info.time.completed)
-                        setActiveMessageId(sessionId, info.time.completed ? null : info.id)
+                for (const msg of data) {
+                    const existingMsg = existingMap.get(msg.id)
+                    if (existingMsg) {
+                        const partsChanged =
+                            JSON.stringify(existingMsg.parts) !== JSON.stringify(msg.parts)
+                        const completedChanged =
+                            existingMsg.role === "assistant" &&
+                            msg.role === "assistant" &&
+                            existingMsg.time?.completed !== msg.time?.completed
+                        if (partsChanged || completedChanged) {
+                            existingMap.set(msg.id, msg)
+                            changed = true
+                        }
+                    } else {
+                        existingMap.set(msg.id, msg)
+                        changed = true
                     }
-
-                    mergeMessage(sessionId, info)
-                    break
                 }
 
-                case "message.part.updated": {
-                    const part = props.part as Part & { sessionID: string; messageID: string }
-                    if (part.sessionID !== sessionId) return
-
-                    mergePart(sessionId, part.messageID, part)
-                    break
+                if (changed) {
+                    store.upsertMessages(sid, Array.from(existingMap.values()))
                 }
 
-                case "session.idle": {
-                    if (props.sessionID !== sessionId) return
-                    setStreaming(sessionId, false)
-                    setActiveMessageId(sessionId, null)
-                    break
+                for (const msg of data) {
+                    if (msg.role === "assistant") {
+                        setActiveMessageId(sid, msg.id)
+                        if (msg.time?.completed) {
+                            setStreaming(sid, false)
+                            setActiveMessageId(sid, null)
+                        } else {
+                            setStreaming(sid, true)
+                        }
+                    }
                 }
-
-                case "session.error": {
-                    if (props.sessionID !== sessionId) return
-                    setStreaming(sessionId, false)
-                    setActiveMessageId(sessionId, null)
-                    break
-                }
+            } catch {
+                // poll error, will retry
             }
-        })
+        }
+
+        setConnectionStatus("connected")
+        poll()
+        pollRef.current = setInterval(poll, 2000)
 
         return () => {
-            es.close()
+            if (pollRef.current) {
+                clearInterval(pollRef.current)
+                pollRef.current = null
+            }
             setConnectionStatus("disconnected")
+            setStreaming(sid, false)
+            setActiveMessageId(sid, null)
         }
-    }, [sessionId])
-}
-
-function mergeMessage(sessionId: string, info: Message) {
-    useMessages.getState().upsertMessages(sessionId, [info])
-}
-
-function mergePart(
-    sessionId: string,
-    messageId: string,
-    part: Part
-) {
-    const existing = useMessages.getState().getMessagesBySession(sessionId)
-    const target = existing.find((m) => m.id === messageId)
-    if (!target) return
-
-    const parts = target.parts ?? []
-    const updatedParts: Part[] = [...parts, part]
-
-    useMessages.getState().upsertMessages(sessionId, [
-        { ...target, parts: updatedParts } as Message,
-    ])
+    }, [sessionId, url, token])
 }

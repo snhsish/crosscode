@@ -5,7 +5,7 @@ import * as React from "react"
 import { Platform, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { THEME } from "@/lib/theme"
-import { Home, ScanQrCode, LayoutGrid } from "lucide-react-native"
+import { Home, ScanQrCode, MessageSquare } from "lucide-react-native"
 
 function TabIcon({ icon: Icon, focused }: { icon: typeof Home; focused: boolean }) {
   const { colorScheme } = useColorScheme()
@@ -51,10 +51,10 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="projects"
+          name="sessions"
           options={{
-            title: "Projects",
-            tabBarIcon: ({ focused }) => <TabIcon icon={LayoutGrid} focused={focused} />,
+            title: "Sessions",
+            tabBarIcon: ({ focused }) => <TabIcon icon={MessageSquare} focused={focused} />,
           }}
         />
         <Tabs.Screen

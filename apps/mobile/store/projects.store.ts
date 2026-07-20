@@ -13,48 +13,25 @@ export type Project = {
     }
 }
 
-export type RecentProject = {
-    id: string
-    lastWorkedOn: string
-    sessions: string[]
-}
-
 type ProjectsStore = {
     projects: Project[]
-    recents: RecentProject[]
+    currentProjectId: string | null
     updateProjects: (projects: Project[]) => void
-    upsertRecent: (recent: Partial<RecentProject> & { id: string }) => void
+    setCurrentProjectId: (id: string) => void
 }
 
 export const useProjects = create<ProjectsStore>()(
     persist(
         (set) => ({
             projects: [],
-            recents: [],
+            currentProjectId: null,
 
             updateProjects: (projects) =>
                 set(() => ({
                     projects
                 })),
 
-            upsertRecent: (recent) =>
-                set((state) => {
-                    const exists = state.recents.some((r) => r.id === recent.id)
-                    return {
-                        recents: exists
-                            ? state.recents.map((r) =>
-                                r.id === recent.id ? { ...r, ...recent } : r
-                            )
-                            : [
-                                {
-                                    lastWorkedOn: new Date().toISOString(),
-                                    sessions: [],
-                                    ...recent
-                                },
-                                ...state.recents
-                            ]
-                    }
-                }),
+            setCurrentProjectId: (id) => set({ currentProjectId: id }),
         }),
         {
             name: "crosscode-projects",

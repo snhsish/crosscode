@@ -6,8 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Text } from "@/components/ui/text"
 import { useRouter } from "expo-router"
-import { Input } from "@/components/ui/input"
-import { Connection, useConnections } from "@/store/connection.store"
+import { useConnections } from "@/store/connection.store"
 import { useRecents } from "@/store/recents.store"
 import { cn } from "@/lib/utils"
 import { getRecents } from "@/lib/recents"
@@ -21,64 +20,41 @@ export default function HomeScreen() {
   const { colorScheme } = useColorScheme()
   const { connections, current } = useConnections()
   const { recents, lastUpdated, updateRecents } = useRecents()
-  const [connection, setConnection] = React.useState<Connection | null>(null)
-  const [testing, setTesting] = React.useState<boolean>(false)
+  const [testing, setTesting] = React.useState(false)
   const [tested, setTested] = React.useState<{ msg: string, error: boolean } | null>(null)
 
   const theme = colorScheme ?? "light"
+  const connection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
 
-  const testConnection = async (url: string, token: string) => {
+  const testConnection = React.useCallback(async (url: string, token: string) => {
     setTesting(true)
-
     try {
       const res = await fetch(`${url}/global/health`, {
         method: "GET",
-        headers: {
-          "Authorization": `Basic ${btoa(`opencode:${token}`)}`
-        }
+        headers: { "Authorization": `Basic ${btoa(`opencode:${token}`)}` }
       }).then((r) => r.json())
 
-      if (res && res.healthy === true) {
-        setTested({
-          msg: "Healthy connection",
-          error: false
-        })
-      } else {
-        setTested({
-          msg: "Degraded connection health",
-          error: true
-        })
-      }
+      setTested(res?.healthy === true
+        ? { msg: "Healthy connection", error: false }
+        : { msg: "Degraded connection health", error: true }
+      )
     } catch {
-      setTested({
-        msg: "Remote server unreachable",
-        error: true
-      })
+      setTested({ msg: "Remote server unreachable", error: true })
     } finally {
       setTesting(false)
     }
-  }
-
-  const setRecentProjects = async () => {
-    if (!connection || !connection.url || !connection.token) return
-    const data = await getRecents(connection.url, connection.token)
-    if (data) updateRecents(data)
-  }
-
-  React.useEffect(() => {
-    const c = connections.find((c) => c.id === current)
-    if (c) {
-      setConnection(c)
-      testConnection(c.url, c.token)
-    }
-  }, [connections])
-
-  React.useEffect(() => {
-    if ((Date.now() - lastUpdated) < 86400000) return
-    if (!connection || !connection.url || !connection.token) return
-
-    setRecentProjects()
   }, [])
+
+  React.useEffect(() => {
+    if (!connection?.url || !connection?.token) return
+    testConnection(connection.url, connection.token)
+
+    if ((Date.now() - lastUpdated) >= 86400000) {
+      getRecents(connection.url, connection.token).then((data) => {
+        if (data) updateRecents(data)
+      })
+    }
+  }, [connection?.id])
 
   return (
     <View className="flex-1 bg-background px-6 gap-6" style={{ paddingTop: insets.top + 10 }}>
@@ -102,20 +78,15 @@ export default function HomeScreen() {
           </View>
         </CardContent>
         <CardFooter className="flex-col gap-2">
-          {
-            connection && (
-              <Button variant="outline" className="w-full" onPress={() => router.push("/scan")}>
-                <Text>Change Connection</Text>
-              </Button>
-            )
-          }
-          {
-            (!connection || connections.length < 1) && (
-              <Button className="w-full" onPress={() => router.push("/scan")}>
-                <Text>New Connection</Text>
-              </Button>
-            )
-          }
+          {connection ? (
+            <Button variant="outline" className="w-full" onPress={() => router.push("/scan")}>
+              <Text>Change Connection</Text>
+            </Button>
+          ) : (
+            <Button className="w-full" onPress={() => router.push("/scan")}>
+              <Text>New Connection</Text>
+            </Button>
+          )}
         </CardFooter>
       </Card>
 
@@ -129,55 +100,20 @@ export default function HomeScreen() {
           </View>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          {
-            recents && recents.length > 0 && (
-              <>
-                {
-                  recents.map((r) => (
-                    <Button key={r.id} variant={"outline"} className="flex items-center justify-between">
-                      <Text className="text-ellipsis">
-                        {r.worktree.length > 36 ? r.worktree.slice(0, 33) + "..." : r.worktree}
-                      </Text>
-                      <ChevronRight
-                        color={THEME[theme].foreground}
-                      />
-                    </Button>
-                  ))
-                }
-              </>
-            )
-          }
-        </CardContent>
-      </Card>
-
-      <Card className="w-full max-w-sm">
-        <CardHeader className="flex-row">
-          <View className="flex-1 gap-1.5">
-            <CardTitle>Recent Projects</CardTitle>
-            <CardDescription>
-              Your recent OpenCode working directories
-            </CardDescription>
-          </View>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {
-            recents && recents.length > 0 && (
-              <>
-                {
-                  recents.map((r) => (
-                    <Button key={r.id} variant={"outline"} className="flex items-center justify-between">
-                      <Text className="text-ellipsis">
-                        {r.worktree.length > 36 ? r.worktree.slice(0,33) + "..." : r.worktree}
-                      </Text>
-                      <ChevronRight
-                        color={THEME[theme].foreground}
-                      />
-                    </Button>
-                  ))
-                }
-              </>
-            )
-          }
+          {recents?.length > 0 ? (
+            recents.map((r) => (
+              <Button key={r.id} variant="outline" className="flex items-center justify-between" onPress={() => router.push("/sessions")}>
+                <Text className="text-ellipsis">
+                  {r.worktree.length > 36 ? r.worktree.slice(0, 33) + "..." : r.worktree}
+                </Text>
+                <ChevronRight color={THEME[theme].foreground} />
+              </Button>
+            ))
+          ) : (
+            <Button variant="outline" className="w-full" onPress={() => router.push("/sessions")}>
+              <Text>View All Sessions</Text>
+            </Button>
+          )}
         </CardContent>
       </Card>
     </View>

@@ -1,15 +1,15 @@
-import { KeyboardAvoidingView, Platform, ScrollView, View } from "react-native"
+import { ActivityIndicator, Keyboard, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, View } from "react-native"
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { Project, useProjects } from "@/store/projects.store"
-import { useEffect, useRef, useState } from "react"
-import { Session, useSessions } from "@/store/sessions.store"
-import { getSessionsByProjectDir } from "@/lib/sessions"
-import { Connection, useConnections } from "@/store/connection.store"
+import { useProjects } from "@/store/projects.store"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useSessions } from "@/store/sessions.store"
+import { useConnections } from "@/store/connection.store"
 import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
-import { ArrowLeftIcon, SendIcon } from "lucide-react-native"
+import { ArrowDownIcon, ArrowLeftIcon, SendIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -33,20 +33,72 @@ export default function SessionScreen() {
     const { projectId, sessionId } = useLocalSearchParams<{ projectId: string, sessionId: string }>()
     const { connections, current } = useConnections()
     const { projects } = useProjects()
-    const { sessions, upsertSessions } = useSessions()
+    const { sessions } = useSessions()
     const { getMessagesBySession, upsertMessages } = useMessages()
     const { agents, fetchAgents } = useAgents()
 
-    const [project, setProject] = useState<Project | null>(null)
-    const [projectSessions, setProjectSessions] = useState<Session[]>([])
-    const [session, setSession] = useState<Session | null>(null)
-    const [connection, setConnection] = useState<Connection | null>(null)
-    const [refreshing, setRefreshing] = useState<boolean>(false)
-
-    const [selectedAgent, setSelectedAgent] = useState<string>("build")
-    const [message, setMessage] = useState<string>("")
+    const [selectedAgent, setSelectedAgent] = useState("build")
+    const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
+    const [refreshing, setRefreshing] = useState(false)
+    const [isAtBottom, setIsAtBottom] = useState(true)
 
     const ref = useRef<TriggerRef>(null)
+    const scrollRef = useRef<ScrollView>(null)
+
+    const keyboardHeight = useSharedValue(0)
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+
+    useEffect(() => {
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" as const : "keyboardDidShow" as const
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" as const : "keyboardDidHide" as const
+
+        const showSub = Keyboard.addListener(showEvent, (e) => {
+            setIsKeyboardVisible(true)
+            keyboardHeight.value = withTiming(e.endCoordinates.height, {
+                duration: 250,
+                easing: Easing.out(Easing.cubic),
+            })
+        })
+        const hideSub = Keyboard.addListener(hideEvent, () => {
+            setIsKeyboardVisible(false)
+            keyboardHeight.value = withTiming(0, {
+                duration: 250,
+                easing: Easing.out(Easing.cubic),
+            })
+        })
+        return () => { showSub.remove(); hideSub.remove() }
+    }, [])
+
+    const animatedInputStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: -keyboardHeight.value }],
+    }))
+
+    const animatedScrollContentStyle = useAnimatedStyle(() => ({
+        paddingBottom: keyboardHeight.value + 140,
+    }))
+
+    const connection = connections.find((c) => c.id === current) ?? null
+    const project = projects.find((p) => p.id === projectId) ?? null
+    const session = sessions.find((s) => s.id === sessionId) ?? null
+
+    const scrollToBottomOnLoad = useCallback(() => {
+        if (scrollRef.current && !initialMessagesLoaded) {
+            scrollRef.current.scrollToEnd({ animated: false })
+            setInitialMessagesLoaded(true)
+        }
+    }, [initialMessagesLoaded])
+
+    const scrollToBottom = useCallback(() => {
+        scrollRef.current?.scrollToEnd({ animated: true })
+    }, [])
+
+    const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+        const threshold = 100
+        const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - threshold
+        setIsAtBottom(atBottom)
+    }, [])
+
     const contentInsets = {
         top: insets.top,
         bottom: Platform.select({ ios: insets.bottom, android: insets.bottom + 24 }),
@@ -55,17 +107,15 @@ export default function SessionScreen() {
     }
     const theme = colorScheme ?? "light"
 
-    // chat stream
     useEventStream(connection?.url, sessionId, connection?.token)
     const messages = getMessagesBySession(sessionId)
     const isStreaming = useChatStore((s) => s.streamingBySession[sessionId] ?? false)
-    const connectionStatus = useChatStore((s) => s.connectionStatus)
     const draft = useChatStore((s) => s.draftBySession[sessionId] ?? "")
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
 
     function sendMessage() {
-        if (!connection || !connection.url) return
+        if (!connection?.url) return
 
         const text = draft.trim()
         if (!text) return
@@ -78,48 +128,29 @@ export default function SessionScreen() {
             role: "user",
             time: { created: now },
             agent: selectedAgent,
-            model: {
-                providerID: "...",
-                modelID: "..."
-            },
+            model: { providerID: "...", modelID: "..." },
             parts: [{ type: "text", text }],
         }
 
         upsertMessages(sessionId, [userMsg])
 
-        const baseUrl = connection.url.replace(/\/+$/, "")
-        fetch(`${baseUrl}/session/${sessionId}/message`, {
+        fetch(`${connection.url}/session/${sessionId}/message`, {
             method: "POST",
             headers: {
                 "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({
-                parts: [{ type: "text", text }],
-            }),
+            body: JSON.stringify({ parts: [{ type: "text", text }] }),
         }).catch((err) => {
             console.error("Failed to send message:", err)
         })
     }
 
-
-    const getAndSetSessions = async () => {
-        if (!connection || !connection.url || !connection.token || !project) return
+    const getAndSetMessages = useCallback(async () => {
+        if (!connection?.url || !connection?.token) return
         setRefreshing(true)
 
-        const data = await getSessionsByProjectDir(connection.url, connection.token, project.worktree)
-        if (data)
-            upsertSessions(data)
-        setRefreshing(false)
-    }
-
-    const getAndSetMessages = async () => {
-        if (!connection || !connection.url || !connection.token || !project || !session) return
-        setRefreshing(true)
-
-        const baseUrl = connection.url.replace(/\/+$/, "")
-        const raw = await getMessages(baseUrl, connection.token, sessionId)
-
+        const raw = await getMessages(connection.url, connection.token, sessionId)
         if (raw) {
             const data = raw.length > 0 && "info" in raw[0]
                 ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
@@ -133,62 +164,27 @@ export default function SessionScreen() {
             upsertMessages(sessionId, [...nonLocal, ...deduped])
         }
         setRefreshing(false)
-    }
+        setInitialMessagesLoaded(true)
+    }, [connection, sessionId, getMessagesBySession, upsertMessages])
 
     useEffect(() => {
-        const c = connections.find((c) => c.id === current)
-        if (c) {
-            setConnection(c)
+        if (session) getAndSetMessages()
+    }, [session?.id])
+
+    useEffect(() => {
+        if (connection) fetchAgents(connection.url, connection.token)
+    }, [connection?.id])
+
+    useEffect(() => {
+        if (isAtBottom && messages.length > 0) {
+            scrollRef.current?.scrollToEnd({ animated: false })
         }
-    }, [connections, current])
-
-    useEffect(() => {
-        if (!connection || !connection.url || !connection.token) return
-
-        const currentProject = projects.find((p) => p.id === projectId)
-
-        if (!currentProject) return
-
-        setProject(currentProject)
-    }, [connection, projects, projectId])
-
-    useEffect(() => {
-        const currentSessions = sessions.filter(s => s.projectID === projectId)
-        setProjectSessions(currentSessions)
-    }, [sessions])
-
-    useEffect(() => {
-        if (project) {
-            getAndSetSessions()
-        }
-    }, [project])
-
-    useEffect(() => {
-        const currentSession = projectSessions.find((s) => s.id === sessionId)
-
-        if (currentSession) {
-            setSession(currentSession)
-        }
-    }, [projectSessions])
-
-    useEffect(() => {
-        if (session) {
-            getAndSetMessages()
-        }
-    }, [session, connection, project])
-
-    useEffect(() => {
-        if (!connection) return
-        fetchAgents(connection.url, connection.token)
-    }, [connection])
-
-    // if (!project) return <View></View>
+    }, [messages.length, isAtBottom])
 
     return (
-        <KeyboardAvoidingView behavior="padding" className="flex-1">
-            <View className="flex-1 bg-background">
+        <View className="flex-1 bg-background">
                 <View className="flex flex-row gap-2 items-center border-b border-accent pb-2 px-4" style={{ paddingTop: insets.top + 10 }}>
-                    <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push(`/project/${projectId}`)}>
+                    <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push("/sessions")}>
                         <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
                     </Button>
 
@@ -202,18 +198,29 @@ export default function SessionScreen() {
                     </View>
                 </View>
 
-                <ScrollView keyboardShouldPersistTaps="handled" className="flex-1 px-4 pt-2">
-                    <View className="gap-2 pb-56">
-                        {
-                            messages.map((message, i) => (
+                {refreshing && messages.length === 0 ? (
+                    <View className="flex-1 items-center justify-center">
+                        <ActivityIndicator size="large" color={THEME[theme].mutedForeground} />
+                        <Text className="text-xs text-muted-foreground mt-3">Loading messages...</Text>
+                    </View>
+                ) : (
+                    <ScrollView
+                        ref={scrollRef}
+                        onContentSizeChange={scrollToBottomOnLoad}
+                        onScroll={onScroll}
+                        scrollEventThrottle={16}
+                        keyboardShouldPersistTaps="handled"
+                        onScrollBeginDrag={() => Keyboard.dismiss()}
+                        className="flex-1 px-4 pt-2"
+                    >
+                        <Animated.View className="gap-2" style={animatedScrollContentStyle}>
+                            {messages.map((message, i) => (
                                 <View
                                     key={i}
-                                    className={
-                                        cn(
-                                            "flex flex-col gap-0 p-4 rounded-xl",
-                                            message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
-                                        )
-                                    }
+                                    className={cn(
+                                        "flex flex-col gap-0 p-4 rounded-xl",
+                                        message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
+                                    )}
                                 >
                                     {message.parts?.map((part, j) => {
                                         switch (part.type) {
@@ -265,62 +272,76 @@ export default function SessionScreen() {
                                         }
                                     })}
                                 </View>
-                            ))
-                        }
+                            ))}
 
-                        {
-                            isStreaming && (
+                            {isStreaming && (
                                 <View className={cn("flex flex-col gap-0 p-4")}>
                                     <TypingDots />
                                 </View>
-                            )
-                        }
-                    </View>
-                </ScrollView>
+                            )}
+                        </Animated.View>
+                    </ScrollView>
+                )}
 
-                <View className="absolute bottom-0 left-0 right-0 p-4">
-                    <View className="p-2 rounded-3xl bg-accent">
-                        <Textarea
-                            placeholder={`Ask anything... "Fix broken tests"`}
-                            style={{ borderWidth: 0, backgroundColor: "transparent" }}
-                            className="w-full"
-                            onChangeText={(t) => setDraft(sessionId, t)}
-                        />
-
-                        <View className="flex flex-row justify-between items-center">
-                            <Select
-                                defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
-                                onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
-
-                            >
-                                <AgentSelectTrigger ref={ref} className="w-fit">
-                                    <SelectValue placeholder="Select an agent" />
-                                </AgentSelectTrigger>
-                                <SelectContent insets={contentInsets}>
-                                    <SelectGroup>
-                                        <SelectLabel>Agents</SelectLabel>
-                                        {agents.map((agent) => (
-                                            <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!" >
-                                                {capitalize(agent.name)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-
+                {!isAtBottom && messages.length > 0 && (
+                    <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + 150 }}>
+                        <View className="items-center">
                             <Button
-                                className="rounded-full"
-                                size="icon"
-                                onPress={sendMessage}
+                                variant="secondary"
+                                size="xs"
+                                className="rounded-full shadow-md"
+                                onPress={scrollToBottom}
                             >
-                                <SendIcon
-                                    size={20} color={THEME[theme].background}
-                                />
+                                <ArrowDownIcon size={12} color={THEME[theme].foreground} />
+                                <Text className="text-xs">Scroll to bottom</Text>
                             </Button>
                         </View>
                     </View>
-                </View>
+                )}
+
+                <Animated.View style={animatedInputStyle}>
+                    <View className="p-4 !bg-transparent" style={{ paddingBottom: insets.bottom + 16 }}>
+                        <View className="p-2 rounded-3xl bg-accent">
+                            <Textarea
+                                placeholder={`Ask anything... "Fix broken tests"`}
+                                style={{ borderWidth: 0, backgroundColor: "transparent" }}
+                                className="w-full"
+                                onChangeText={(t) => setDraft(sessionId, t)}
+                                blurOnSubmit={false}
+                                returnKeyType="default"
+                            />
+
+                            <View className="flex flex-row justify-between items-center">
+                                <Select
+                                    defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
+                                    onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
+                                >
+                                    <AgentSelectTrigger ref={ref} className="w-fit">
+                                        <SelectValue placeholder="Select an agent" />
+                                    </AgentSelectTrigger>
+                                    <SelectContent insets={contentInsets} side={isKeyboardVisible ? "top" : "bottom"}>
+                                        <SelectGroup>
+                                            <SelectLabel>Agents</SelectLabel>
+                                            {agents.map((agent) => (
+                                                <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!">
+                                                    {capitalize(agent.name)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectGroup>
+                                    </SelectContent>
+                                </Select>
+
+                                <Button
+                                    className="rounded-full"
+                                    size="icon"
+                                    onPress={sendMessage}
+                                >
+                                    <SendIcon size={20} color={THEME[theme].background} />
+                                </Button>
+                            </View>
+                        </View>
+                    </View>
+                </Animated.View>
             </View>
-        </KeyboardAvoidingView>
     );
 }

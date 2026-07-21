@@ -68,7 +68,7 @@ export default function QrScanner({
         )
 
     return (
-        <View className="flex flex-col justify-between items-center">
+        <View className="w-72 rounded-3xl overflow-hidden bg-black" style={{ aspectRatio: 1 }}>
             <CameraView
                 active={isActive}
                 enableTorch={torch}
@@ -77,13 +77,20 @@ export default function QrScanner({
                     barcodeTypes: ["qr"]
                 }}
                 onBarcodeScanned={({ data }) => handleQrCodeScanned(data)}
+                style={{ flex: 1, borderRadius: 24 }}
+            />
+            <View
+                className="absolute inset-0 justify-center items-center"
+                pointerEvents="none"
+                style={{ borderRadius: 24 }}
             >
-                <View className="justify-center items-center">
-                    <View
-                        className="w-[250px] h-[250px] bg-transparent"
-                    />
+                <View className="w-52 h-52">
+                    <View className="absolute top-0 left-0 w-7 h-7 border-t-4 border-l-4 border-white" />
+                    <View className="absolute top-0 right-0 w-7 h-7 border-t-4 border-r-4 border-white" />
+                    <View className="absolute bottom-0 left-0 w-7 h-7 border-b-4 border-l-4 border-white" />
+                    <View className="absolute bottom-0 right-0 w-7 h-7 border-b-4 border-r-4 border-white" />
                 </View>
-            </CameraView>
+            </View>
         </View>
     )
 }

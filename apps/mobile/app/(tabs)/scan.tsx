@@ -12,8 +12,6 @@ export default function ScanQRScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const [torch, setTorch] = React.useState<boolean>(false)
-  const [errorModalOpen, setErrorModalOpen] = React.useState<boolean>(false)
-  const [error, setError] = React.useState<string>("")
   const navigated = React.useRef(false)
 
   useFocusEffect(
@@ -24,42 +22,61 @@ export default function ScanQRScreen() {
 
   const handleScan = (data: string) => {
     if (navigated.current) return
-
     try {
       const payload = decodeQrPayload(data)
       navigated.current = true
       router.push(`/connect?url=${encodeURIComponent(payload.url)}&token=${payload.token}` as any)
-    }
-    catch {
-      setError("Invalid QR code. Scan the QR after running `npx crosscode` in your terminal.")
-      setErrorModalOpen(true)
+    } catch {
+      // Invalid QR code
     }
   }
 
   return (
-    <View className="flex-1 bg-background gap-6" style={{ paddingTop: insets.top }}>
-      <View className="px-6 py-2 mt-4 flex items-center">
-        <Text className="text-3xl font-semibold tracking-tight">
-          Scan QR Code
-        </Text>
-        <Text className="text-muted-foreground tracking-tight text-sm text-center">
-          Run <Text className="bg-muted text-muted-foreground">npx crosscode</Text> and {"\n"} scan the QR that appears on the terminal
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View className="px-6 pt-8 pb-4">
+        <Text className="text-3xl font-semibold tracking-tight">Scan QR Code</Text>
+        <Text className="text-muted-foreground text-sm mt-1">
+          Connect to a remote opencode server
         </Text>
       </View>
 
-      <View className="flex items-center justify-center mt-5 py-2">
-        <QrScanner
-          onScan={handleScan}
-          torch={torch}
-        />
+      <View className="px-6 pb-6">
+        <View className="bg-muted/50 rounded-2xl p-5 border border-border/50">
+          <Text className="text-sm font-medium mb-4">How to connect</Text>
+          <View className="gap-4">
+            <View className="flex-row items-start gap-3">
+              <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                <Text className="text-xs font-bold text-primary">1</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium leading-5">Start the server</Text>
+                <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                  Run <Text className="bg-muted text-foreground font-mono text-xs">npx crosscode</Text> in your project directory
+                </Text>
+              </View>
+            </View>
+            <View className="flex-row items-start gap-3">
+              <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                <Text className="text-xs font-bold text-primary">2</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium leading-5">Scan the QR code</Text>
+                <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                  Point your camera at the QR code displayed in your terminal
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
 
-      <View className="px-6 py-2 mt-4 flex items-center">
-        <Toggle
-          pressed={torch}
-          onPressedChange={setTorch}
-        >
-          {torch ? <FlashlightIcon /> : <FlashlightOffIcon />}
+      <View className="flex-1 items-center justify-center px-6">
+        <QrScanner onScan={handleScan} torch={torch} />
+      </View>
+
+      <View className="items-center py-6">
+        <Toggle pressed={torch} onPressedChange={setTorch}>
+          {torch ? <FlashlightIcon size={20} /> : <FlashlightOffIcon size={20} />}
         </Toggle>
       </View>
     </View>

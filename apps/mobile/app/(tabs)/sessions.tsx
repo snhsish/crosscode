@@ -25,6 +25,7 @@ export default function SessionsScreen() {
   const [refreshing, setRefreshing] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [sortAsc, setSortAsc] = React.useState(false)
+  const [connectionHealthy, setConnectionHealthy] = React.useState<boolean | null>(null)
 
   const theme = colorScheme ?? "light"
   const connection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
@@ -38,6 +39,18 @@ export default function SessionsScreen() {
     list.sort((a, b) => sortAsc ? a.time.updated - b.time.updated : b.time.updated - a.time.updated)
     return list
   }, [sessions, currentProjectId, search, sortAsc])
+
+  const testConnection = React.useCallback(async (url: string, token: string) => {
+    try {
+      const res = await fetch(`${url}/global/health`, {
+        method: "GET",
+        headers: { "Authorization": `Basic ${btoa(`opencode:${token}`)}` }
+      }).then((r) => r.json())
+      setConnectionHealthy(res?.healthy === true)
+    } catch {
+      setConnectionHealthy(false)
+    }
+  }, [])
 
   const fetchCurrentProjectAndSessions = React.useCallback(async () => {
     if (!connection?.url || !connection?.token) return
@@ -56,9 +69,31 @@ export default function SessionsScreen() {
   }, [connection, setCurrentProjectId, updateProjects, upsertSessions])
 
   React.useEffect(() => {
-    if (!connection?.url || !connection?.token) return
+    if (!connection?.url || !connection?.token) {
+      setConnectionHealthy(false)
+      return
+    }
+    testConnection(connection.url, connection.token)
     fetchCurrentProjectAndSessions()
   }, [connection?.id])
+
+  if (!connection || connectionHealthy === false) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center" style={{ paddingTop: insets.top }}>
+        <View className="flex flex-col items-center gap-4 px-6">
+          <Text className="text-xl font-semibold tracking-tight text-center">
+            No Connection
+          </Text>
+          <Text className="text-muted-foreground text-sm text-center">
+            Connect to OpenCode to view your sessions
+          </Text>
+          <Button onPress={() => router.push("/scan")}>
+            <Text>Connect to OpenCode</Text>
+          </Button>
+        </View>
+      </View>
+    )
+  }
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -80,10 +115,10 @@ export default function SessionsScreen() {
             className="w-9 h-9"
             onPress={() => setSortAsc(!sortAsc)}
           >
-              {sortAsc
-                ? <ArrowUpAZIcon size={18} color={THEME[theme].foreground} />
-                : <ArrowDownAZIcon size={18} color={THEME[theme].foreground} />
-              }
+            {sortAsc
+              ? <ArrowUpAZIcon size={18} color={THEME[theme].foreground} />
+              : <ArrowDownAZIcon size={18} color={THEME[theme].foreground} />
+            }
           </Button>
         </View>
         {currentProject ? (

@@ -126,6 +126,7 @@ export type Message = UserMessage | AssistantMessage
 type MessagesStore = {
     messagesBySession: Record<string, Message[]>
     upsertMessages: (sessionId: string, messages: Message[]) => void
+    setMessages: (sessionId: string, messages: Message[]) => void
     getMessagesBySession: (sessionId: string) => Message[]
 }
 
@@ -152,6 +153,14 @@ export const useMessages = create<MessagesStore>()(
                 }),
             
             getMessagesBySession: (sessionId) => get().messagesBySession[sessionId] ?? [],
+
+            setMessages: (sessionId, messages) =>
+                set((state) => ({
+                    messagesBySession: {
+                        ...state.messagesBySession,
+                        [sessionId]: messages,
+                    },
+                })),
         }),
         {
             name: "crosscode-messages",

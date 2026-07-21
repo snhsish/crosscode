@@ -26,6 +26,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     : raw
 
                 const store = useMessages.getState()
+                const setMessages = useMessages.getState().setMessages
                 const existing = store.getMessagesBySession(sid)
                 const existingMap = new Map(existing.map(m => [m.id, m]))
                 let changed = false
@@ -49,8 +50,22 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     }
                 }
 
+                const localIds: string[] = []
+                for (const [id] of existingMap) {
+                    if (id.startsWith("local-")) localIds.push(id)
+                }
+                if (localIds.length > 0) {
+                    const hasServerUserMsg = data.some((m) => m.role === "user")
+                    if (hasServerUserMsg) {
+                        for (const lid of localIds) {
+                            existingMap.delete(lid)
+                            changed = true
+                        }
+                    }
+                }
+
                 if (changed) {
-                    store.upsertMessages(sid, Array.from(existingMap.values()))
+                    setMessages(sid, Array.from(existingMap.values()))
                 }
 
                 for (const msg of data) {

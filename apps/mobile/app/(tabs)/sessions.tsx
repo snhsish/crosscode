@@ -3,6 +3,8 @@ import { ScrollView, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Text } from "@/components/ui/text"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
@@ -11,6 +13,7 @@ import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { getCurrentProject } from "@/lib/projects"
 import { getSessionsByProjectDir } from "@/lib/sessions"
+import { ArrowDownAZIcon, ArrowUpAZIcon, SearchIcon } from "lucide-react-native"
 
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets()
@@ -20,14 +23,21 @@ export default function SessionsScreen() {
   const { projects, currentProjectId, updateProjects, setCurrentProjectId } = useProjects()
   const { sessions, upsertSessions } = useSessions()
   const [refreshing, setRefreshing] = React.useState(false)
+  const [search, setSearch] = React.useState("")
+  const [sortAsc, setSortAsc] = React.useState(false)
 
   const theme = colorScheme ?? "light"
   const connection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
   const currentProject = React.useMemo(() => projects.find((p) => p.id === currentProjectId) ?? null, [projects, currentProjectId])
-  const projectSessions = React.useMemo(
-    () => sessions.filter((s) => s.projectID === currentProjectId).sort((a, b) => b.time.updated - a.time.updated),
-    [sessions, currentProjectId]
-  )
+  const projectSessions = React.useMemo(() => {
+    let list = sessions.filter((s) => s.projectID === currentProjectId)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      list = list.filter((s) => s.title?.toLowerCase().includes(q))
+    }
+    list.sort((a, b) => sortAsc ? a.time.updated - b.time.updated : b.time.updated - a.time.updated)
+    return list
+  }, [sessions, currentProjectId, search, sortAsc])
 
   const fetchCurrentProjectAndSessions = React.useCallback(async () => {
     if (!connection?.url || !connection?.token) return
@@ -51,22 +61,36 @@ export default function SessionsScreen() {
   }, [connection?.id])
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top + 10 }}>
-      <View className="px-2">
-        <Card className="w-full border-0">
-          <CardHeader className="flex-row">
-            <View className="flex-1 gap-1.5">
-              <CardTitle className="text-2xl">
-                Sessions
-              </CardTitle>
-              <CardDescription>
-                {currentProject
-                  ? currentProject.name || currentProject.worktree
-                  : "Loading current project..."}
-              </CardDescription>
-            </View>
-          </CardHeader>
-        </Card>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View className="flex flex-col gap-2 p-4">
+        <View className="flex flex-row items-center gap-2">
+          <View className="flex-1 flex flex-row items-center gap-2 rounded-lg bg-accent px-3 py-1.5">
+            <SearchIcon size={15} color={THEME[theme].mutedForeground} />
+            <Input
+              placeholder="Search..."
+              value={search}
+              onChangeText={setSearch}
+              className="border-0 bg-transparent text-sm h-7 px-0"
+              placeholderTextColor={THEME[theme].mutedForeground}
+            />
+          </View>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="w-9 h-9"
+            onPress={() => setSortAsc(!sortAsc)}
+          >
+              {sortAsc
+                ? <ArrowUpAZIcon size={18} color={THEME[theme].foreground} />
+                : <ArrowDownAZIcon size={18} color={THEME[theme].foreground} />
+              }
+          </Button>
+        </View>
+        {currentProject ? (
+          <Text className="px-1 text-sm text-muted-foreground">
+            Working on {currentProject.name || currentProject.worktree}
+          </Text>
+        ) : null}
       </View>
 
       <ScrollView className="flex-1 px-2" showsVerticalScrollIndicator={false}>
@@ -110,6 +134,6 @@ export default function SessionsScreen() {
 
         <View className="h-10" />
       </ScrollView>
-    </View>
+    </View >
   )
 }

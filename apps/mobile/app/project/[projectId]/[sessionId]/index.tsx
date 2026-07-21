@@ -34,13 +34,14 @@ export default function SessionScreen() {
     const { connections, current } = useConnections()
     const { projects } = useProjects()
     const { sessions } = useSessions()
-    const { getMessagesBySession, upsertMessages } = useMessages()
+    const { getMessagesBySession, upsertMessages, setMessages } = useMessages()
     const { agents, fetchAgents } = useAgents()
 
     const [selectedAgent, setSelectedAgent] = useState("build")
     const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
+    const [sending, setSending] = useState(false)
 
     const ref = useRef<TriggerRef>(null)
     const scrollRef = useRef<ScrollView>(null)
@@ -114,12 +115,13 @@ export default function SessionScreen() {
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
 
-    function sendMessage() {
-        if (!connection?.url) return
+    async function sendMessage() {
+        if (!connection?.url || sending) return
 
         const text = draft.trim()
         if (!text) return
         clearDraft(sessionId)
+        setSending(true)
 
         const now = Date.now()
         const userMsg: Message = {
@@ -134,16 +136,20 @@ export default function SessionScreen() {
 
         upsertMessages(sessionId, [userMsg])
 
-        fetch(`${connection.url}/session/${sessionId}/message`, {
-            method: "POST",
-            headers: {
-                "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ parts: [{ type: "text", text }] }),
-        }).catch((err) => {
+        try {
+            await fetch(`${connection.url}/session/${sessionId}/message`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ parts: [{ type: "text", text }], agent: selectedAgent }),
+            })
+        } catch (err) {
             console.error("Failed to send message:", err)
-        })
+        } finally {
+            setSending(false)
+        }
     }
 
     const getAndSetMessages = useCallback(async () => {
@@ -161,7 +167,7 @@ export default function SessionScreen() {
             const existingIds = new Set(nonLocal.map(m => m.id))
             const deduped = data.filter(m => !existingIds.has(m.id))
 
-            upsertMessages(sessionId, [...nonLocal, ...deduped])
+            setMessages(sessionId, [...nonLocal, ...deduped])
         }
         setRefreshing(false)
         setInitialMessagesLoaded(true)
@@ -306,6 +312,7 @@ export default function SessionScreen() {
                                 placeholder={`Ask anything... "Fix broken tests"`}
                                 style={{ borderWidth: 0, backgroundColor: "transparent" }}
                                 className="w-full"
+                                value={draft}
                                 onChangeText={(t) => setDraft(sessionId, t)}
                                 blurOnSubmit={false}
                                 returnKeyType="default"
@@ -335,6 +342,7 @@ export default function SessionScreen() {
                                     className="rounded-full"
                                     size="icon"
                                     onPress={sendMessage}
+                                    disabled={sending || !draft.trim()}
                                 >
                                     <SendIcon size={20} color={THEME[theme].background} />
                                 </Button>

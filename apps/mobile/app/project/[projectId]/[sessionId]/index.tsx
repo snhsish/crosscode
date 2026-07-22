@@ -1,6 +1,6 @@
-import { ActivityIndicator, Keyboard, NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, View } from "react-native"
+import { ActivityIndicator, BackHandler, Keyboard, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, View } from "react-native"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
-import { useLocalSearchParams, useRouter } from "expo-router"
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router"
 import { useProjects } from "@/store/projects.store"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSessions } from "@/store/sessions.store"
@@ -9,7 +9,7 @@ import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
-import { ArrowDownIcon, ArrowLeftIcon, SendIcon } from "lucide-react-native"
+import { ArrowDownIcon, ArrowLeftIcon, CameraIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -23,8 +23,47 @@ import { AgentSelectTrigger } from "@/components/agent-mode-select"
 import { useEventStream } from "@/components/hooks/event-stream"
 import { useChatStore } from "@/store/chat.store"
 import { TypingDots } from "@/components/typing-animation"
+import { ReasoningBlock } from "@/components/reasoning-block"
+import { TodoBlock, TodoItem } from "@/components/todo-block"
+import { ToolBlock } from "@/components/tool-block"
 
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
+
+const ATTACHMENT_OPTIONS = [
+    { icon: ImageIcon, label: "Image" },
+    { icon: VideoIcon, label: "Video" },
+    { icon: FilesIcon, label: "Files" },
+    { icon: CameraIcon, label: "Camera" },
+] as const
+
+function extractTodos(result: unknown): TodoItem[] | null {
+  if (!result || typeof result !== "object") return null
+
+  const r = result as Record<string, unknown>
+
+  const metadata = r.metadata
+  if (metadata && typeof metadata === "object") {
+    const todos = (metadata as Record<string, unknown>).todos
+    if (Array.isArray(todos) && todos.length > 0) {
+      return todos as TodoItem[]
+    }
+  }
+
+  if (Array.isArray(r.todos)) {
+    return r.todos as TodoItem[]
+  }
+
+  if (typeof r.output === "string") {
+    try {
+      const parsed = JSON.parse(r.output)
+      if (Array.isArray(parsed)) {
+        return parsed as TodoItem[]
+      }
+    } catch {}
+  }
+
+  return null
+}
 
 export default function SessionScreen() {
     const insets = useSafeAreaInsets()
@@ -48,34 +87,54 @@ export default function SessionScreen() {
 
     const keyboardHeight = useSharedValue(0)
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+    const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+    const attachmentMenuHeight = useSharedValue(0)
+    const navigation = useNavigation()
+
+    const hideAttachmentMenu = useCallback(() => {
+        attachmentMenuHeight.value = withTiming(0, {
+            duration: 250,
+            easing: Easing.out(Easing.cubic),
+        })
+        setShowAttachmentMenu(false)
+    }, [])
+
+    const toggleAttachmentMenu = useCallback(() => {
+        if (showAttachmentMenu) {
+            hideAttachmentMenu()
+        } else {
+            Keyboard.dismiss()
+            setShowAttachmentMenu(true)
+            attachmentMenuHeight.value = withTiming(200, {
+                duration: 250,
+                easing: Easing.out(Easing.cubic),
+            })
+        }
+    }, [showAttachmentMenu, hideAttachmentMenu])
 
     useEffect(() => {
-        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" as const : "keyboardDidShow" as const
-        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" as const : "keyboardDidHide" as const
-
-        const showSub = Keyboard.addListener(showEvent, (e) => {
-            setIsKeyboardVisible(true)
-            keyboardHeight.value = withTiming(e.endCoordinates.height, {
-                duration: 250,
-                easing: Easing.out(Easing.cubic),
-            })
+        if (!showAttachmentMenu) return
+        const onBackPress = () => {
+            hideAttachmentMenu()
+            return true
+        }
+        const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress)
+        const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+            e.preventDefault()
+            hideAttachmentMenu()
         })
-        const hideSub = Keyboard.addListener(hideEvent, () => {
-            setIsKeyboardVisible(false)
-            keyboardHeight.value = withTiming(0, {
-                duration: 250,
-                easing: Easing.out(Easing.cubic),
-            })
-        })
-        return () => { showSub.remove(); hideSub.remove() }
-    }, [])
+        return () => {
+            backHandler.remove()
+            unsubscribe()
+        }
+    }, [showAttachmentMenu, navigation, hideAttachmentMenu])
 
     const animatedInputStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: -keyboardHeight.value }],
     }))
 
     const animatedScrollContentStyle = useAnimatedStyle(() => ({
-        paddingBottom: keyboardHeight.value + 140,
+        paddingBottom: keyboardHeight.value + attachmentMenuHeight.value + 140,
     }))
 
     const connection = connections.find((c) => c.id === current) ?? null
@@ -224,7 +283,7 @@ export default function SessionScreen() {
                                 <View
                                     key={i}
                                     className={cn(
-                                        "flex flex-col gap-0 p-4 rounded-xl",
+                                        "flex flex-col gap-1.5 p-4 rounded-xl",
                                         message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
                                     )}
                                 >
@@ -237,27 +296,51 @@ export default function SessionScreen() {
                                                     </MarkdownRenderer>
                                                 )
                                             case "reasoning":
+                                                const duration = message.role === "assistant" && "completed" in message.time && message.time.completed
+                                                    ? (message.time.completed - message.time.created) / 1000
+                                                    : undefined
                                                 return (
-                                                    <Text key={part.id ?? j} className="text-xs text-muted-foreground italic">
-                                                        {part.text}
-                                                    </Text>
+                                                    <ReasoningBlock
+                                                        key={part.id ?? j}
+                                                        text={part.text}
+                                                        duration={duration}
+                                                    />
                                                 )
                                             case "tool-invocation":
+                                                if (
+                                                    part.toolInvocation.state === "result" &&
+                                                    (part.toolInvocation.toolName === "todowrite" || part.toolInvocation.toolName === "todo")
+                                                ) {
+                                                    const items = extractTodos(part.toolInvocation.result)
+                                                    if (items && items.length > 0) {
+                                                        return <TodoBlock key={part.id ?? j} items={items} />
+                                                    }
+                                                }
+                                                const tiDetails: { label: string; content: unknown }[] = []
+                                                if (part.toolInvocation.args) {
+                                                    tiDetails.push({ label: "Args", content: part.toolInvocation.args })
+                                                }
+                                                if (part.toolInvocation.result) {
+                                                    tiDetails.push({ label: "Result", content: part.toolInvocation.result })
+                                                }
+                                                if (part.toolInvocation.error) {
+                                                    tiDetails.push({ label: "Error", content: part.toolInvocation.error })
+                                                }
                                                 return (
-                                                    <View key={part.id ?? j} className="flex-row items-center gap-1">
-                                                        <Text className="text-xs text-muted-foreground">
-                                                            Tool: <Text className="underline">{part.toolInvocation.toolName}</Text>
-                                                        </Text>
-                                                    </View>
+                                                    <ToolBlock
+                                                        key={part.id ?? j}
+                                                        name={part.toolInvocation.toolName}
+                                                        status={part.toolInvocation.state}
+                                                        details={tiDetails.length > 0 ? tiDetails : undefined}
+                                                    />
                                                 )
                                             case "tool":
                                                 return (
-                                                    <View key={part.id ?? j} className="flex-row items-center gap-1">
-                                                        <Text className="text-xs text-muted-foreground">
-                                                            Tool: <Text className="underline">{part.tool}</Text>
-                                                            {part.state ? <Text> ({part.state.status})</Text> : null}
-                                                        </Text>
-                                                    </View>
+                                                    <ToolBlock
+                                                        key={part.id ?? j}
+                                                        name={part.tool}
+                                                        status={part.state?.status ?? "unknown"}
+                                                    />
                                                 )
                                             case "source-url":
                                                 return (
@@ -319,7 +402,11 @@ export default function SessionScreen() {
                             />
 
                             <View className="flex flex-row justify-between items-center">
-                                <Select
+                                <View className="flex flex-row items-center gap-1">
+                                    <Button variant="ghost" size="icon" className="w-9 h-9" onPress={toggleAttachmentMenu}>
+                                        {showAttachmentMenu ? <XIcon size={20} color={THEME[theme].foreground} /> : <PlusIcon size={20} color={THEME[theme].foreground} />}
+                                    </Button>
+                                    <Select
                                     defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
                                     onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
                                 >
@@ -337,6 +424,7 @@ export default function SessionScreen() {
                                         </SelectGroup>
                                     </SelectContent>
                                 </Select>
+                                </View>
 
                                 <Button
                                     className="rounded-full"
@@ -348,6 +436,24 @@ export default function SessionScreen() {
                                 </Button>
                             </View>
                         </View>
+                        {showAttachmentMenu && (
+                            <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
+                                <View className="flex-row flex-wrap">
+                                    {ATTACHMENT_OPTIONS.map((option) => (
+                                        <Pressable
+                                            key={option.label}
+                                            disabled
+                                            className="w-1/2 items-center justify-center py-4 opacity-40"
+                                        >
+                                            <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
+                                                <option.icon size={22} color={THEME[theme].foreground} />
+                                            </View>
+                                            <Text className="text-xs text-muted-foreground">{option.label}</Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
                     </View>
                 </Animated.View>
             </View>

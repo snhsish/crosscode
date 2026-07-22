@@ -1,5 +1,5 @@
 import * as React from "react"
-import { View } from "react-native"
+import { Linking, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Button } from "@/components/ui/button"
@@ -8,9 +8,9 @@ import { Text } from "@/components/ui/text"
 import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useRecents } from "@/store/recents.store"
-import { cn } from "@/lib/utils"
+import { cn, formatWorktree } from "@/lib/utils"
 import { getRecents } from "@/lib/recents"
-import { ChevronRight } from "lucide-react-native"
+import { ChevronRight, DollarSign, Github } from "lucide-react-native"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 
@@ -73,8 +73,17 @@ export default function HomeScreen() {
         </CardHeader>
         <CardContent>
           <View className="flex flex-row items-center gap-2 bg-muted text-muted-foreground p-4 rounded-lg">
-            <View className={cn("w-2 h-2 rounded-full", testing || !tested ? "bg-yellow-500" : (tested.error ? "bg-red-500" : "bg-green-500"))} />
-            <Text className="text-muted-foreground font-semibold text-sm">{connection?.name}</Text>
+            {!connection ? (
+              <>
+                <View className="w-2 h-2 rounded-full bg-red-500" />
+                <Text className="text-red-500 font-semibold text-sm">No connection established</Text>
+              </>
+            ) : (
+              <>
+                <View className={cn("w-2 h-2 rounded-full", testing || !tested ? "bg-yellow-500" : (tested.error ? "bg-red-500" : "bg-green-500"))} />
+                <Text className="text-muted-foreground font-semibold text-sm">{connection?.name}</Text>
+              </>
+            )}
           </View>
         </CardContent>
         <CardFooter className="flex-col gap-2">
@@ -104,7 +113,7 @@ export default function HomeScreen() {
             recents.map((r) => (
               <Button key={r.id} variant="outline" className="flex items-center justify-between" onPress={() => router.push("/sessions")}>
                 <Text className="text-ellipsis">
-                  {r.worktree.length > 36 ? r.worktree.slice(0, 33) + "..." : r.worktree}
+                  {formatWorktree(r.worktree)}
                 </Text>
                 <ChevronRight color={THEME[theme].foreground} />
               </Button>
@@ -114,6 +123,36 @@ export default function HomeScreen() {
               <Text>View All Sessions</Text>
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="w-full max-w-sm">
+        <CardHeader className="flex-row">
+          <View className="flex-1 gap-1.5">
+            <CardTitle>About CrossCode</CardTitle>
+            <CardDescription>
+              Remote mobile client for OpenCode
+            </CardDescription>
+          </View>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Text className="text-muted-foreground text-sm leading-5">
+            Control your OpenCode sessions from your phone, tablet, wherever. Pair with your PC over a QR code and keep building on the go.
+          </Text>
+          <View className="flex flex-row gap-2 pt-1">
+            <Button variant="outline" className="flex-1 justify-center" onPress={() => Linking.openURL("https://github.com/snhsish/crosscode")}>
+              <Github className="text-foreground" size={18} />
+              <Text>GitHub</Text>
+            </Button>
+            <Button variant="outline" className="flex-1 justify-center" onPress={() => Linking.openURL("https://buymeacoffee.com/snehasish")}>
+              <DollarSign className="text-foreground" size={18} />
+              <Text>Donate</Text>
+            </Button>
+          </View>
+
+          <Text className="w-full text-center text-xs text-muted-foreground">
+            Build b3fa4c from 3 days ago
+          </Text>
         </CardContent>
       </Card>
     </View>

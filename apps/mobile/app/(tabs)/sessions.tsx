@@ -9,11 +9,12 @@ import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { useSessions } from "@/store/sessions.store"
+import { formatWorktree } from "@/lib/utils"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { getCurrentProject } from "@/lib/projects"
 import { getSessionsByProjectDir } from "@/lib/sessions"
-import { ArrowDownAZIcon, ArrowUpAZIcon, SearchIcon } from "lucide-react-native"
+import { ArrowDownAZIcon, ArrowUpAZIcon, Folder, SearchIcon } from "lucide-react-native"
 
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets()
@@ -122,9 +123,12 @@ export default function SessionsScreen() {
           </Button>
         </View>
         {currentProject ? (
-          <Text className="px-1 text-sm text-muted-foreground">
-            Working on {currentProject.name || currentProject.worktree}
-          </Text>
+          <View className="flex-row items-center gap-1.5 px-1">
+            <Folder size={12} color={THEME[theme].mutedForeground} />
+            <Text className="text-sm text-muted-foreground">
+              {currentProject.name || formatWorktree(currentProject.worktree)}
+            </Text>
+          </View>
         ) : null}
       </View>
 

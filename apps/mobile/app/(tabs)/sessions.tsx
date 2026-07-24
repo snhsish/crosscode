@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ScrollView, TouchableOpacity, View } from "react-native"
+import { Alert, Pressable, ScrollView, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Text } from "@/components/ui/text"
@@ -14,7 +14,7 @@ import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { getCurrentProject } from "@/lib/projects"
 import { getSessionsByProjectDir } from "@/lib/sessions"
-import { ArrowDownAZIcon, ArrowUpAZIcon, Folder, SearchIcon } from "lucide-react-native"
+import { ArrowDownAZIcon, ArrowUpAZIcon, Folder, PlusIcon, SearchIcon } from "lucide-react-native"
 
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets()
@@ -22,7 +22,7 @@ export default function SessionsScreen() {
   const { colorScheme } = useColorScheme()
   const { connections, current } = useConnections()
   const { projects, currentProjectId, updateProjects, setCurrentProjectId } = useProjects()
-  const { sessions, upsertSessions } = useSessions()
+  const { sessions, upsertSession, upsertSessions } = useSessions()
   const [refreshing, setRefreshing] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [sortAsc, setSortAsc] = React.useState(false)
@@ -68,6 +68,32 @@ export default function SessionsScreen() {
 
     setRefreshing(false)
   }, [connection, setCurrentProjectId, updateProjects, upsertSessions])
+
+  const createSession = React.useCallback(async () => {
+    if (!connection?.url || !connection?.token || !currentProject) return
+    try {
+      const res = await fetch(`${connection.url}/session`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const err = await res.text()
+        Alert.alert("Failed to create session", err)
+        return
+      }
+      const session = await res.json()
+      session.projectID = currentProject.id
+      session.directory = currentProject.worktree
+      upsertSession(session)
+      router.push(`/project/${currentProjectId}/${session.id}`)
+    } catch (err) {
+      Alert.alert("Failed to create session", String(err))
+    }
+  }, [connection, currentProject, currentProjectId, upsertSession, router])
 
   React.useEffect(() => {
     if (!connection?.url || !connection?.token) {
@@ -171,8 +197,16 @@ export default function SessionsScreen() {
           </View>
         )}
 
-        <View className="h-10" />
+        <View className="h-20" />
       </ScrollView>
+
+      <Pressable
+        onPress={createSession}
+        className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg active:opacity-80"
+        style={{ bottom: insets.bottom + 20 }}
+      >
+        <PlusIcon size={24} color="white" />
+      </Pressable>
     </View >
   )
 }

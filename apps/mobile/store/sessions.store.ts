@@ -2,6 +2,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
+export type SessionModel = {
+    id: string
+    providerID: string
+    variant?: string
+}
+
 export type Session = {
     id: string
     projectID: string
@@ -17,6 +23,8 @@ export type Session = {
         url: string
     }
     title: string
+    agent?: string
+    model?: SessionModel
     version: string
     time: {
         created: number

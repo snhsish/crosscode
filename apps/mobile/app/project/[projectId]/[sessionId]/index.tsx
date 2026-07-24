@@ -1,6 +1,6 @@
 import { ActivityIndicator, BackHandler, Keyboard, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, View } from "react-native"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
-import { useLocalSearchParams, useRouter, useNavigation } from "expo-router"
+import { useFocusEffect, useLocalSearchParams, useRouter, useNavigation } from "expo-router"
 import { useProjects } from "@/store/projects.store"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSessions } from "@/store/sessions.store"
@@ -9,7 +9,7 @@ import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
-import { ArrowDownIcon, ArrowLeftIcon, CameraIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
+import { ArrowDownIcon, ArrowLeftIcon, CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MessageCircleIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -22,6 +22,7 @@ import MarkdownRenderer from "@/components/markdown"
 import { AgentSelectTrigger } from "@/components/agent-mode-select"
 import { useEventStream } from "@/components/hooks/event-stream"
 import { useChatStore } from "@/store/chat.store"
+import { useModels } from "@/store/models.store"
 import { TypingDots } from "@/components/typing-animation"
 import { ReasoningBlock } from "@/components/reasoning-block"
 import { TodoBlock, TodoItem } from "@/components/todo-block"
@@ -77,6 +78,7 @@ export default function SessionScreen() {
     const { agents, fetchAgents } = useAgents()
 
     const [selectedAgent, setSelectedAgent] = useState("build")
+    const [selectedModel, setSelectedModel] = useState<{ id: string; providerID: string } | null>(null)
     const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
@@ -90,6 +92,27 @@ export default function SessionScreen() {
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
     const attachmentMenuHeight = useSharedValue(0)
     const navigation = useNavigation()
+
+    useEffect(() => {
+        const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+            keyboardHeight.value = withTiming(e.endCoordinates.height, {
+                duration: 250,
+                easing: Easing.out(Easing.cubic),
+            })
+            setIsKeyboardVisible(true)
+        })
+        const hideListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => {
+            keyboardHeight.value = withTiming(0, {
+                duration: 250,
+                easing: Easing.out(Easing.cubic),
+            })
+            setIsKeyboardVisible(false)
+        })
+        return () => {
+            showListener.remove()
+            hideListener.remove()
+        }
+    }, [])
 
     const hideAttachmentMenu = useCallback(() => {
         attachmentMenuHeight.value = withTiming(0, {
@@ -173,6 +196,9 @@ export default function SessionScreen() {
     const draft = useChatStore((s) => s.draftBySession[sessionId] ?? "")
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
+    const modelByAgent = useChatStore((s) => s.modelByAgent)
+    const setModelByAgent = useChatStore((s) => s.setModelByAgent)
+    const storedModel = useChatStore((s) => s.modelBySession[sessionId])
 
     async function sendMessage() {
         if (!connection?.url || sending) return
@@ -183,26 +209,33 @@ export default function SessionScreen() {
         setSending(true)
 
         const now = Date.now()
+        const modelId = selectedModel?.id ?? session?.model?.id
+        const providerId = selectedModel?.providerID ?? session?.model?.providerID
+
         const userMsg: Message = {
             id: `local-${now}`,
             sessionID: sessionId,
             role: "user",
             time: { created: now },
             agent: selectedAgent,
-            model: { providerID: "...", modelID: "..." },
+            model: { providerID: providerId ?? "...", modelID: modelId ?? "..." },
             parts: [{ type: "text", text }],
         }
 
         upsertMessages(sessionId, [userMsg])
 
         try {
+            const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent: selectedAgent }
+            if (modelId && providerId) {
+                body.model = { id: modelId, providerID: providerId }
+            }
             await fetch(`${connection.url}/session/${sessionId}/message`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ parts: [{ type: "text", text }], agent: selectedAgent }),
+                body: JSON.stringify(body),
             })
         } catch (err) {
             console.error("Failed to send message:", err)
@@ -240,6 +273,30 @@ export default function SessionScreen() {
         if (connection) fetchAgents(connection.url, connection.token)
     }, [connection?.id])
 
+    const { models, fetchAll } = useModels()
+
+    useFocusEffect(
+        useCallback(() => {
+            const currentModelByAgent = useChatStore.getState().modelByAgent
+            if (session?.model) {
+                setSelectedModel({ id: session.model.id, providerID: session.model.providerID })
+                setModelByAgent(selectedAgent, { id: session.model.id, providerID: session.model.providerID })
+            } else if (storedModel) {
+                setSelectedModel({ id: storedModel.id, providerID: storedModel.providerID })
+                setModelByAgent(selectedAgent, storedModel)
+            } else {
+                const agentModel = currentModelByAgent[selectedAgent]
+                if (agentModel) {
+                    setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID })
+                }
+            }
+        }, [selectedAgent, session?.model?.id, session?.model?.providerID, storedModel])
+    )
+
+    useEffect(() => {
+        if (connection) fetchAll(connection.url, connection.token)
+    }, [connection?.id])
+
     useEffect(() => {
         if (isAtBottom && messages.length > 0) {
             scrollRef.current?.scrollToEnd({ animated: false })
@@ -253,7 +310,7 @@ export default function SessionScreen() {
                         <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
                     </Button>
 
-                    <View className="flex flex-col gap-0">
+                    <View className="flex flex-1 flex-col gap-0">
                         <Text className="text-base font-semibold tracking-tight line-clamp-1">
                             {(session?.title && session.title.length > 40) ? session?.title.slice(0, 37) + "..." : session?.title}
                         </Text>
@@ -261,12 +318,39 @@ export default function SessionScreen() {
                             {project?.name ?? project?.worktree}
                         </Text>
                     </View>
+
+                    <Pressable
+                        className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-accent/60 active:bg-accent border border-border/50"
+                        onPress={() =>
+                            router.push(
+                                `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModel?.id ?? ""}&currentProviderId=${selectedModel?.providerID ?? ""}`
+                            )
+                        }
+                    >
+                        <CpuIcon size={13} color={THEME[theme].mutedForeground} />
+                        <Text className="text-xs text-muted-foreground max-w-[100px]" numberOfLines={1}>
+                            {selectedModel?.id ?? "Model"}
+                        </Text>
+                        <ChevronDownIcon size={12} color={THEME[theme].mutedForeground} />
+                    </Pressable>
                 </View>
 
                 {refreshing && messages.length === 0 ? (
                     <View className="flex-1 items-center justify-center">
                         <ActivityIndicator size="large" color={THEME[theme].mutedForeground} />
                         <Text className="text-xs text-muted-foreground mt-3">Loading messages...</Text>
+                    </View>
+                ) : messages.length === 0 ? (
+                    <View className="flex-1 items-center justify-center px-8">
+                        <View className="w-16 h-16 rounded-full bg-accent items-center justify-center mb-6">
+                            <MessageCircleIcon size={28} color={THEME[theme].foreground} />
+                        </View>
+                        <Text className="text-2xl font-semibold tracking-tight text-center mb-2">
+                            How can I help?
+                        </Text>
+                        <Text className="text-sm text-muted-foreground text-center leading-5">
+                            Ask me anything about your codebase. I can help you fix bugs, add features, refactor code, and more.
+                        </Text>
                     </View>
                 ) : (
                     <ScrollView
@@ -408,7 +492,14 @@ export default function SessionScreen() {
                                     </Button>
                                     <Select
                                     defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
-                                    onValueChange={(option) => setSelectedAgent(option?.value ?? "plan")}
+                                    onValueChange={(option) => {
+                                        const agent = option?.value ?? "plan"
+                                        setSelectedAgent(agent)
+                                        const agentModel = modelByAgent[agent]
+                                        if (agentModel) {
+                                            setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID })
+                                        }
+                                    }}
                                 >
                                     <AgentSelectTrigger ref={ref} className="w-fit">
                                         <SelectValue placeholder="Select an agent" />

@@ -8,16 +8,16 @@ import { Text } from "@/components/ui/text"
 import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useRecents } from "@/store/recents.store"
-import { cn, formatWorktree } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { getRecents } from "@/lib/recents"
-import { ChevronRight, DollarSign, Github } from "lucide-react-native"
+import { Bug, DollarSign, Github, Moon, Settings, Sun } from "lucide-react-native"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
-  const { colorScheme } = useColorScheme()
+  const { colorScheme, toggleColorScheme } = useColorScheme()
   const { connections, current } = useConnections()
   const { recents, lastUpdated, updateRecents } = useRecents()
   const [testing, setTesting] = React.useState(false)
@@ -102,27 +102,40 @@ export default function HomeScreen() {
       <Card className="w-full max-w-sm">
         <CardHeader className="flex-row">
           <View className="flex-1 gap-1.5">
-            <CardTitle>Recent Sessions</CardTitle>
+            <CardTitle>Configuration</CardTitle>
             <CardDescription>
-              Your recent CrossCode remote work sessions
+              App settings and preferences
             </CardDescription>
           </View>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {recents?.length > 0 ? (
-            recents.map((r) => (
-              <Button key={r.id} variant="outline" className="flex items-center justify-between" onPress={() => router.push("/sessions")}>
-                <Text className="text-ellipsis">
-                  {formatWorktree(r.worktree)}
-                </Text>
-                <ChevronRight color={THEME[theme].foreground} />
-              </Button>
-            ))
-          ) : (
-            <Button variant="outline" className="w-full" onPress={() => router.push("/sessions")}>
-              <Text>View All Sessions</Text>
+        <CardContent>
+          <View className="flex flex-row items-center justify-around gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onPress={toggleColorScheme}
+            >
+              {colorScheme === "dark" ? (
+                <Sun size={20} color={THEME[theme].foreground} />
+              ) : (
+                <Moon size={20} color={THEME[theme].foreground} />
+              )}
             </Button>
-          )}
+            <Button
+              variant="outline"
+              size="icon"
+              onPress={() => router.push("/settings")}
+            >
+              <Settings size={20} color={THEME[theme].foreground} />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onPress={() => router.push("/settings")}
+            >
+              <Bug size={20} color={THEME[theme].foreground} />
+            </Button>
+          </View>
         </CardContent>
       </Card>
 
@@ -141,11 +154,11 @@ export default function HomeScreen() {
           </Text>
           <View className="flex flex-row gap-2 pt-1">
             <Button variant="outline" className="flex-1 justify-center" onPress={() => Linking.openURL("https://github.com/snhsish/crosscode")}>
-              <Github className="text-foreground" size={18} />
+              <Github size={18} color={THEME[theme].foreground} />
               <Text>GitHub</Text>
             </Button>
             <Button variant="outline" className="flex-1 justify-center" onPress={() => Linking.openURL("https://buymeacoffee.com/snehasish")}>
-              <DollarSign className="text-foreground" size={18} />
+              <DollarSign size={18} color={THEME[theme].foreground} />
               <Text>Donate</Text>
             </Button>
           </View>

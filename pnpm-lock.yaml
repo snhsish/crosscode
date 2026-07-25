@@ -152,9 +152,6 @@ importers:
 
   packages/crosscode:
     dependencies:
-      '@crosscode/shared':
-        specifier: workspace:^
-        version: link:../shared
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
@@ -168,6 +165,9 @@ importers:
         specifier: ^0.12.0
         version: 0.12.0
     devDependencies:
+      '@crosscode/shared':
+        specifier: workspace:^
+        version: link:../shared
       '@types/http-proxy':
         specifier: ^1.17.17
         version: 1.17.17

@@ -20,9 +20,11 @@ import { TriggerRef } from "@rn-primitives/select"
 import { cn } from "@/lib/utils"
 import MarkdownRenderer from "@/components/markdown"
 import { AgentSelectTrigger } from "@/components/agent-mode-select"
+import { VariantSelectTrigger } from "@/components/variant-select"
 import { useEventStream } from "@/components/hooks/event-stream"
 import { useChatStore } from "@/store/chat.store"
 import { useModels } from "@/store/models.store"
+import { updateSessionModel } from "@/lib/models"
 import { TypingDots } from "@/components/typing-animation"
 import { ReasoningBlock } from "@/components/reasoning-block"
 import { TodoBlock, TodoItem } from "@/components/todo-block"
@@ -78,7 +80,7 @@ export default function SessionScreen() {
     const { agents, fetchAgents } = useAgents()
 
     const [selectedAgent, setSelectedAgent] = useState("build")
-    const [selectedModel, setSelectedModel] = useState<{ id: string; providerID: string } | null>(null)
+    const [selectedModel, setSelectedModel] = useState<{ id: string; providerID: string; variant?: string } | null>(null)
     const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
@@ -198,7 +200,18 @@ export default function SessionScreen() {
     const clearDraft = useChatStore((s) => s.clearDraft)
     const modelByAgent = useChatStore((s) => s.modelByAgent)
     const setModelByAgent = useChatStore((s) => s.setModelByAgent)
+    const setModel = useChatStore((s) => s.setModel)
     const storedModel = useChatStore((s) => s.modelBySession[sessionId])
+
+    const { models, fetchAll } = useModels()
+
+    const currentModel = selectedModel
+        ? models.find((m) => m.id === selectedModel.id && m.providerID === selectedModel.providerID)
+        : session?.model
+            ? models.find((m) => m.id === session.model!.id && m.providerID === session.model!.providerID)
+            : null
+    const variants = currentModel?.variants ?? []
+    const currentVariant = selectedModel?.variant ?? session?.model?.variant ?? currentModel?.options.variant ?? undefined
 
     async function sendMessage() {
         if (!connection?.url || sending) return
@@ -227,7 +240,7 @@ export default function SessionScreen() {
         try {
             const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent: selectedAgent }
             if (modelId && providerId) {
-                body.model = { id: modelId, providerID: providerId }
+                body.model = { id: modelId, providerID: providerId, variant: currentVariant }
             }
             await fetch(`${connection.url}/session/${sessionId}/message`, {
                 method: "POST",
@@ -273,24 +286,22 @@ export default function SessionScreen() {
         if (connection) fetchAgents(connection.url, connection.token)
     }, [connection?.id])
 
-    const { models, fetchAll } = useModels()
-
     useFocusEffect(
         useCallback(() => {
             const currentModelByAgent = useChatStore.getState().modelByAgent
             if (session?.model) {
-                setSelectedModel({ id: session.model.id, providerID: session.model.providerID })
-                setModelByAgent(selectedAgent, { id: session.model.id, providerID: session.model.providerID })
+                setSelectedModel({ id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
+                setModelByAgent(selectedAgent, { id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
             } else if (storedModel) {
-                setSelectedModel({ id: storedModel.id, providerID: storedModel.providerID })
+                setSelectedModel({ id: storedModel.id, providerID: storedModel.providerID, variant: storedModel.variant })
                 setModelByAgent(selectedAgent, storedModel)
             } else {
                 const agentModel = currentModelByAgent[selectedAgent]
                 if (agentModel) {
-                    setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID })
+                    setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID, variant: agentModel.variant })
                 }
             }
-        }, [selectedAgent, session?.model?.id, session?.model?.providerID, storedModel])
+        }, [selectedAgent, session?.model?.id, session?.model?.providerID, session?.model?.variant, storedModel])
     )
 
     useEffect(() => {
@@ -515,6 +526,40 @@ export default function SessionScreen() {
                                         </SelectGroup>
                                     </SelectContent>
                                 </Select>
+                                {variants.length > 0 && (
+                                    <Select
+                                        defaultValue={{ value: currentVariant ?? variants[0]?.name, label: capitalize(currentVariant ?? variants[0]?.name) }}
+                                        onValueChange={(option) => {
+                                            if (!option?.value || !connection) return
+                                            const variant = option.value
+                                            const modelId = selectedModel?.id ?? session?.model?.id
+                                            const providerId = selectedModel?.providerID ?? session?.model?.providerID
+                                            if (modelId && providerId) {
+                                                setSelectedModel((prev) => ({ id: prev?.id ?? modelId, providerID: prev?.providerID ?? providerId, variant }))
+                                                setModel(sessionId, { id: modelId, providerID: providerId, variant })
+                                                updateSessionModel(connection.url, connection.token, sessionId, {
+                                                    id: modelId,
+                                                    providerID: providerId,
+                                                    variant,
+                                                })
+                                            }
+                                        }}
+                                    >
+                                        <VariantSelectTrigger className="w-fit">
+                                            <SelectValue placeholder="Effort" />
+                                        </VariantSelectTrigger>
+                                        <SelectContent insets={contentInsets} side={isKeyboardVisible ? "top" : "bottom"}>
+                                            <SelectGroup>
+                                                <SelectLabel>Effort</SelectLabel>
+                                                {variants.map((v) => (
+                                                    <SelectItem key={v.name} label={capitalize(v.name)} value={v.name} className="capitalize!">
+                                                        {capitalize(v.name)}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
                                 </View>
 
                                 <Button

@@ -4,6 +4,8 @@ import { Button } from "./ui/button"
 import { Text } from "./ui/text"
 import { View } from "react-native"
 import { CameraOff } from "lucide-react-native"
+import { THEME } from "@/lib/theme"
+import { useColorScheme } from "nativewind"
 
 type QrScannerProps = {
     onScan: (data: string) => void
@@ -18,6 +20,8 @@ export default function QrScanner({
     isActive = true,
     cooldownMs = 200
 }: QrScannerProps) {
+    const { colorScheme } = useColorScheme()
+    const theme = colorScheme ?? "light"
     const [perm, reqPerm] = useCameraPermissions()
     const lastScanned = useRef<string | null>(null)
     const cooldownTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -46,7 +50,7 @@ export default function QrScanner({
             <View className="flex flex-col items-center gap-6">
                 <CameraOff
                     size={75}
-                    color={"gray"}
+                    color={THEME[theme].mutedForeground}
                 />
 
                 <View className="flex flex-col items-center">

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Alert, Pressable, ScrollView, TouchableOpacity, View } from "react-native"
+import { ActivityIndicator, Alert, Pressable, ScrollView, TouchableOpacity, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Text } from "@/components/ui/text"
@@ -9,6 +9,7 @@ import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { useSessions } from "@/store/sessions.store"
+import { useChatStore } from "@/store/chat.store"
 import { formatWorktree } from "@/lib/utils"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -23,6 +24,7 @@ export default function SessionsScreen() {
   const { connections, current } = useConnections()
   const { projects, currentProjectId, updateProjects, setCurrentProjectId } = useProjects()
   const { sessions, upsertSession, upsertSessions } = useSessions()
+  const streamingBySession = useChatStore((s) => s.streamingBySession)
   const [refreshing, setRefreshing] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [sortAsc, setSortAsc] = React.useState(false)
@@ -168,7 +170,7 @@ export default function SessionsScreen() {
                 key={s.id}
               >
                 <Card className="w-full border-0 border-b rounded-none">
-                  <CardHeader className="flex-row">
+                  <CardHeader className="flex-row items-center">
                     <View className="flex-1 gap-1.5">
                       <CardTitle className="text-base font-medium tracking-tight">
                         {s.title}
@@ -177,6 +179,9 @@ export default function SessionsScreen() {
                         {new Date(s.time.updated).toLocaleString()}
                       </CardDescription>
                     </View>
+                    {streamingBySession[s.id] && (
+                      <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+                    )}
                   </CardHeader>
                 </Card>
               </TouchableOpacity>
@@ -203,9 +208,9 @@ export default function SessionsScreen() {
       <Pressable
         onPress={createSession}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg active:opacity-80"
-        style={{ bottom: insets.bottom + 20 }}
+        style={{ bottom: insets.bottom + 80 }}
       >
-        <PlusIcon size={24} color="white" />
+        <PlusIcon size={24} color={THEME[theme].primaryForeground} />
       </Pressable>
     </View >
   )

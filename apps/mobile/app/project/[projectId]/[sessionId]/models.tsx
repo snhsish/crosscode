@@ -3,7 +3,8 @@ import { ActivityIndicator, FlatList, Pressable, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useColorScheme } from "nativewind"
-import { ArrowLeftIcon, CheckIcon, FilterIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react-native"
+import type { LucideIcon } from "lucide-react-native"
+import { ArrowLeftIcon, AudioLinesIcon, CheckIcon, FileTextIcon, FilterIcon, ImageIcon, SearchIcon, SlidersHorizontalIcon, TypeIcon, VideoIcon } from "lucide-react-native"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { Input } from "@/components/ui/input"
@@ -22,6 +23,14 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
     { value: "provider", label: "Provider" },
     { value: "status", label: "Status" },
 ]
+
+const CAPABILITY_ICONS: Record<string, LucideIcon> = {
+    text: TypeIcon,
+    image: ImageIcon,
+    audio: AudioLinesIcon,
+    video: VideoIcon,
+    pdf: FileTextIcon,
+}
 
 const STATUS_OPTIONS: { value: string; label: string; chipBg: string; chipText: string; borderColor: string }[] = [
     { value: "active", label: "Active", chipBg: "bg-green-500/15", chipText: "text-green-500", borderColor: "border-green-500/30" },
@@ -108,20 +117,23 @@ export default function ModelsPage() {
             if (!connection || updating) return
             setUpdating(modelId)
             try {
+                const selectedModel = models.find((m) => m.id === modelId && m.providerID === providerId)
+                const variant = selectedModel?.variants?.[0]?.name ?? selectedModel?.options?.variant ?? undefined
                 await updateSessionModel(connection.url, connection.token, sessionId, {
                     id: modelId,
                     providerID: providerId,
+                    variant,
                 })
                 setSelectedId(modelId)
                 setSelectedProviderId(providerId)
-                setModel(sessionId, { id: modelId, providerID: providerId })
+                setModel(sessionId, { id: modelId, providerID: providerId, variant })
                 router.back()
             } catch {
             } finally {
                 setUpdating(null)
             }
         },
-        [connection, sessionId, updating, setModel, router]
+        [connection, sessionId, updating, setModel, router, models]
     )
 
     const isSelected = (modelId: string, providerId: string) =>
@@ -156,6 +168,15 @@ export default function ModelsPage() {
                             {providerName}
                             {item.family ? ` · ${item.family}` : ""}
                         </Text>
+                        <View className="flex-row items-center gap-1 mt-1">
+                            {item.capabilities.input.map((cap) => {
+                                const CapIcon = CAPABILITY_ICONS[cap]
+                                if (!CapIcon) return null
+                                return (
+                                    <Icon key={cap} as={CapIcon} size={12} className="text-muted-foreground/60" />
+                                )
+                            })}
+                        </View>
                     </View>
                     <View className="flex-row items-center gap-2">
                         <View

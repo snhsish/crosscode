@@ -7,10 +7,14 @@ import QrScanner from "@/components/qr-scanner"
 import { Text } from "@/components/ui/text"
 import { FlashlightIcon, FlashlightOffIcon } from "lucide-react-native"
 import { Toggle } from "@/components/ui/toggle"
+import { THEME } from "@/lib/theme"
+import { useColorScheme } from "nativewind"
 
 export default function ScanQRScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const { colorScheme } = useColorScheme()
+  const theme = colorScheme ?? "light"
   const [torch, setTorch] = React.useState<boolean>(false)
   const navigated = React.useRef(false)
 
@@ -76,7 +80,7 @@ export default function ScanQRScreen() {
 
       <View className="items-center py-6">
         <Toggle pressed={torch} onPressedChange={setTorch}>
-          {torch ? <FlashlightIcon size={20} /> : <FlashlightOffIcon size={20} />}
+          {torch ? <FlashlightIcon size={20} color={THEME[theme].foreground} /> : <FlashlightOffIcon size={20} color={THEME[theme].foreground} />}
         </Toggle>
       </View>
     </View>

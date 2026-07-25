@@ -2,7 +2,7 @@ import { BlurView } from "expo-blur"
 import { Tabs } from "expo-router"
 import { useColorScheme } from "nativewind"
 import * as React from "react"
-import { Platform, View } from "react-native"
+import { Platform } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { THEME } from "@/lib/theme"
 import { Home, ScanQrCode, MessageSquare } from "lucide-react-native"
@@ -31,7 +31,11 @@ export default function TabLayout() {
           headerShown: false,
           tabBarHideOnKeyboard: true,
           tabBarStyle: {
-            backgroundColor: "transparent",
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: THEME[theme].background,
             borderTopWidth: 0,
             elevation: 0,
             shadowOpacity: 0,
@@ -48,11 +52,7 @@ export default function TabLayout() {
               intensity={90}
               style={{
                 flex: 1,
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                overflow: "hidden",
-                backgroundColor:
-                  theme === "dark" ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)",
+                backgroundColor: THEME[theme].background,
               }}
             />
           ),

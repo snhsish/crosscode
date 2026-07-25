@@ -25,6 +25,16 @@ type ModelLimit = {
     output: number
 }
 
+export type ModelVariant = {
+    name: string
+    size?: number
+}
+
+export type ModelOptions = {
+    variant: string | null
+    [key: string]: unknown
+}
+
 export type Model = {
     id: string
     apiID: string
@@ -37,6 +47,8 @@ export type Model = {
     enabled: boolean
     limit: ModelLimit
     cost: ModelCostTier[]
+    variants: ModelVariant[]
+    options: ModelOptions
     time: { released: number }
 }
 

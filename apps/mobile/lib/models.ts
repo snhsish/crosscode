@@ -67,8 +67,22 @@ export async function fetchModels(url: string, token: string): Promise<Model[]> 
             "Authorization": `Basic ${btoa(`opencode:${token}`)}`
         }
     })
-    if (!res.ok) return []
-    return res.json()
+    if (!res.ok) {
+        console.error(`[fetchModels] HTTP ${res.status} from ${url}/api/model`)
+        return []
+    }
+    const data = await res.json()
+    if (Array.isArray(data)) return data
+    if (data && typeof data === "object") {
+        if (Array.isArray(data.models)) return data.models
+        if (Array.isArray(data.data)) return data.data
+        const values = Object.values(data)
+        if (values.length > 0 && typeof values[0] === "object" && !Array.isArray(values[0])) {
+            return values as Model[]
+        }
+    }
+    console.error("[fetchModels] Unexpected response shape:", JSON.stringify(data).slice(0, 200))
+    return []
 }
 
 export async function fetchProviders(url: string, token: string): Promise<Provider[]> {
@@ -79,7 +93,9 @@ export async function fetchProviders(url: string, token: string): Promise<Provid
         }
     })
     if (!res.ok) return []
-    return res.json()
+    const data = await res.json()
+    if (Array.isArray(data)) return data
+    return Object.values(data)
 }
 
 export async function updateSessionModel(url: string, token: string, sessionId: string, model: { id: string; providerID: string; variant?: string }) {

@@ -1,4 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error"
 
@@ -31,71 +33,82 @@ type ChatStore = {
     resetSession: (sessionId: string) => void
 }
 
-export const useChatStore = create<ChatStore>()((set) => ({
-    streamingBySession: {},
-    setStreaming: (sessionId, streaming) =>
-        set((state) => ({
-            streamingBySession: {
-                ...state.streamingBySession,
-                [sessionId]: streaming,
-            },
-        })),
+export const useChatStore = create<ChatStore>()(
+    persist(
+        (set) => ({
+            streamingBySession: {},
+            setStreaming: (sessionId, streaming) =>
+                set((state) => ({
+                    streamingBySession: {
+                        ...state.streamingBySession,
+                        [sessionId]: streaming,
+                    },
+                })),
 
-    draftBySession: {},
-    setDraft: (sessionId, text) =>
-        set((state) => ({
-            draftBySession: {
-                ...state.draftBySession,
-                [sessionId]: text,
-            },
-        })),
-    
-    clearDraft: (sessionId) =>
-        set((state) => {
-            const next = { ...state.draftBySession }
-            delete next[sessionId]
-            return { draftBySession: next }
+            draftBySession: {},
+            setDraft: (sessionId, text) =>
+                set((state) => ({
+                    draftBySession: {
+                        ...state.draftBySession,
+                        [sessionId]: text,
+                    },
+                })),
+            
+            clearDraft: (sessionId) =>
+                set((state) => {
+                    const next = { ...state.draftBySession }
+                    delete next[sessionId]
+                    return { draftBySession: next }
+                }),
+            
+            connectionStatus: "disconnected",
+            setConnectionStatus: (status) => set({ connectionStatus: status }),
+
+            activeMessageIdBySession: {},
+            setActiveMessageId: (sessionId, messageId) =>
+                set((state) => ({
+                    activeMessageIdBySession: {
+                        ...state.activeMessageIdBySession,
+                        [sessionId]: messageId,
+                    },
+                })),
+
+            modelBySession: {},
+            setModel: (sessionId, model) =>
+                set((state) => ({
+                    modelBySession: {
+                        ...state.modelBySession,
+                        [sessionId]: model,
+                    },
+                })),
+
+            modelByAgent: {},
+            setModelByAgent: (agent, model) =>
+                set((state) => ({
+                    modelByAgent: {
+                        ...state.modelByAgent,
+                        [agent]: model,
+                    },
+                })),
+
+            resetSession: (sessionId) =>
+                set((state) => {
+                    const streamingBySession = { ...state.streamingBySession }
+                    const activeMessageIdBySession = { ...state.activeMessageIdBySession }
+                    const modelBySession = { ...state.modelBySession }
+                    delete streamingBySession[sessionId]
+                    delete activeMessageIdBySession[sessionId]
+                    delete modelBySession[sessionId]
+                    return { streamingBySession, activeMessageIdBySession, modelBySession }
+                }),
         }),
-    
-    connectionStatus: "disconnected",
-    setConnectionStatus: (status) => set({ connectionStatus: status }),
-
-    activeMessageIdBySession: {},
-    setActiveMessageId: (sessionId, messageId) =>
-        set((state) => ({
-            activeMessageIdBySession: {
-                ...state.activeMessageIdBySession,
-                [sessionId]: messageId,
-            },
-        })),
-
-    modelBySession: {},
-    setModel: (sessionId, model) =>
-        set((state) => ({
-            modelBySession: {
-                ...state.modelBySession,
-                [sessionId]: model,
-            },
-        })),
-
-    modelByAgent: {},
-    setModelByAgent: (agent, model) =>
-        set((state) => ({
-            modelByAgent: {
-                ...state.modelByAgent,
-                [agent]: model,
-            },
-        })),
-
-    resetSession: (sessionId) =>
-        set((state) => {
-            const streamingBySession = { ...state.streamingBySession }
-            const activeMessageIdBySession = { ...state.activeMessageIdBySession }
-            const modelBySession = { ...state.modelBySession }
-            delete streamingBySession[sessionId]
-            delete activeMessageIdBySession[sessionId]
-            delete modelBySession[sessionId]
-            return { streamingBySession, activeMessageIdBySession, modelBySession }
-        }),
-}))
+        {
+            name: "crosscode-chat",
+            storage: createJSONStorage(() => AsyncStorage),
+            partialize: (state) => ({
+                modelByAgent: state.modelByAgent,
+            }),
+        }
+    )
+)
 

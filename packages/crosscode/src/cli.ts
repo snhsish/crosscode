@@ -21,10 +21,17 @@ if (!existsSync(logDir))
         recursive: true
     })
 
-const logFile = join(logDir, "crosscode.log")
-const logStream = createWriteStream(logFile, {
-    flags: "a"
-})
+const crosscodeLogFile = join(logDir, "crosscode.log")
+const cloudflaredLogFile = join(logDir, "cloudflared.log")
+const opencodeLogFile = join(logDir, "opencode.log")
+
+const crosscodeLogStream = createWriteStream(crosscodeLogFile, { flags: "a" })
+const cloudflaredLogStream = createWriteStream(cloudflaredLogFile, { flags: "a" })
+const opencodeLogStream = createWriteStream(opencodeLogFile, { flags: "a" })
+
+function logCrosscode(msg: string) {
+    crosscodeLogStream.write(`${new Date().toISOString()} ${msg}\n`)
+}
 
 function checkDep(name: string): boolean {
     try {
@@ -42,30 +49,42 @@ async function main() {
     let logsVisible = false
     let tunnelUrl = ""
 
+    logCrosscode("CrossCode starting up")
+
     for (const dep of ["opencode", "cloudflared"]) {
         if (!checkDep(dep)) {
             console.error(chalk.red(`[DEPENDENCY ERROR] ${dep} not found. Install ${dep} and try again.`))
+            logCrosscode(`Dependency check failed: ${dep}`)
             missingDep = true
         }
     }
 
     if (missingDep) process.exit(1)
 
+    logCrosscode("All dependencies found")
+
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
     const sessionToken = crypto.randomBytes(32).toString("hex")
+    logCrosscode("Session token generated")
 
-    const opencode = spawn("opencode", ["serve"], {
+    const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
         env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
         stdio: ["ignore", "pipe", "pipe"]
     })
 
     children.push(opencode)
 
-    opencode.on("spawn", () => spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel..."))
-    opencode.on("error", () => spinner.fail(chalk.red.italic("Failed to start opencode serve")))
-    opencode.stdout?.on("data", d => logStream.write(d))
-    opencode.stderr?.on("data", d => logStream.write(d))
+    opencode.on("spawn", () => {
+        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
+        logCrosscode("opencode serve started (PID: " + opencode.pid + ")")
+    })
+    opencode.on("error", (err) => {
+        spinner.fail(chalk.red.italic("Failed to start opencode serve"))
+        logCrosscode("opencode serve error: " + err.message)
+    })
+    opencode.stdout?.on("data", d => opencodeLogStream.write(d))
+    opencode.stderr?.on("data", d => opencodeLogStream.write(d))
 
     // // proxying for authorization
     // const proxy = httpProxy.createProxyServer({ target: "http://127.0.0.1:4096" })
@@ -97,7 +116,10 @@ async function main() {
 
     children.push(cf)
 
-    cf.stdout?.on("data", d => logStream.write(d))
+    cf.on("spawn", () => logCrosscode("cloudflared started (PID: " + cf.pid + ")"))
+    cf.on("error", (err) => logCrosscode("cloudflared error: " + err.message))
+
+    cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
 
     cf.stderr?.on("data", (data: Buffer) => {
         const text = data.toString()
@@ -107,6 +129,7 @@ async function main() {
         if (m && !tunnelUrl) {
             tunnelUrl = m[0]
             spinner.succeed(chalk.green("Tunnel ready"))
+            logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
 
             const payload = encodeQrPayload({
                 url: tunnelUrl,
@@ -122,21 +145,31 @@ async function main() {
             console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
         }
 
-        logStream.write(data)
+        cloudflaredLogStream.write(data)
     })
 
     const toggleLogs = () => {
         logsVisible = !logsVisible
         if (logsVisible) {
             try {
-                const content = readFileSync(logFile, "utf-8")
-                const lines = content.split("\n").filter(Boolean).slice(-50)
-                console.log("\n" + chalk.dim(`── last 50 lines of ${logFile} ──`))
-                console.log(lines.join("\n"))
+                const crosscodeContent = readFileSync(crosscodeLogFile, "utf-8")
+                const cloudflaredContent = readFileSync(cloudflaredLogFile, "utf-8")
+                const opencodeContent = readFileSync(opencodeLogFile, "utf-8")
+
+                const crosscodeLines = crosscodeContent.split("\n").filter(Boolean).slice(-20)
+                const cloudflaredLines = cloudflaredContent.split("\n").filter(Boolean).slice(-20)
+                const opencodeLines = opencodeContent.split("\n").filter(Boolean).slice(-20)
+
+                console.log("\n" + chalk.cyan.bold("═══ CROSSCODE LOGS ═══"))
+                console.log(chalk.dim(crosscodeLines.join("\n")))
+                console.log("\n" + chalk.yellow.bold("═══ CLOUDFLARED LOGS ═══"))
+                console.log(chalk.dim(cloudflaredLines.join("\n")))
+                console.log("\n" + chalk.magenta.bold("═══ OPENCODE LOGS ═══"))
+                console.log(chalk.dim(opencodeLines.join("\n")))
                 console.log(chalk.dim("──────────────────────────────────────"))
             }
             catch {
-                console.log(chalk.red("Could not read log file"))
+                console.log(chalk.red("Could not read log files"))
             }
         }
         else {
@@ -146,7 +179,10 @@ async function main() {
 
     const shutdown = () => {
         console.log(chalk.yellow("\nShutting down..."))
-        logStream.end()
+        logCrosscode("Shutting down...")
+        crosscodeLogStream.end()
+        cloudflaredLogStream.end()
+        opencodeLogStream.end()
         children.forEach(c => c.kill())
         cleanupKeypress()
         process.exit(0)
@@ -166,5 +202,9 @@ async function main() {
 main()
     .catch(err => {
         console.error(chalk.red(err))
+        logCrosscode("Fatal error: " + err.message)
+        crosscodeLogStream.end()
+        cloudflaredLogStream.end()
+        opencodeLogStream.end()
         process.exit(1)
     })

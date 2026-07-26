@@ -45,18 +45,19 @@ export default function ModelsPage() {
     const router = useRouter()
     const { colorScheme } = useColorScheme()
     const theme = colorScheme ?? "light"
-    const { projectId, sessionId, currentModelId, currentProviderId } = useLocalSearchParams<{
+    const { projectId, sessionId, currentModelId, currentProviderId, agent } = useLocalSearchParams<{
         projectId: string
         sessionId: string
         currentModelId?: string
         currentProviderId?: string
+        agent?: string
     }>()
     const { connections, current } = useConnections()
     const connection = connections.find((c) => c.id === current) ?? null
     const { models, providers, fetchAll } = useModels()
 
     const [search, setSearch] = useState("")
-    const [statusFilter, setStatusFilter] = useState("active")
+    const [statusFilter, setStatusFilter] = useState("all")
     const [sort, setSort] = useState<SortMode>("name")
     const [selectedId, setSelectedId] = useState(currentModelId ?? "")
     const [selectedProviderId, setSelectedProviderId] = useState(currentProviderId ?? "")
@@ -64,7 +65,7 @@ export default function ModelsPage() {
 
     const providerMap = useMemo(() => {
         const map: Record<string, string> = {}
-        for (const p of providers) {
+        for (const p of (Array.isArray(providers) ? providers : [])) {
             map[p.id] = p.name
         }
         return map
@@ -75,7 +76,7 @@ export default function ModelsPage() {
     }, [connection?.id])
 
     const filtered = useMemo(() => {
-        let list = models
+        let list = [...models]
 
         if (statusFilter !== "all") {
             list = list.filter((m) => m.status === statusFilter)
@@ -85,19 +86,19 @@ export default function ModelsPage() {
             const q = search.toLowerCase()
             list = list.filter(
                 (m) =>
-                    m.name.toLowerCase().includes(q) ||
-                    m.providerID.toLowerCase().includes(q) ||
-                    m.family.toLowerCase().includes(q) ||
-                    m.id.toLowerCase().includes(q)
+                    (m.name ?? "").toLowerCase().includes(q) ||
+                    (m.providerID ?? "").toLowerCase().includes(q) ||
+                    (m.family ?? "").toLowerCase().includes(q) ||
+                    (m.id ?? "").toLowerCase().includes(q)
             )
         }
 
         list.sort((a, b) => {
             switch (sort) {
                 case "name":
-                    return a.name.localeCompare(b.name)
+                    return (a.name ?? "").localeCompare(b.name ?? "")
                 case "provider":
-                    return a.providerID.localeCompare(b.providerID) || a.name.localeCompare(b.name)
+                    return (a.providerID ?? "").localeCompare(b.providerID ?? "") || (a.name ?? "").localeCompare(b.name ?? "")
                 case "status": {
                     const order = { active: 0, beta: 1, alpha: 2, deprecated: 3 }
                     return (order[a.status] ?? 99) - (order[b.status] ?? 99)
@@ -111,6 +112,7 @@ export default function ModelsPage() {
     }, [models, search, sort, statusFilter])
 
     const setModel = useChatStore((s) => s.setModel)
+    const setModelByAgent = useChatStore((s) => s.setModelByAgent)
 
     const handleSelect = useCallback(
         async (modelId: string, providerId: string) => {
@@ -127,13 +129,16 @@ export default function ModelsPage() {
                 setSelectedId(modelId)
                 setSelectedProviderId(providerId)
                 setModel(sessionId, { id: modelId, providerID: providerId, variant })
+                if (agent) {
+                    setModelByAgent(agent, { id: modelId, providerID: providerId, variant })
+                }
                 router.back()
             } catch {
             } finally {
                 setUpdating(null)
             }
         },
-        [connection, sessionId, updating, setModel, router, models]
+        [connection, sessionId, updating, setModel, setModelByAgent, router, models, agent]
     )
 
     const isSelected = (modelId: string, providerId: string) =>
@@ -169,7 +174,7 @@ export default function ModelsPage() {
                             {item.family ? ` · ${item.family}` : ""}
                         </Text>
                         <View className="flex-row items-center gap-1 mt-1">
-                            {item.capabilities.input.map((cap) => {
+                            {(item.capabilities?.input ?? []).map((cap) => {
                                 const CapIcon = CAPABILITY_ICONS[cap]
                                 if (!CapIcon) return null
                                 return (
@@ -219,7 +224,7 @@ export default function ModelsPage() {
                 <Button variant="ghost" className="w-10 h-10" onPress={() => router.back()}>
                     <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
                 </Button>
-                <Text className="text-base font-semibold flex-1">Models</Text>
+                <Text className="text-base font-semibold flex-1">Select Model</Text>
 
                 {selectedId ? (
                     <View className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-accent/60 border border-border/50">
@@ -313,7 +318,7 @@ export default function ModelsPage() {
             ) : (
                 <FlatList
                     data={filtered}
-                    keyExtractor={(item) => `${item.providerID}-${item.id}`}
+                    keyExtractor={(item, index) => `${item.providerID ?? "unknown"}-${item.id ?? "unknown"}-${index}`}
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
                     keyboardShouldPersistTaps="handled"

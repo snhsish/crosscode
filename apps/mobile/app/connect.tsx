@@ -124,12 +124,21 @@ export default function Connect() {
                     </View>
                 </View>
 
+                {tested?.error && (
+                    <View className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
+                        <Text className="text-red-500 text-sm text-center">
+                            The remote server is unreachable. Please restart the{" "}
+                            <Text className="font-mono font-bold">npx crosscode</Text> command and scan the QR code again.
+                        </Text>
+                    </View>
+                )}
+
                 <Button
                     className="mt-5 rounded-full"
-                    onPress={save}
+                    onPress={tested?.error ? () => router.push("/scan") : save}
                 >
                     <Text>
-                        Connect to OpenCode
+                        {tested?.error ? "Scan again" : "Connect to OpenCode"}
                     </Text>
                 </Button>
             </View>

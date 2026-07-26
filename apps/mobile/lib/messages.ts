@@ -7,12 +7,10 @@ export const getMessages = async (url: string, token: string, sessionId: string)
             headers: {
                 "Authorization": `Basic ${btoa(`opencode:${token}`)}`
             }
-        }).then((r) => r.json()) as Message[]
-
-        if (!res) return
-
-        const data = res
-
+        })
+        if (!res.ok) return
+        const data = await res.json() as Message[]
+        if (!data) return
         return data
     } catch {
         return

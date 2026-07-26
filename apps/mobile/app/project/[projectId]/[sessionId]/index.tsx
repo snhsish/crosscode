@@ -9,7 +9,7 @@ import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Button } from "@/components/ui/button"
-import { ArrowDownIcon, ArrowLeftIcon, CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MessageCircleIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
+import { ArrowDownIcon, ArrowLeftIcon, CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MessageCircleIcon, PlusIcon, SendIcon, TriangleAlertIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -85,6 +85,7 @@ export default function SessionScreen() {
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
     const [sending, setSending] = useState(false)
+    const [sendError, setSendError] = useState<string | null>(null)
 
     const ref = useRef<TriggerRef>(null)
     const scrollRef = useRef<ScrollView>(null)
@@ -211,22 +212,26 @@ export default function SessionScreen() {
             ? models.find((m) => m.id === session.model!.id && m.providerID === session.model!.providerID)
             : null
     const variants = currentModel?.variants ?? []
-    const currentVariant = selectedModel?.variant ?? session?.model?.variant ?? currentModel?.options.variant ?? undefined
+    const currentVariant = selectedModel?.variant ?? session?.model?.variant ?? currentModel?.options?.variant ?? undefined
 
     async function sendMessage() {
         if (!connection?.url || sending) return
 
         const text = draft.trim()
         if (!text) return
-        clearDraft(sessionId)
-        setSending(true)
 
         const now = Date.now()
         const modelId = selectedModel?.id ?? session?.model?.id
         const providerId = selectedModel?.providerID ?? session?.model?.providerID
 
+        clearDraft(sessionId)
+        setSending(true)
+        setSendError(null)
+
+        const localId = `local-${now}`
+
         const userMsg: Message = {
-            id: `local-${now}`,
+            id: localId,
             sessionID: sessionId,
             role: "user",
             time: { created: now },
@@ -240,9 +245,9 @@ export default function SessionScreen() {
         try {
             const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent: selectedAgent }
             if (modelId && providerId) {
-                body.model = { id: modelId, providerID: providerId, variant: currentVariant }
+                body.model = { modelID: modelId, providerID: providerId }
             }
-            await fetch(`${connection.url}/session/${sessionId}/message`, {
+            const res = await fetch(`${connection.url}/session/${sessionId}/message`, {
                 method: "POST",
                 headers: {
                     "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
@@ -250,8 +255,69 @@ export default function SessionScreen() {
                 },
                 body: JSON.stringify(body),
             })
-        } catch (err) {
-            console.error("Failed to send message:", err)
+
+            if (!res.ok) {
+                let errorText = `${res.status} ${res.statusText}`
+                try {
+                    const errorBody = await res.json()
+                    if (errorBody.error) errorText = errorBody.error
+                    else if (errorBody.message) errorText = errorBody.message
+                } catch {}
+
+                const existing = getMessagesBySession(sessionId)
+                setMessages(sessionId, existing.filter(m => m.id !== localId))
+                setDraft(sessionId, text)
+
+                const errorMsg: Message = {
+                    id: `error-${now}`,
+                    sessionID: sessionId,
+                    role: "assistant",
+                    time: { created: now, completed: now },
+                    parentID: localId,
+                    modelID: modelId ?? "...",
+                    providerID: providerId ?? "...",
+                    mode: selectedAgent,
+                    path: { cwd: "", root: "" },
+                    cost: 0,
+                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                    error: { name: "UnknownError", data: { message: errorText } },
+                    parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
+                }
+                upsertMessages(sessionId, [errorMsg])
+                setSendError(errorText)
+                return
+            }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to send message"
+
+            const existing = getMessagesBySession(sessionId)
+            setMessages(sessionId, existing.filter(m => m.id !== localId))
+            setDraft(sessionId, text)
+
+            let errorText = "Network error. Please check your connection and try again."
+            if (message.includes("Network request failed") || message.includes("timeout")) {
+                errorText = "Connection failed. The server may be unreachable."
+            } else if (message) {
+                errorText = message
+            }
+
+            const errorMsg: Message = {
+                id: `error-${now}`,
+                sessionID: sessionId,
+                role: "assistant",
+                time: { created: now, completed: now },
+                parentID: localId,
+                modelID: modelId ?? "...",
+                providerID: providerId ?? "...",
+                mode: selectedAgent,
+                path: { cwd: "", root: "" },
+                cost: 0,
+                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                error: { name: "UnknownError", data: { message: errorText } },
+                parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
+            }
+            upsertMessages(sessionId, [errorMsg])
+            setSendError(errorText)
         } finally {
             setSending(false)
         }
@@ -334,7 +400,7 @@ export default function SessionScreen() {
                         className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-accent/60 active:bg-accent border border-border/50"
                         onPress={() =>
                             router.push(
-                                `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModel?.id ?? ""}&currentProviderId=${selectedModel?.providerID ?? ""}`
+                                `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModel?.id ?? ""}&currentProviderId=${selectedModel?.providerID ?? ""}&agent=${selectedAgent}`
                             )
                         }
                     >
@@ -374,14 +440,30 @@ export default function SessionScreen() {
                         className="flex-1 px-4 pt-2"
                     >
                         <Animated.View className="gap-2" style={animatedScrollContentStyle}>
-                            {messages.map((message, i) => (
+                            {messages.map((message, i) => {
+                                const hasError = message.role === "assistant" && "error" in message && message.error
+
+                                return (
                                 <View
                                     key={i}
                                     className={cn(
                                         "flex flex-col gap-1.5 p-4 rounded-xl",
                                         message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
+                                        hasError ? "bg-destructive/10 border border-destructive/30" : null,
                                     )}
                                 >
+                                    {hasError ? (
+                                        <View className="flex-row items-center gap-1.5 mb-1">
+                                            <TriangleAlertIcon size={12} color={THEME[theme].destructive ?? "#ef4444"} />
+                                            <Text className="text-xs font-medium text-destructive">
+                                                {message.error?.name === "ProviderAuthError" ? "Authentication Error"
+                                                    : message.error?.name === "MessageOutputLengthError" ? "Output Length Error"
+                                                        : message.error?.name === "MessageAbortedError" ? "Aborted"
+                                                            : message.error?.name === "ApiError" ? "API Error"
+                                                                : "Error"}
+                                            </Text>
+                                        </View>
+                                    ) : null}
                                     {message.parts?.map((part, j) => {
                                         switch (part.type) {
                                             case "text":
@@ -456,7 +538,8 @@ export default function SessionScreen() {
                                         }
                                     })}
                                 </View>
-                            ))}
+                                )
+                            })}
 
                             {isStreaming && (
                                 <View className={cn("flex flex-col gap-0 p-4")}>
@@ -479,6 +562,20 @@ export default function SessionScreen() {
                                 <ArrowDownIcon size={12} color={THEME[theme].foreground} />
                                 <Text className="text-xs">Scroll to bottom</Text>
                             </Button>
+                        </View>
+                    </View>
+                )}
+
+                {sendError && (
+                    <View className="px-4">
+                        <View className="flex-row items-center gap-2 p-3 rounded-xl bg-destructive/15 border border-destructive/30">
+                            <TriangleAlertIcon size={14} color={THEME[theme].destructive ?? "#ef4444"} />
+                            <Text className="text-sm text-destructive flex-1" numberOfLines={2}>
+                                {sendError}
+                            </Text>
+                            <Pressable onPress={() => setSendError(null)} hitSlop={8}>
+                                <XIcon size={12} color={THEME[theme].mutedForeground} />
+                            </Pressable>
                         </View>
                     </View>
                 )}

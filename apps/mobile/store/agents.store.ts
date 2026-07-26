@@ -16,14 +16,19 @@ export const useAgents = create<AgentStore>()(
 
             setAgents: (agents) => set({ agents }),
             fetchAgents: async (url, token) => {
-                const res = await fetch(`${url}/agent`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": `Basic ${btoa(`opencode:${token}`)}`
-                    }
-                })
-                const all: Agent[] = await res.json()
-                set({ agents: all.filter(a => a.mode === "primary" && !a.hidden) })
+                try {
+                    const res = await fetch(`${url}/agent`, {
+                        method: "GET",
+                        headers: {
+                            "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                        }
+                    })
+                    if (!res.ok) return
+                    const all: Agent[] = await res.json()
+                    set({ agents: all.filter(a => a.mode === "primary" && !a.hidden) })
+                } catch {
+                    // keep existing agents on fetch failure
+                }
             }
         }),
         {

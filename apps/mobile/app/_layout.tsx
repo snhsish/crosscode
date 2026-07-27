@@ -9,13 +9,22 @@ import { StatusBar } from "expo-status-bar"
 import { useColorScheme } from "nativewind"
 import * as React from "react"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import * as SplashScreen from "expo-splash-screen"
 
 import { NAV_THEME } from "@/lib/theme"
+
+SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "dark"
   const [fontsLoaded] = useFonts({ Manrope: Manrope_400Regular })
+
+  React.useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync()
+    }
+  }, [fontsLoaded])
 
   if (!fontsLoaded) return null
 

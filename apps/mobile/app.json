@@ -3,12 +3,18 @@
     "name": "CrossCode",
     "slug": "crosscode",
     "scheme": "crosscode",
-    "version": "1.0.0",
+    "version": "1.0.0-beta.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "backgroundColor": "#000000",
+      "resizeMode": "contain"
+    },
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.snehasishkun.crosscode"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +24,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.snehasishkun.crosscode"
+      "package": "com.snehasishkun.crosscode",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +48,7 @@
           "barcodeScannerEnabled": true
         }
       ],
+      "expo-splash-screen"
     ]
   }
 }

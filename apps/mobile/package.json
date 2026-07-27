@@ -1,6 +1,6 @@
 {
   "name": "@crosscode/mobile",
-  "version": "1.0.0",
+  "version": "1.0.0-beta.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@crosscode/shared": "workspace:^",
@@ -16,16 +16,17 @@
     "@rn-primitives/separator": "^1.4.0",
     "@rn-primitives/slot": "^1.4.0",
     "@rn-primitives/toggle": "^1.5.2",
+    "babel-preset-expo": "~57.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "~57.0.1",
     "expo-blur": "~57.0.2",
     "expo-camera": "~57.0.0",
     "expo-constants": "^57.0.7",
-    "expo-dev-client": "~57.0.4",
     "expo-font": "~57.0.0",
     "expo-linking": "^57.0.1",
     "expo-router": "^57.0.2",
+    "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.0",
     "lucide-react-native": "^0.487.0",
     "nativewind": "^4.2.6",
@@ -46,14 +47,15 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "expo-dev-client": "~57.0.4",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start --tunnel",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "private": true

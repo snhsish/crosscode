@@ -21,3 +21,8 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal docs
+PROGRESS.md
+PLAN.md
+FEATURES.md

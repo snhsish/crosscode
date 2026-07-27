@@ -1,6 +1,5 @@
 {
   "name": "@crosscode/shared",
-  "type": "module",
   "version": "0.1.0",
   "description": "",
   "main": "./src/index.ts",

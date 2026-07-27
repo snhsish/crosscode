@@ -23,7 +23,6 @@
     "components/**/*.ts",
     "components/**/*.tsx",
     "lib/**/*.ts",
-    "index.ts",
     "nativewind-env.d.ts",
     "types.d.ts"
   ]

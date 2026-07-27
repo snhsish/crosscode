@@ -459,7 +459,7 @@ export default function SessionScreen() {
                                                 {message.error?.name === "ProviderAuthError" ? "Authentication Error"
                                                     : message.error?.name === "MessageOutputLengthError" ? "Output Length Error"
                                                         : message.error?.name === "MessageAbortedError" ? "Aborted"
-                                                            : message.error?.name === "ApiError" ? "API Error"
+                                                            : message.error?.name === "APIError" ? "API Error"
                                                                 : "Error"}
                                             </Text>
                                         </View>

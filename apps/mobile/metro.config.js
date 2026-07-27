@@ -11,4 +11,11 @@ config.watchFolders = [
 
 config.unstable_enablePackageExports = true
 
+config.resolver.unstable_enablePackageExports = true
+
+config.transformer = {
+  ...config.transformer,
+  unstable_allowRequireContext: true,
+}
+
 module.exports = withNativeWind(config, { input: './global.css', inlineRem: 16 })

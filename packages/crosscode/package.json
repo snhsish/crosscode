@@ -1,6 +1,10 @@
 {
   "name": "crosscode",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snhsish/crosscode"
+  },
   "bin": {
     "crosscode": "./dist/cli.js"
   },

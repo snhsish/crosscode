@@ -5,7 +5,7 @@ import * as React from "react"
 import { Platform } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { THEME } from "@/lib/theme"
-import { Home, ScanQrCode, MessageSquare, Settings } from "lucide-react-native"
+import { Home, ScanQrCode, MessageSquare, User } from "lucide-react-native"
 
 function TabIcon({ icon: Icon, focused }: { icon: typeof Home; focused: boolean }) {
   const { colorScheme } = useColorScheme()
@@ -90,10 +90,10 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="settings"
+          name="user"
           options={{
-            title: "Settings",
-            tabBarIcon: ({ focused }) => <TabIcon icon={Settings} focused={focused} />,
+            title: "Account",
+            tabBarIcon: ({ focused }) => <TabIcon icon={User} focused={focused} />,
           }}
         />
       </Tabs>

@@ -15,6 +15,8 @@ export function onKeypress(callback: (key: string) => void) {
 }
 
 export function cleanupKeypress() {
-    process.stdin.setRawMode(false)
-    process.stdin.pause()
+    if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false)
+        process.stdin.pause()
+    }
 }

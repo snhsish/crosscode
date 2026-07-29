@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
-import { Manrope } from "next/font/google";
+import { Manrope, JetBrains_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",
+  subsets: ["latin"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -18,9 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${manrope.variable} antialiased`}>
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${manrope.variable} ${jetbrainsMono.variable} antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

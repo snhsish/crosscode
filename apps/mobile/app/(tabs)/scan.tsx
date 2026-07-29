@@ -1,14 +1,15 @@
 import * as React from "react"
 import { useFocusEffect, useRouter } from "expo-router"
-import { View } from "react-native"
+import { View, Alert } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { decodeQrPayload } from "@crosscode/shared"
+import { decodeQrPayload, decodeLoginQrPayload, detectQrPayloadType } from "@crosscode/shared"
 import QrScanner from "@/components/qr-scanner"
 import { Text } from "@/components/ui/text"
 import { FlashlightIcon, FlashlightOffIcon } from "lucide-react-native"
 import { Toggle } from "@/components/ui/toggle"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
+import { useAuth } from "@/store/auth.store"
 
 export default function ScanQRScreen() {
   const router = useRouter()
@@ -17,6 +18,7 @@ export default function ScanQRScreen() {
   const theme = colorScheme ?? "light"
   const [torch, setTorch] = React.useState<boolean>(false)
   const navigated = React.useRef(false)
+  const { login } = useAuth()
 
   useFocusEffect(
     React.useCallback(() => {
@@ -27,9 +29,28 @@ export default function ScanQRScreen() {
   const handleScan = (data: string) => {
     if (navigated.current) return
     try {
-      const payload = decodeQrPayload(data)
-      navigated.current = true
-      router.push(`/connect?url=${encodeURIComponent(payload.url)}&token=${payload.token}` as any)
+      const payloadType = detectQrPayloadType(data)
+
+      if (payloadType === "login") {
+        const payload = decodeLoginQrPayload(data)
+        login(
+          {
+            id: payload.email,
+            email: payload.email,
+            name: payload.name,
+            tier: payload.tier,
+          },
+          payload.sessionToken
+        )
+        navigated.current = true
+        Alert.alert("Logged in", `Welcome, ${payload.name}!`, [
+          { text: "OK", onPress: () => router.replace("/(tabs)/user") },
+        ])
+      } else {
+        const payload = decodeQrPayload(data)
+        navigated.current = true
+        router.push(`/connect?url=${encodeURIComponent(payload.url)}&token=${payload.token}` as any)
+      }
     } catch {
       // Invalid QR code
     }

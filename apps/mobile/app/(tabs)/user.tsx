@@ -1,25 +1,28 @@
-import { View, ScrollView, Switch, AppState, Linking, Alert } from "react-native"
+import { View, ScrollView, Switch, AppState, Linking, Alert, TouchableOpacity } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Bug, Moon, Sun } from "lucide-react-native"
+import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import Constants from "expo-constants"
 import { useSettings } from "@/store/settings.store"
 import { useConnections } from "@/store/connection.store"
+import { useAuth } from "@/store/auth.store"
 import React from "react"
 
 const SUPPORT_EMAIL = "support@crosscode.app"
 
-export default function Settings() {
+export default function UserPage() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { colorScheme, toggleColorScheme } = useColorScheme()
   const theme = colorScheme ?? "dark"
+
+  const { user, sessionToken, logout, isLoggedIn } = useAuth()
 
   const clearLastRemoteUrlOnClose = useSettings((s) => s.clearLastRemoteUrlOnClose)
   const setClearLastRemoteUrlOnClose = useSettings((s) => s.setClearLastRemoteUrlOnClose)
@@ -56,6 +59,24 @@ export default function Settings() {
     setTimeout(() => setEmailSaved(false), 2000)
   }
 
+  const handleLogout = () => {
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => {
+            logout()
+            router.replace("/(tabs)/scan")
+          },
+        },
+      ]
+    )
+  }
+
   const openLink = (url: string) => Linking.openURL(url)
 
   const version = Constants.expoConfig?.version ?? "1.0.0"
@@ -65,10 +86,42 @@ export default function Settings() {
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="p-4">
-        <Text className="text-2xl font-semibold tracking-tight">Settings</Text>
+        <Text className="text-2xl font-semibold tracking-tight">Account</Text>
       </View>
 
       <ScrollView className="flex-1 px-6" contentContainerStyle={{ gap: 16, paddingBottom: 32 }}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Profile</CardTitle>
+            <CardDescription>Your CrossCode account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoggedIn && user ? (
+              <View className="flex-row items-center gap-3">
+                <View className="h-12 w-12 rounded-full bg-primary items-center justify-center">
+                  <UserIcon size={24} color={THEME[theme].background} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-base font-medium">{user.email}</Text>
+                  <Text className="text-sm text-muted-foreground capitalize">{user.tier} tier</Text>
+                </View>
+                <Button variant="ghost" size="sm" onPress={handleLogout}>
+                  <LogOut size={18} color={THEME[theme].mutedForeground} />
+                </Button>
+              </View>
+            ) : (
+              <View className="items-center py-4 gap-3">
+                <Text className="text-sm text-muted-foreground text-center">
+                  Scan a QR code from the terminal to login
+                </Text>
+                <Button onPress={() => router.push("/(tabs)/scan")}>
+                  <Text>Scan QR to Login</Text>
+                </Button>
+              </View>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Appearance</CardTitle>

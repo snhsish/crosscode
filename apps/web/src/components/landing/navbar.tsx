@@ -1,5 +1,6 @@
 import { Github, Star } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export function Navbar() {
   return (
@@ -9,17 +10,27 @@ export function Navbar() {
           <span className="text-xl font-bold">CrossCode</span>
         </div>
         <nav className="hidden md:flex items-center gap-6">
-          <Link href="/features" className="text-sm font-medium hover:text-foreground/80 transition-colors">
+          <Link href="/features" className="text-sm font-medium hover:text-foreground/80 transition-colors relative group">
             Features
+            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
           </Link>
-          <Link href="/download" className="text-sm font-medium hover:text-foreground/80 transition-colors">
+          <Link href="/pricing" className="text-sm font-medium hover:text-foreground/80 transition-colors relative group">
+            Pricing
+            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+          </Link>
+          <Link href="/download" className="text-sm font-medium hover:text-foreground/80 transition-colors relative group">
             Download
+            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
           </Link>
-          <Link href="/changelog" className="text-sm font-medium hover:text-foreground/80 transition-colors">
+          <Link href="/changelog" className="text-sm font-medium hover:text-foreground/80 transition-colors relative group">
             Changelog
+            <span className="absolute bottom-0 left-0 w-full h-0.5 bg-current scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
           </Link>
         </nav>
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+          <Button size="sm" className="rounded-full" asChild>
+            <Link href="/login">Login</Link>
+          </Button>
           <Link
             href="https://github.com/snhsish/crosscode"
             target="_blank"

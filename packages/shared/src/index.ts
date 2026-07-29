@@ -4,6 +4,22 @@ export type QrPayload = {
   v: number
 }
 
+export type LoginQrPayload = {
+  type: "login"
+  email: string
+  name: string
+  tier: string
+  sessionToken: string
+  v: number
+}
+
+export type ConnectionQrPayload = {
+  type: "connection"
+  url: string
+  token: string
+  v: number
+}
+
 function toBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   let result = ''
@@ -49,4 +65,38 @@ export function decodeQrPayload(encoded: string): QrPayload {
     throw new Error('Invalid QR payload')
   }
   return { url: parsed.url, token: parsed.token, v: parsed.v }
+}
+
+export function encodeLoginQrPayload(payload: LoginQrPayload): string {
+  return toBase64(JSON.stringify({
+    type: payload.type,
+    email: payload.email,
+    name: payload.name,
+    tier: payload.tier,
+    sessionToken: payload.sessionToken,
+    v: payload.v,
+  }))
+}
+
+export function decodeLoginQrPayload(encoded: string): LoginQrPayload {
+  const parsed = JSON.parse(fromBase64(encoded))
+  if (parsed.type !== "login" || typeof parsed.email !== "string" || parsed.v !== 1) {
+    throw new Error('Invalid login QR payload')
+  }
+  return {
+    type: parsed.type,
+    email: parsed.email,
+    name: parsed.name,
+    tier: parsed.tier,
+    sessionToken: parsed.sessionToken,
+    v: parsed.v,
+  }
+}
+
+export function detectQrPayloadType(encoded: string): "login" | "connection" {
+  try {
+    const parsed = JSON.parse(fromBase64(encoded))
+    if (parsed.type === "login") return "login"
+  } catch {}
+  return "connection"
 }

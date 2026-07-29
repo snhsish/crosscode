@@ -1,6 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Terminal } from "lucide-react";
-import Link from "next/link";
+import { Terminal } from "lucide-react";
 import { FlickeringGrid } from "./flickering-grid";
 
 export function CTA() {
@@ -20,7 +18,7 @@ export function CTA() {
               <Terminal className="h-4 w-4" />
               <span>npx crosscode</span>
             </div>
-            <div className="flex items-center gap-3">
+            {/* <div className="flex items-center gap-3">
               <Button variant="secondary" size="lg" asChild>
                 <Link href="/login">Login</Link>
               </Button>
@@ -30,7 +28,7 @@ export function CTA() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </a>
               </Button>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

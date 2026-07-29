@@ -1,11 +1,11 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { GlyphMatrix } from "@/components/ui/glyph-matrix";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
-import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
@@ -16,6 +16,30 @@ export function Hero() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const [email, setEmail] = useState("")
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
+  const [message, setMessage] = useState("")
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setStatus("loading")
+    setMessage("")
+    const res = await fetch("/api/early-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setStatus("success")
+      setMessage("You're on the list!")
+      setEmail("")
+    } else {
+      setStatus("error")
+      setMessage(data.error || "Something went wrong")
+    }
+  }
 
   const glyphColor = mounted && theme === "dark" ? "#9CA3AF" : "#6B7280";
   const gridColor = mounted && theme === "dark" ? "#4B5563" : "#6B7280";
@@ -52,7 +76,23 @@ export function Hero() {
         <p className="mt-6 text-lg md:text-xl text-muted-foreground max-w-2xl">
           CrossCode connects your phone to your PC&apos;s OpenCode instance. Approve tool calls, review diffs, and manage sessions.
         </p>
-        <div className="mt-10 flex flex-col sm:flex-row gap-4">
+        <form onSubmit={handleSubmit} className="mt-8 flex flex-col sm:flex-row gap-3 w-full max-w-md">
+          <Input
+            type="email"
+            placeholder="Enter your email for early access"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="h-11"
+          />
+          <Button type="submit" size="lg" className="rounded-full shrink-0" disabled={status === "loading"}>
+            {status === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : "Get Early Access"}
+          </Button>
+        </form>
+        {message && (
+          <p className={`mt-2 text-sm ${status === "success" ? "text-emerald-500" : "text-red-500"}`}>{message}</p>
+        )}
+        {/* <div className="mt-10 flex flex-col sm:flex-row gap-4">
           <Button size="lg" className="rounded-full" asChild>
             <Link href="/download">
               Get Started
@@ -64,7 +104,7 @@ export function Hero() {
               Login
             </Link>
           </Button>
-        </div>
+        </div> */}
         <div className="mt-16 w-full max-w-5xl flex flex-col lg:flex-row gap-10 items-start justify-center">
           <div className="w-full max-w-lg flex flex-col">
             <div className="rounded-xl border bg-card h-[300px] md:h-[380px] shadow-2xl overflow-hidden flex flex-col">

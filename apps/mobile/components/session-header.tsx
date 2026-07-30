@@ -1,6 +1,6 @@
 import { memo } from "react"
 import { View, Pressable } from "react-native"
-import { ArrowLeftIcon, ChevronDownIcon, CpuIcon } from "lucide-react-native"
+import { ArrowLeftIcon, ListTodoIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
@@ -12,7 +12,6 @@ interface SessionHeaderProps {
     title?: string
     projectName?: string
     projectWorktree?: string
-    selectedModelId?: string
     theme: "light" | "dark"
     paddingTop: number
 }
@@ -23,7 +22,6 @@ function SessionHeaderInner({
     title,
     projectName,
     projectWorktree,
-    selectedModelId,
     theme,
     paddingTop,
 }: SessionHeaderProps) {
@@ -52,16 +50,11 @@ function SessionHeaderInner({
             <Pressable
                 className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-accent/60 active:bg-accent border border-border/50"
                 onPress={() =>
-                    router.push(
-                        `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModelId ?? ""}&currentProviderId=&agent=`
-                    )
+                    router.push(`/project/${projectId}/${sessionId}/tasks`)
                 }
             >
-                <CpuIcon size={13} color={THEME[theme].mutedForeground} />
-                <Text className="text-xs text-muted-foreground max-w-[100px]" numberOfLines={1}>
-                    {selectedModelId ?? "Model"}
-                </Text>
-                <ChevronDownIcon size={12} color={THEME[theme].mutedForeground} />
+                <ListTodoIcon size={13} color={THEME[theme].mutedForeground} />
+                <Text className="text-xs text-muted-foreground">Tasks</Text>
             </Pressable>
         </View>
     )

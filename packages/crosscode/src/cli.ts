@@ -384,7 +384,7 @@ ${chalk.yellow("Examples:")}
         children.push(opencode)
 
         opencode.on("spawn", () => {
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
+            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting SSE proxy...")
             logCrosscode("opencode serve started (PID: " + opencode.pid + ")")
         })
         opencode.on("error", (err) => {
@@ -394,47 +394,132 @@ ${chalk.yellow("Examples:")}
         opencode.stdout?.on("data", d => opencodeLogStream.write(d))
         opencode.stderr?.on("data", d => opencodeLogStream.write(d))
 
-        const cf = spawn("cloudflared", [
-            "tunnel",
-            "--no-autoupdate",
-            "--config", "/dev/null",
-            "--url", `http://127.0.0.1:${port}`
-        ], {
-            stdio: ["ignore", "pipe", "pipe"]
-        })
+        const proxyPort = port + 1
 
-        children.push(cf)
+        /**
+         * SSE Proxy Server
+         * 
+         * Cloudflare tunnels buffer GET requests, which breaks SSE streaming.
+         * POST requests flush in real-time, so we proxy the SSE stream through
+         * a POST endpoint.
+         * 
+         * Flow: Mobile → POST /mobile-event → CLI Proxy → GET /event → opencode
+         */
+        const proxy = http.createServer((req, res) => {
+            const targetUrl = `http://127.0.0.1:${port}${req.url}`
+            const authHeader = req.headers["authorization"]
 
-        cf.on("spawn", () => logCrosscode("cloudflared started (PID: " + cf.pid + ")"))
-        cf.on("error", (err) => logCrosscode("cloudflared error: " + err.message))
-
-        cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
-
-        cf.stderr?.on("data", (data: Buffer) => {
-            const text = data.toString()
-
-            const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/)
-
-            if (m && !tunnelUrl) {
-                tunnelUrl = m[0]
-                spinner.succeed(chalk.green("Tunnel ready"))
-                logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
-
-                const payload = encodeQrPayload({
-                    url: tunnelUrl,
-                    token: sessionToken,
-                    v: 1
+            // SSE streaming endpoint - pipes events from opencode
+            if (req.url === "/mobile-event" && req.method === "POST") {
+                res.writeHead(200, {
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "Access-Control-Allow-Origin": "*",
                 })
 
-                console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+                const sseReq = http.get(`http://127.0.0.1:${port}/event`, {
+                    headers: {
+                        "Accept": "text/event-stream",
+                        "Authorization": authHeader || "",
+                    },
+                }, (sseRes) => {
+                    sseRes.on("data", (chunk) => {
+                        res.write(chunk)
+                    })
+                    sseRes.on("end", () => {
+                        res.end()
+                    })
+                })
 
-                qrcode.generate(payload, { small: true })
+                sseReq.on("error", () => {
+                    res.end()
+                })
 
-                console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                req.on("close", () => {
+                    sseReq.destroy()
+                })
+
+                return
             }
 
-            cloudflaredLogStream.write(data)
+            // CORS preflight
+            if (req.url === "/mobile-event" && req.method === "OPTIONS") {
+                res.writeHead(204, {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                })
+                res.end()
+                return
+            }
+
+            // Proxy all other requests to opencode
+            const proxyReq = http.request(targetUrl, {
+                method: req.method,
+                headers: {
+                    ...req.headers,
+                    host: `127.0.0.1:${port}`,
+                },
+            }, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+                proxyRes.pipe(res)
+            })
+
+            proxyReq.on("error", () => {
+                res.writeHead(502)
+                res.end("Bad Gateway")
+            })
+
+            req.pipe(proxyReq)
+        })
+
+        proxy.listen(proxyPort, "127.0.0.1", () => {
+            logCrosscode(`SSE proxy started on port ${proxyPort}`)
+            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
+
+            const cf = spawn("cloudflared", [
+                "tunnel",
+                "--no-autoupdate",
+                "--config", "/dev/null",
+                "--url", `http://127.0.0.1:${proxyPort}`
+            ], {
+                stdio: ["ignore", "pipe", "pipe"]
+            })
+
+            children.push(cf)
+
+            cf.on("spawn", () => logCrosscode("cloudflared started (PID: " + cf.pid + ")"))
+            cf.on("error", (err) => logCrosscode("cloudflared error: " + err.message))
+
+            cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
+
+            cf.stderr?.on("data", (data: Buffer) => {
+                const text = data.toString()
+
+                const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/)
+
+                if (m && !tunnelUrl) {
+                    tunnelUrl = m[0]
+                    spinner.succeed(chalk.green("Tunnel ready"))
+                    logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
+
+                    const payload = encodeQrPayload({
+                        url: tunnelUrl,
+                        token: sessionToken,
+                        v: 1
+                    })
+
+                    console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+
+                    qrcode.generate(payload, { small: true })
+
+                    console.log(chalk.grey(`URL: ${tunnelUrl}`))
+                    console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                }
+
+                cloudflaredLogStream.write(data)
+            })
         })
     }
 

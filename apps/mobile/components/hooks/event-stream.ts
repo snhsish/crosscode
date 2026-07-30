@@ -1,19 +1,34 @@
+import "fast-text-encoding"
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
-import { getMessages } from "@/lib/messages"
 
-function shallowPartsEqual(a: Part[], b: Part[]): boolean {
-    if (a.length !== b.length) return false
-    for (let i = 0; i < a.length; i++) {
-        if (a[i] !== b[i] && JSON.stringify(a[i]) !== JSON.stringify(b[i])) return false
-    }
-    return true
+/**
+ * SSE Event Stream Hook
+ * 
+ * Connects to the opencode server via POST /mobile-event endpoint.
+ * Uses a CLI proxy to work around Cloudflare tunnel buffering issues.
+ * 
+ * Architecture:
+ * Mobile App → POST /mobile-event → Cloudflare Tunnel → CLI Proxy → GET /event → opencode serve
+ * 
+ * The CLI proxy (running on localhost) opens a GET connection to opencode's /event endpoint
+ * and pipes SSE chunks back through the POST response. POST requests flush in real-time
+ * through Cloudflare tunnels, while GET requests get buffered.
+ */
+
+type SSEEvent = {
+    type: string
+    properties: Record<string, unknown>
+}
+
+type MessagePart = Part & {
+    sessionID?: string
+    messageID?: string
 }
 
 export function useEventStream(url?: string, sessionId?: string, token?: string) {
-    const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const isStreamingRef = useRef(false)
+    const abortRef = useRef<AbortController | null>(null)
 
     useEffect(() => {
         if (!url || !sessionId || !token) return
@@ -25,94 +40,272 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         const setStreaming = useChatStore.getState().setStreaming
         const setActiveMessageId = useChatStore.getState().setActiveMessageId
 
-        async function poll() {
-            try {
-                const raw = await getMessages(baseUrl, tok, sid)
-                if (!raw) return
+        const authHeader = `Basic ${btoa(`opencode:${tok}`)}`
+        const eventUrl = `${baseUrl}/mobile-event`
 
-                const data = raw.length > 0 && "info" in raw[0]
-                    ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
-                    : raw
+        setConnectionStatus("connecting")
 
-                const store = useMessages.getState()
-                const setMessages = useMessages.getState().setMessages
-                const existing = store.getMessagesBySession(sid)
-                const existingMap = new Map(existing.map(m => [m.id, m]))
-                let changed = false
+        const abort = new AbortController()
+        abortRef.current = abort
 
-                for (const msg of data) {
-                    const existingMsg = existingMap.get(msg.id)
-                    if (existingMsg) {
-                        if (existingMsg.parts !== msg.parts && !shallowPartsEqual(existingMsg.parts ?? [], msg.parts ?? [])) {
-                            existingMap.set(msg.id, msg)
-                            changed = true
-                        } else if (
-                            existingMsg.role === "assistant" &&
-                            msg.role === "assistant" &&
-                            existingMsg.time?.completed !== msg.time?.completed
-                        ) {
-                            existingMap.set(msg.id, msg)
-                            changed = true
+        let connected = false
+        let buffer = ""
+        let reconnectAttempts = 0
+        const maxReconnectAttempts = 10
+        const reconnectDelay = 3000
+
+        function handleEvent(event: SSEEvent, currentSessionId: string) {
+            const props = event.properties
+
+            switch (event.type) {
+                case "server.connected":
+                case "server.heartbeat":
+                    break
+
+                case "message.updated": {
+                    const info = props.info as Message | undefined
+                    if (!info || info.sessionID !== currentSessionId) return
+
+                    const store = useMessages.getState()
+                    const existing = store.getMessagesBySession(currentSessionId)
+                    const existingIdx = existing.findIndex(m => m.id === info.id)
+
+                    let updated: Message[]
+                    if (existingIdx >= 0) {
+                        updated = [...existing]
+                        const existingMsg = updated[existingIdx]
+                        updated[existingIdx] = { ...info, parts: existingMsg.parts } as Message
+                    } else {
+                        updated = [...existing, { ...info, parts: [] } as Message]
+                    }
+
+                    const localIds = updated.filter(m => m.id.startsWith("local-")).map(m => m.id)
+                    if (localIds.length > 0 && info.role === "user") {
+                        const hasServerUserMsg = updated.some(m => m.role === "user" && !m.id.startsWith("local-"))
+                        if (hasServerUserMsg) {
+                            updated = updated.filter(m => !m.id.startsWith("local-"))
+                        }
+                    }
+
+                    store.setMessages(currentSessionId, updated)
+
+                    if (info.role === "assistant") {
+                        setActiveMessageId(currentSessionId, info.id)
+                        if (!info.time?.completed) {
+                            setStreaming(currentSessionId, true)
+                        }
+                    }
+                    break
+                }
+
+                case "message.part.updated":
+                case "message.part.delta": {
+                    const part = props.part as MessagePart | undefined
+                    if (!part || !part.messageID || part.sessionID !== currentSessionId) return
+
+                    const isDelta = event.type === "message.part.delta"
+                    const delta = props.delta as string | undefined
+
+                    const store = useMessages.getState()
+                    const existing = store.getMessagesBySession(currentSessionId)
+                    const msgIdx = existing.findIndex(m => m.id === part.messageID)
+
+                    if (msgIdx < 0) return
+
+                    const msg = existing[msgIdx]
+                    const parts = msg.parts ?? []
+                    const partIdx = parts.findIndex(p => p.id === part.id)
+
+                    let newParts: Part[]
+                    if (partIdx >= 0) {
+                        newParts = [...parts]
+                        const existingPart = newParts[partIdx]
+
+                        if (isDelta && delta) {
+                            if (part.type === "text" && existingPart.type === "text") {
+                                newParts[partIdx] = { ...existingPart, text: existingPart.text + delta }
+                            } else if (part.type === "reasoning" && existingPart.type === "reasoning") {
+                                newParts[partIdx] = { ...existingPart, text: existingPart.text + delta }
+                            }
+                        } else {
+                            newParts[partIdx] = part as Part
                         }
                     } else {
-                        existingMap.set(msg.id, msg)
-                        changed = true
+                        newParts = [...parts, part as Part]
                     }
+
+                    const updated = [...existing]
+                    updated[msgIdx] = { ...msg, parts: newParts } as Message
+                    store.setMessages(currentSessionId, updated)
+                    break
                 }
 
-                const localIds: string[] = []
-                for (const [id] of existingMap) {
-                    if (id.startsWith("local-")) localIds.push(id)
+                case "message.part.removed": {
+                    const partId = props.partID as string | undefined
+                    const messageId = props.messageID as string | undefined
+                    if (!partId || !messageId || props.sessionID !== currentSessionId) return
+
+                    const store = useMessages.getState()
+                    const existing = store.getMessagesBySession(currentSessionId)
+                    const msgIdx = existing.findIndex(m => m.id === messageId)
+
+                    if (msgIdx < 0) return
+
+                    const msg = existing[msgIdx]
+                    const parts = (msg.parts ?? []).filter(p => p.id !== partId)
+
+                    const updated = [...existing]
+                    updated[msgIdx] = { ...msg, parts } as Message
+                    store.setMessages(currentSessionId, updated)
+                    break
                 }
-                if (localIds.length > 0) {
-                    const hasServerUserMsg = data.some((m) => m.role === "user")
-                    if (hasServerUserMsg) {
-                        for (const lid of localIds) {
-                            existingMap.delete(lid)
-                            changed = true
-                        }
+
+                case "message.removed": {
+                    const messageId = props.messageID as string | undefined
+                    if (!messageId || props.sessionID !== currentSessionId) return
+
+                    const store = useMessages.getState()
+                    const existing = store.getMessagesBySession(currentSessionId)
+                    const filtered = existing.filter(m => m.id !== messageId)
+                    store.setMessages(currentSessionId, filtered)
+                    break
+                }
+
+                case "session.status": {
+                    if (props.sessionID !== currentSessionId) return
+                    const status = props.status as { type: string } | undefined
+                    if (!status) return
+
+                    if (status.type === "busy") {
+                        setStreaming(currentSessionId, true)
+                    } else if (status.type === "idle") {
+                        setStreaming(currentSessionId, false)
+                        setActiveMessageId(currentSessionId, null)
                     }
+                    break
                 }
 
-                if (changed) {
-                    setMessages(sid, Array.from(existingMap.values()))
+                case "session.idle": {
+                    if (props.sessionID !== currentSessionId) return
+                    setStreaming(currentSessionId, false)
+                    setActiveMessageId(currentSessionId, null)
+                    break
                 }
-
-                let currentlyStreaming = false
-                for (const msg of data) {
-                    if (msg.role === "assistant") {
-                        setActiveMessageId(sid, msg.id)
-                        if (msg.time?.completed) {
-                            setStreaming(sid, false)
-                            setActiveMessageId(sid, null)
-                        } else {
-                            setStreaming(sid, true)
-                            currentlyStreaming = true
-                        }
-                    }
-                }
-
-                isStreamingRef.current = currentlyStreaming
-                scheduleNext()
-            } catch {
-                scheduleNext()
             }
         }
 
-        function scheduleNext() {
-            if (pollRef.current) clearTimeout(pollRef.current)
-            const interval = isStreamingRef.current ? 1000 : 4000
-            pollRef.current = setTimeout(poll, interval)
+        function scheduleReconnect() {
+            if (abort.signal.aborted) return
+            if (reconnectAttempts >= maxReconnectAttempts) {
+                setConnectionStatus("error")
+                return
+            }
+
+            reconnectAttempts++
+            setConnectionStatus("connecting")
+
+            setTimeout(() => {
+                if (!abort.signal.aborted) {
+                    connect()
+                }
+            }, reconnectDelay)
         }
 
-        setConnectionStatus("connected")
-        poll()
+        async function connect() {
+            try {
+                const response = await fetch(eventUrl, {
+                    method: "POST",
+                    headers: {
+                        Authorization: authHeader,
+                        Accept: "text/event-stream",
+                        "Content-Type": "application/json",
+                    },
+                    signal: abort.signal,
+                    body: JSON.stringify({}),
+                })
+
+                if (!response.ok) {
+                    setConnectionStatus("error")
+                    scheduleReconnect()
+                    return
+                }
+
+                const reader = response.body?.getReader()
+                if (!reader) {
+                    setConnectionStatus("error")
+                    scheduleReconnect()
+                    return
+                }
+
+                reconnectAttempts = 0
+                const decoder = new TextDecoder()
+
+                while (true) {
+                    const { done, value } = await reader.read()
+
+                    if (done) break
+
+                    if (!connected) {
+                        connected = true
+                        setConnectionStatus("connected")
+                    }
+
+                    buffer += decoder.decode(value, { stream: true })
+
+                    const events = buffer.split("\n\n")
+                    buffer = events.pop() ?? ""
+
+                    for (const eventBlock of events) {
+                        if (!eventBlock.trim()) continue
+
+                        let dataLines: string[] = []
+
+                        const lines = eventBlock.split("\n")
+                        for (const line of lines) {
+                            const trimmed = line.trim()
+
+                            if (trimmed.startsWith("data:")) {
+                                dataLines.push(trimmed.slice(5).trim())
+                            }
+                        }
+
+                        if (dataLines.length > 0) {
+                            const data = dataLines.join("\n")
+
+                            try {
+                                const parsed = JSON.parse(data)
+                                let sseEvent: SSEEvent
+
+                                if (parsed.payload && parsed.type === undefined) {
+                                    sseEvent = parsed.payload
+                                } else {
+                                    sseEvent = parsed
+                                }
+
+                                handleEvent(sseEvent, sid)
+                            } catch {
+                                // Parse error - skip malformed event
+                            }
+                        }
+                    }
+                }
+
+                scheduleReconnect()
+            } catch (err) {
+                if ((err as Error).name === "AbortError") {
+                    // Expected on cleanup
+                } else {
+                    setConnectionStatus("error")
+                    scheduleReconnect()
+                }
+            }
+        }
+
+        connect()
 
         return () => {
-            if (pollRef.current) {
-                clearTimeout(pollRef.current)
-                pollRef.current = null
-            }
+            abort.abort()
+            abortRef.current = null
             setConnectionStatus("disconnected")
             setStreaming(sid, false)
             setActiveMessageId(sid, null)

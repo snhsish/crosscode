@@ -3,8 +3,17 @@ import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
 import { getMessages } from "@/lib/messages"
 
+function shallowPartsEqual(a: Part[], b: Part[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i] && JSON.stringify(a[i]) !== JSON.stringify(b[i])) return false
+    }
+    return true
+}
+
 export function useEventStream(url?: string, sessionId?: string, token?: string) {
-    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const isStreamingRef = useRef(false)
 
     useEffect(() => {
         if (!url || !sessionId || !token) return
@@ -34,13 +43,14 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                 for (const msg of data) {
                     const existingMsg = existingMap.get(msg.id)
                     if (existingMsg) {
-                        const partsChanged =
-                            JSON.stringify(existingMsg.parts) !== JSON.stringify(msg.parts)
-                        const completedChanged =
+                        if (existingMsg.parts !== msg.parts && !shallowPartsEqual(existingMsg.parts ?? [], msg.parts ?? [])) {
+                            existingMap.set(msg.id, msg)
+                            changed = true
+                        } else if (
                             existingMsg.role === "assistant" &&
                             msg.role === "assistant" &&
                             existingMsg.time?.completed !== msg.time?.completed
-                        if (partsChanged || completedChanged) {
+                        ) {
                             existingMap.set(msg.id, msg)
                             changed = true
                         }
@@ -68,6 +78,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     setMessages(sid, Array.from(existingMap.values()))
                 }
 
+                let currentlyStreaming = false
                 for (const msg of data) {
                     if (msg.role === "assistant") {
                         setActiveMessageId(sid, msg.id)
@@ -76,21 +87,30 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                             setActiveMessageId(sid, null)
                         } else {
                             setStreaming(sid, true)
+                            currentlyStreaming = true
                         }
                     }
                 }
+
+                isStreamingRef.current = currentlyStreaming
+                scheduleNext()
             } catch {
-                // poll error, will retry
+                scheduleNext()
             }
+        }
+
+        function scheduleNext() {
+            if (pollRef.current) clearTimeout(pollRef.current)
+            const interval = isStreamingRef.current ? 1000 : 4000
+            pollRef.current = setTimeout(poll, interval)
         }
 
         setConnectionStatus("connected")
         poll()
-        pollRef.current = setInterval(poll, 2000)
 
         return () => {
             if (pollRef.current) {
-                clearInterval(pollRef.current)
+                clearTimeout(pollRef.current)
                 pollRef.current = null
             }
             setConnectionStatus("disconnected")

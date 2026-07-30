@@ -1,8 +1,9 @@
 import { memo, useCallback } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
-import { CameraIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
+import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { useNavigation, useRouter } from "expo-router"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { Textarea } from "@/components/ui/textarea"
@@ -12,7 +13,6 @@ import { THEME } from "@/lib/theme"
 import { AgentSelectTrigger } from "@/components/agent-mode-select"
 import { VariantSelectTrigger } from "@/components/variant-select"
 import { useRef, useEffect, useState } from "react"
-import { useNavigation } from "expo-router"
 import { BackHandler } from "react-native"
 import { SelectedModel } from "@/store/chat.store"
 
@@ -40,6 +40,7 @@ interface ChatInputProps {
     selectedModelId?: string
     selectedProviderId?: string
     sessionId: string
+    projectId: string
     connectionUrl?: string
     connectionToken?: string
     theme: "light" | "dark"
@@ -59,7 +60,10 @@ function ChatInputInner({
     agents,
     variants,
     currentVariant,
+    selectedModelId,
+    selectedProviderId,
     sessionId,
+    projectId,
     theme,
     modelByAgent,
     onModelSelect,
@@ -70,6 +74,7 @@ function ChatInputInner({
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
+    const router = useRouter()
     const keyboardHeight = useSharedValue(0)
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
@@ -190,6 +195,20 @@ function ChatInputInner({
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
+                            <Pressable
+                                className="flex-row items-center gap-1 h-8 px-2 rounded-md border border-border/50 bg-transparent active:bg-accent"
+                                onPress={() =>
+                                    router.push(
+                                        `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModelId ?? ""}&currentProviderId=${selectedProviderId ?? ""}&agent=${selectedAgent}`
+                                    )
+                                }
+                            >
+                                <CpuIcon size={12} color={THEME[theme].mutedForeground} />
+                                <Text className="text-xs text-muted-foreground max-w-[80px]" numberOfLines={1}>
+                                    {selectedModelId ?? "Model"}
+                                </Text>
+                                <ChevronDownIcon size={11} color={THEME[theme].mutedForeground} />
+                            </Pressable>
                             {variants.length > 0 && (
                                 <Select
                                     defaultValue={{ value: currentVariant ?? variants[0]?.name, label: capitalize(currentVariant ?? variants[0]?.name) }}

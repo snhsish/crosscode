@@ -89,7 +89,7 @@ PC (tunnel-client)                    VPS (tunnel-server)
 ### Request Lifecycle
 
 1. **Mobile App** sends HTTP request to `https://tunnel.sish.work/t/{projectId}/...`
-2. **Nginx** forwards to `tunnel-server` on port 3100 with `proxy_buffering off`
+2. **Caddy** forwards to `tunnel-server` on port 3100 with `flush_interval -1` (no buffering)
 3. **tunnel-server** looks up `projectId` in registry
 4. **tunnel-server** generates `reqId` (UUID), sends `request` message over WS
 5. **tunnel-client** receives message, makes HTTP request to `http://127.0.0.1:4097{path}`
@@ -162,7 +162,7 @@ interface PendingRequest {
 
 ### Network Security
 
-- **TLS termination**: Nginx handles HTTPS/WSS
+- **TLS termination**: Caddy handles HTTPS/WSS with automatic Let's Encrypt
 - **Firewall**: Only ports 22, 80, 443 exposed
 - **Rate limiting**: Not implemented yet (future enhancement)
 

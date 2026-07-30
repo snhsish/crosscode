@@ -2,14 +2,14 @@ import http from "http"
 import { WebSocketServer } from "ws"
 import { handleWebSocket } from "./ws-handler.js"
 import { handleProxy } from "./proxy.js"
-import { deregister } from "./registry.js"
 
 const PORT = parseInt(process.env.PORT || "3100", 10)
+const VERSION = "0.1.0"
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" })
-    res.end(JSON.stringify({ status: "ok" }))
+    res.end(JSON.stringify({ status: "ok", version: VERSION }))
     return
   }
 
@@ -45,5 +45,5 @@ process.on("SIGTERM", shutdown)
 process.on("SIGINT", shutdown)
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`tunnel-server listening on port ${PORT}`)
+  console.log(`tunnel-server v${VERSION} listening on port ${PORT}`)
 })

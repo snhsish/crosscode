@@ -9,7 +9,7 @@ The tunnel service enables paid users to connect their PC to the CrossCode mobil
 ### Architecture
 
 ```
-Mobile App ──HTTPS/SSE──▶ Nginx (443)
+Mobile App ──HTTPS/SSE──▶ Caddy (443)
                               │
                          ┌────┴────┐
                          │  /t/*   │──▶ tunnel-server (3100) ──▶ PostgreSQL
@@ -35,7 +35,7 @@ Mobile App ──HTTPS/SSE──▶ Nginx (443)
 ## Documentation
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** — Protocol design, security model, and data flow
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** — VPS setup, nginx config, DNS, TLS, and deployment
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** — VPS setup, Caddy config, DNS, TLS, and deployment
 - **[DEVELOPMENT.md](./DEVELOPMENT.md)** — Local development, testing, and debugging
 
 ## Quick Start (Users)
@@ -127,10 +127,10 @@ DATABASE_URL=postgresql://... PORT=3100 node dist/index.js
 ## Troubleshooting
 
 **SSE not streaming / buffering**
-- Verify nginx has `proxy_buffering off` and `chunked_transfer_encoding off` on `/t/`
+- Verify Caddy has `flush_interval -1` on the `/t/*` handler
 
 **WebSocket disconnects**
-- Check `proxy_read_timeout 86400s` is set on `/ws` location
+- Caddy handles WebSocket automatically; check tunnel-server logs
 
 **503 "Tunnel not active"**
 - PC client isn't connected. Verify `crosscode` is running.

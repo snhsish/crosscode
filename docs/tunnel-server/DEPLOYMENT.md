@@ -7,6 +7,7 @@ Complete VPS setup guide for the CrossCode tunnel server.
 - A VPS with a public IP (e.g., Hetzner CX22: 2 vCPU, 2GB RAM, 20GB SSD)
 - Ubuntu 22.04+ or Debian 12+
 - Docker + Docker Compose installed
+- Caddy installed (for reverse proxy + automatic TLS)
 - A domain name (e.g., `tunnel.sish.work`) pointed to the VPS IP
 
 ---
@@ -67,109 +68,46 @@ NODE_ENV=production
 
 ---
 
-## 5. Install Nginx + Certbot
+## 5. Configure Caddy
 
-```bash
-sudo apt update
-sudo apt install -y nginx certbot python3-certbot-nginx
-```
+Add this block to your existing Caddyfile (typically at `/etc/caddy/Caddyfile`):
 
----
-
-## 6. Configure Nginx
-
-Create `/etc/nginx/sites-available/tunnel.sish.work`:
-
-```nginx
-server {
-    listen 80;
-    server_name tunnel.sish.work;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/html;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    server_name tunnel.sish.work;
-
-    ssl_certificate     /etc/letsencrypt/live/tunnel.sish.work/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/tunnel.sish.work/privkey.pem;
-
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_prefer_server_ciphers on;
-    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-
+```caddyfile
+tunnel.sish.work {
     # WebSocket endpoint (PC tunnel-client → VPS)
-    location /ws {
-        proxy_pass http://127.0.0.1:3100;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    handle /ws {
+        reverse_proxy localhost:3100
     }
 
     # Public proxy endpoint (Mobile → VPS → PC)
-    # NO BUFFERING — critical for SSE streaming
-    location /t/ {
-        proxy_pass http://127.0.0.1:3100;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 86400s;
-        proxy_send_timeout 86400s;
-        proxy_http_version 1.1;
-        chunked_transfer_encoding off;
-        proxy_set_header Connection '';
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+    # flush_interval -1 disables buffering for SSE streaming
+    handle /t/* {
+        reverse_proxy localhost:3100 {
+            flush_interval -1
+        }
     }
 
     # Health check
-    location /health {
-        proxy_pass http://127.0.0.1:3100;
+    handle /health {
+        reverse_proxy localhost:3100
     }
 }
 ```
 
-Enable the site:
+Reload Caddy:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/tunnel.sish.work /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+sudo systemctl reload caddy
 ```
+
+Caddy will automatically:
+- Obtain a TLS certificate from Let's Encrypt
+- Configure HTTP→HTTPS redirect
+- Handle WebSocket upgrades automatically
 
 ---
 
-## 7. Get TLS Certificate
-
-```bash
-sudo certbot --nginx -d tunnel.sish.work
-```
-
-Certbot will auto-renew via its systemd timer. Verify:
-
-```bash
-sudo certbot renew --dry-run
-```
-
----
-
-## 8. Deploy the Tunnel Server
+## 6. Deploy the Tunnel Server
 
 ### Option A: Automatic Deployment (Recommended)
 
@@ -215,7 +153,7 @@ docker run -d \
 
 ---
 
-## 9. Verify Deployment
+## 7. Verify Deployment
 
 ```bash
 # Check container is running
@@ -231,7 +169,7 @@ docker logs -f crosscode-tunnel
 
 ---
 
-## 10. End-to-End Test
+## 8. End-to-End Test
 
 1. **Start CLI as paid user**:
 
@@ -333,20 +271,20 @@ docker run -d \
 
 **Symptom**: Mobile app receives responses in large chunks instead of streaming
 
-**Solution**: Verify nginx config has `proxy_buffering off` and `chunked_transfer_encoding off` on the `/t/` location.
+**Solution**: Verify Caddy config has `flush_interval -1` on the `/t/*` handler.
 
 ```bash
-sudo nginx -T | grep -A 20 "location /t/"
+sudo cat /etc/caddy/Caddyfile | grep -A 5 "handle /t/"
 ```
 
 ### WebSocket disconnects frequently
 
 **Symptom**: PC client reconnects every few seconds
 
-**Solution**: Check `proxy_read_timeout 86400s` is set on the `/ws` location.
+**Solution**: Caddy handles WebSocket automatically. Check tunnel-server logs:
 
 ```bash
-sudo nginx -T | grep -A 10 "location /ws"
+docker logs crosscode-tunnel
 ```
 
 ### 503 "Tunnel not active"
@@ -445,14 +383,18 @@ GRANT SELECT ON "user" TO tunnel_server;
 
 ### 2. Rate Limiting (Future)
 
-Add nginx rate limiting:
+Caddy supports rate limiting via plugins or via a separate rate limiter in front:
 
-```nginx
-limit_req_zone $binary_remote_addr zone=tunnel:10m rate=100r/s;
-
-location /t/ {
-    limit_req zone=tunnel burst=50 nodelay;
-    # ... rest of config
+```caddyfile
+tunnel.sish.work {
+    # Example with caddy-ratelimit plugin
+    rate_limit 100 50
+    
+    handle /t/* {
+        reverse_proxy localhost:3100 {
+            flush_interval -1
+        }
+    }
 }
 ```
 
@@ -460,11 +402,16 @@ location /t/ {
 
 Restrict access to specific IPs:
 
-```nginx
-location /t/ {
-    allow 1.2.3.4;
-    deny all;
-    # ... rest of config
+```caddyfile
+tunnel.sish.work {
+    @blocked not remote_ip 1.2.3.4
+    respond @blocked 403
+    
+    handle /t/* {
+        reverse_proxy localhost:3100 {
+            flush_interval -1
+        }
+    }
 }
 ```
 
@@ -474,8 +421,8 @@ location /t/ {
 
 - [ ] DNS A record pointing to VPS IP
 - [ ] Docker installed and running
-- [ ] Nginx installed and configured
-- [ ] TLS certificate obtained and auto-renewing
+- [ ] Caddy installed and configured
+- [ ] TLS certificate obtained automatically by Caddy
 - [ ] Firewall configured (ports 22, 80, 443)
 - [ ] `.env` file created with correct `DATABASE_URL`
 - [ ] Container running and healthy

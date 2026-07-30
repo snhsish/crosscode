@@ -51,6 +51,7 @@ export type SessionsStore = {
     sessions: Session[]
     upsertSession: (session: Session) => void
     upsertSessions: (sessions: Session[]) => void
+    removeSession: (id: string) => void
 }
 
 export const useSessions = create<SessionsStore>()(
@@ -80,6 +81,10 @@ export const useSessions = create<SessionsStore>()(
 
                     return { sessions: Array.from(byId.values()) }
                 }),
+            removeSession: (id) =>
+                set((state) => ({
+                    sessions: state.sessions.filter((s) => s.id !== id),
+                })),
         }),
         {
             name: "crosscode-sessions",

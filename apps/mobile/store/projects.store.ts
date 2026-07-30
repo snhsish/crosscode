@@ -7,6 +7,7 @@ export type Project = {
     name: string
     worktree: string
     vcs: string
+    connectionId: string
     time: {
         created: number
         updated: number
@@ -15,23 +16,25 @@ export type Project = {
 
 type ProjectsStore = {
     projects: Project[]
-    currentProjectId: string | null
-    updateProjects: (projects: Project[]) => void
-    setCurrentProjectId: (id: string) => void
+    setProjectForConnection: (connectionId: string, project: Omit<Project, "connectionId">) => void
 }
 
 export const useProjects = create<ProjectsStore>()(
     persist(
         (set) => ({
             projects: [],
-            currentProjectId: null,
 
-            updateProjects: (projects) =>
-                set(() => ({
-                    projects
-                })),
-
-            setCurrentProjectId: (id) => set({ currentProjectId: id }),
+            setProjectForConnection: (connectionId, project) =>
+                set((state) => {
+                    const existing = state.projects.findIndex((p) => p.connectionId === connectionId)
+                    const newProject = { ...project, connectionId }
+                    if (existing >= 0) {
+                        const updated = [...state.projects]
+                        updated[existing] = newProject
+                        return { projects: updated }
+                    }
+                    return { projects: [...state.projects, newProject] }
+                }),
         }),
         {
             name: "crosscode-projects",

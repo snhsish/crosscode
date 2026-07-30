@@ -120,6 +120,11 @@ export default function ModelsPage() {
                             {providerName}
                             {item.family ? ` · ${item.family}` : ""}
                         </Text>
+                        {(item.variants?.length ?? 0) > 0 && (
+                            <Text className="text-xs text-muted-foreground mt-0.5">
+                                {item.variants.length} variants
+                            </Text>
+                        )}
                         <View className="flex-row items-center gap-1 mt-1">
                             {(item.capabilities?.input ?? []).map((cap) => {
                                 const CapIcon = CAPABILITY_ICONS[cap]

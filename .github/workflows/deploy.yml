@@ -63,6 +63,6 @@ jobs:
               --name crosscode-web \
               --restart always \
               -p 3000:3000 \
-              --env-file ~/crosscode/apps/web/.env \
+              --env-file /home/deploy/crosscode/apps/web/.env \
               ghcr.io/${{ github.repository }}/web:latest
             docker image prune -f

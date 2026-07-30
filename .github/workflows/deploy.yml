@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/deploy.yml'
 
 concurrency:
   group: deploy-web

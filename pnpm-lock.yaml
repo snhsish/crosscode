@@ -256,6 +256,9 @@ importers:
       qrcode-terminal:
         specifier: ^0.12.0
         version: 0.12.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
     devDependencies:
       '@crosscode/shared':
         specifier: workspace:^
@@ -269,6 +272,9 @@ importers:
       '@types/qrcode-terminal':
         specifier: ^0.12.2
         version: 0.12.2
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)(yaml@2.9.0)
@@ -284,6 +290,31 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/tunnel-server:
+    dependencies:
+      postgres:
+        specifier: ^3.4.5
+        version: 3.4.9
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
+    devDependencies:
+      '@crosscode/shared':
+        specifier: workspace:^
+        version: link:../shared
+      '@types/node':
+        specifier: ^26.0.0
+        version: 26.0.0
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.1
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.23)(tsx@4.23.1)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
 
 packages:
 
@@ -3757,6 +3788,9 @@ packages:
 
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@types/yargs-parser@21.0.3':
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}
@@ -10664,9 +10698,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89':
     optional: true
@@ -11113,6 +11145,10 @@ snapshots:
   '@types/react@19.2.17':
     dependencies:
       csstype: 3.2.3
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 26.0.0
 
   '@types/yargs-parser@21.0.3': {}
 

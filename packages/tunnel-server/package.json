@@ -1,0 +1,22 @@
+{
+  "name": "@crosscode/tunnel-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --out-dir dist --format esm --clean",
+    "dev": "tsup src/index.ts --out-dir dist --format esm --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "postgres": "^3.4.5",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@crosscode/shared": "workspace:^",
+    "@types/node": "^26.0.0",
+    "@types/ws": "^8.5.13",
+    "tsup": "^8.5.1",
+    "typescript": "^5.4.0"
+  }
+}

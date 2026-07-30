@@ -100,3 +100,17 @@ export function detectQrPayloadType(encoded: string): "login" | "connection" {
   } catch {}
   return "connection"
 }
+
+export type TunnelC2S =
+  | { type: "auth"; apiKey: string; projectId: string }
+  | { type: "pong" }
+  | { type: "response.head"; reqId: string; status: number; headers: Record<string, string> }
+  | { type: "response.chunk"; reqId: string; data: string }
+  | { type: "response.end"; reqId: string }
+  | { type: "response.error"; reqId: string; message: string }
+
+export type TunnelS2C =
+  | { type: "ping" }
+  | { type: "auth.ok"; tunnelUrl: string }
+  | { type: "auth.fail"; reason: string }
+  | { type: "request"; reqId: string; method: string; path: string; headers: Record<string, string>; body?: string }

@@ -4,7 +4,7 @@ import { handleWebSocket } from "./ws-handler.js"
 import { handleProxy } from "./proxy.js"
 
 const PORT = parseInt(process.env.PORT || "3100", 10)
-const VERSION = "0.1.0"
+const VERSION = "0.1.1"
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health" && req.method === "GET") {

@@ -49,7 +49,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to Nest
+      - name: Deploy to server
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -63,6 +63,6 @@ jobs:
               --name crosscode-web \
               --restart always \
               -p 3000:3000 \
-              --env-file /home/deploy/crosscode/apps/web/.env \
+              --env-file ~/crosscode/apps/web/.env \
               ghcr.io/${{ github.repository }}/web:latest
             docker image prune -f

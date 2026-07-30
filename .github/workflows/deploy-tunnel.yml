@@ -61,6 +61,6 @@ jobs:
               --name crosscode-tunnel \
               --restart always \
               -p 3100:3100 \
-              --env-file ~/crosscode/packages/tunnel-server/.env \
+              --env-file /home/deploy/crosscode/packages/tunnel-server/.env \
               ghcr.io/${{ github.repository }}/tunnel-server:latest
             docker image prune -f

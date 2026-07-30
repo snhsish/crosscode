@@ -2,9 +2,18 @@ services:
   web:
     build:
       context: .
-      dockerfile: docker/web/Dockerfile
+      dockerfile: Dockerfile
+    container_name: crosscode-web
+    restart: always
     ports:
       - "3000:3000"
+    env_file:
+      - apps/web/.env
     environment:
       - NODE_ENV=production
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

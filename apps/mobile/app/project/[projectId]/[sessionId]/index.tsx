@@ -73,8 +73,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [isAtBottom, setIsAtBottom] = useState(true)
     const [sending, setSending] = useState(false)
     const [sendError, setSendError] = useState<string | null>(null)
+    const [isLoadingMore, setIsLoadingMore] = useState(false)
+    const [hasMoreMessages, setHasMoreMessages] = useState(true)
 
     const scrollRef = useRef<FlatList<Message>>(null)
+    const MESSAGES_PER_PAGE = 20
 
     const theme = (colorScheme ?? "light") as "light" | "dark"
 
@@ -86,6 +89,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const isStreaming = useChatStore(
         useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
     )
+    const connectionStatus = useChatStore((s) => s.connectionStatus)
     const draft = useChatStore(
         useCallback((s) => s.draftBySession[sessionId!] ?? "", [sessionId])
     )
@@ -161,7 +165,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [initialMessagesLoaded])
 
     const scrollToBottom = useCallback(() => {
-        scrollRef.current?.scrollToEnd({ animated: true })
+        scrollRef.current?.scrollToOffset({ offset: 0, animated: true })
     }, [])
 
     const onScrollToIndexFailed = useCallback(() => {}, [])
@@ -297,23 +301,55 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         if (!connection?.url || !connection?.token) return
         setRefreshing(true)
 
-        const raw = await getMessages(connection.url, connection.token, sessionId!)
+        // Load only the most recent messages initially
+        const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE)
         if (raw) {
             const data =
                 raw.length > 0 && "info" in raw[0]
                     ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
                     : raw
 
-            const existing = getMessagesBySession(sessionId!)
-            const nonLocal = existing.filter((m) => !m.id.startsWith("local-"))
-            const existingIds = new Set(nonLocal.map((m) => m.id))
-            const deduped = data.filter((m) => !existingIds.has(m.id))
-
-            setMessages(sessionId!, [...nonLocal, ...deduped])
+            setMessages(sessionId!, data)
+            
+            // If we got fewer messages than requested, there are no more to load
+            if (data.length < MESSAGES_PER_PAGE) {
+                setHasMoreMessages(false)
+            }
         }
         setRefreshing(false)
         setInitialMessagesLoaded(true)
-    }, [connection, sessionId, getMessagesBySession, setMessages])
+    }, [connection, sessionId, setMessages])
+
+    const loadMoreMessages = useCallback(async () => {
+        if (!connection?.url || !connection?.token || isLoadingMore || !hasMoreMessages) return
+        
+        setIsLoadingMore(true)
+        
+        const existing = getMessagesBySession(sessionId!)
+        const offset = existing.length
+        
+        const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE, offset)
+        if (raw) {
+            const data =
+                raw.length > 0 && "info" in raw[0]
+                    ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
+                    : raw
+
+            if (data.length > 0) {
+                // Prepend older messages
+                setMessages(sessionId!, [...data, ...existing])
+                
+                // If we got fewer messages than requested, there are no more to load
+                if (data.length < MESSAGES_PER_PAGE) {
+                    setHasMoreMessages(false)
+                }
+            } else {
+                setHasMoreMessages(false)
+            }
+        }
+        
+        setIsLoadingMore(false)
+    }, [connection, sessionId, isLoadingMore, hasMoreMessages, getMessagesBySession, setMessages])
 
     useEffect(() => {
         if (session && !isNewSession) getAndSetMessages()
@@ -348,7 +384,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     useEffect(() => {
         if (isAtBottom && messages.length > 0) {
             requestAnimationFrame(() => {
-                scrollRef.current?.scrollToEnd({ animated: false })
+                scrollRef.current?.scrollToOffset({ offset: 0, animated: false })
             })
         }
     }, [messages, isAtBottom])
@@ -356,8 +392,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const handleScroll = useCallback(
         (e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
+            // In inverted list, "bottom" is at offset 0
             const threshold = 200
-            const atBottom = contentOffset.y + layoutMeasurement.height >= contentSize.height - threshold
+            const atBottom = contentOffset.y <= threshold
             setIsAtBottom(atBottom)
         },
         []
@@ -379,6 +416,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     )
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
+
+    const ListHeaderComponent = useMemo(() => {
+        if (!isLoadingMore) return null
+        return (
+            <View className="flex flex-col gap-0 p-4">
+                <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+            </View>
+        )
+    }, [isLoadingMore, theme])
 
     const ListFooterComponent = useMemo(() => {
         if (!isStreaming) return null
@@ -452,15 +498,21 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 title={session?.title}
                 projectName={project?.name}
                 projectWorktree={project?.worktree}
-                selectedModelId={selectedModel?.id}
                 theme={theme}
                 paddingTop={insets.top}
             />
 
+            {connectionStatus === "connecting" && (
+                <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
+                    <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+                    <Text className="text-xs text-muted-foreground">Connecting...</Text>
+                </View>
+            )}
+
             {messages.length > 0 ? (
                 <FlatList
                     ref={scrollRef}
-                    data={messages}
+                    data={[...messages].reverse()}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     onContentSizeChange={scrollToBottomOnLoad}
@@ -471,11 +523,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     className="flex-1 px-4 pt-2"
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
+                    ListHeaderComponent={ListHeaderComponent}
                     ListFooterComponent={ListFooterComponent}
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
                     windowSize={10}
                     initialNumToRender={15}
+                    inverted
+                    onEndReached={loadMoreMessages}
+                    onEndReachedThreshold={0.5}
                 />
             ) : (
                 ListEmptyComponent
@@ -519,6 +575,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 selectedModelId={selectedModel?.id}
                 selectedProviderId={selectedModel?.providerID}
                 sessionId={sessionId!}
+                projectId={projectId!}
                 connectionUrl={connection?.url}
                 connectionToken={connection?.token}
                 theme={theme}

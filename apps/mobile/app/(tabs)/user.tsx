@@ -70,7 +70,7 @@ export default function UserPage() {
           style: "destructive",
           onPress: () => {
             logout()
-            router.replace("/(tabs)/scan")
+            router.replace("/new-connection")
           },
         },
       ]
@@ -114,7 +114,7 @@ export default function UserPage() {
                 <Text className="text-sm text-muted-foreground text-center">
                   Scan a QR code from the terminal to login
                 </Text>
-                <Button onPress={() => router.push("/(tabs)/scan")}>
+                <Button onPress={() => router.push("/new-connection")}>
                   <Text>Scan QR to Login</Text>
                 </Button>
               </View>

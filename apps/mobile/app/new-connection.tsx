@@ -11,7 +11,7 @@ import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { useAuth } from "@/store/auth.store"
 
-export default function ScanQRScreen() {
+export default function NewConnectionScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { colorScheme } = useColorScheme()
@@ -59,9 +59,9 @@ export default function ScanQRScreen() {
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="px-6 pt-8 pb-4">
-        <Text className="text-3xl font-semibold tracking-tight">Scan QR Code</Text>
+        <Text className="text-3xl font-semibold tracking-tight">New Connection</Text>
         <Text className="text-muted-foreground text-sm mt-1">
-          Connect to a remote opencode server
+          Scan a QR code to connect to a remote server
         </Text>
       </View>
 

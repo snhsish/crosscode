@@ -70,7 +70,7 @@ export default function Connect() {
     return (
         <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
             <View className="p-4">
-                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push("/scan")}>
+                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push("/new-connection")}>
                     <XIcon size={25} color={THEME[theme].foreground} />
                 </Button>
             </View>
@@ -135,7 +135,7 @@ export default function Connect() {
 
                 <Button
                     className="mt-5 rounded-full"
-                    onPress={tested?.error ? () => router.push("/scan") : save}
+                    onPress={tested?.error ? () => router.push("/new-connection") : save}
                 >
                     <Text>
                         {tested?.error ? "Scan again" : "Connect to OpenCode"}

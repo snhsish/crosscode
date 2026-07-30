@@ -9,6 +9,8 @@ import MemoMarkdown from "@/components/memo-markdown"
 import { ReasoningBlock } from "@/components/reasoning-block"
 import { TodoBlock, TodoItem } from "@/components/todo-block"
 import { ToolBlock } from "@/components/tool-block"
+import { BashBlock } from "@/components/bash-block"
+import { EditBlock } from "@/components/edit-block"
 import { QuestionBlock } from "@/components/question-block"
 import { QuestionRequest } from "@/store/questions.store"
 
@@ -39,6 +41,8 @@ function extractTodos(result: unknown): TodoItem[] | null {
 interface MessageItemProps {
     message: Message
     theme: "light" | "dark"
+    projectId: string
+    sessionId: string
     pendingQuestions?: QuestionRequest[]
     onQuestionReply?: (requestId: string, answers: string[][]) => void
     onQuestionReject?: (requestId: string) => void
@@ -54,7 +58,7 @@ function getErrorLabel(name?: string): string {
     }
 }
 
-function PartRenderer({ part, index, message, theme, pendingQuestions, onQuestionReply, onQuestionReject }: { part: Part; index: number; message: Message; theme: "light" | "dark"; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void }) {
+function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void }) {
     switch (part.type) {
         case "text":
             return <MemoMarkdown key={part.id ?? index}>{part.text}</MemoMarkdown>
@@ -98,6 +102,67 @@ function PartRenderer({ part, index, message, theme, pendingQuestions, onQuestio
             if (part.toolInvocation.error) {
                 tiDetails.push({ label: "Error", content: part.toolInvocation.error })
             }
+            let bashCommand: string | undefined
+            let bashOutput: string | undefined
+            let bashWorkdir: string | undefined
+            let bashDescription: string | undefined
+            if (part.toolInvocation.toolName === "bash" && part.toolInvocation.args && typeof part.toolInvocation.args === "object") {
+                const args = part.toolInvocation.args as Record<string, unknown>
+                if (typeof args.command === "string") {
+                    bashCommand = args.command
+                }
+                if (typeof args.description === "string") {
+                    bashDescription = args.description
+                }
+                if (typeof args.workdir === "string") {
+                    bashWorkdir = args.workdir
+                }
+            }
+            if (part.toolInvocation.result) {
+                if (typeof part.toolInvocation.result === "string") {
+                    bashOutput = part.toolInvocation.result
+                } else if (typeof part.toolInvocation.result === "object") {
+                    const r = part.toolInvocation.result as Record<string, unknown>
+                    if (typeof r.output === "string") {
+                        bashOutput = r.output
+                    } else if (typeof r.stdout === "string") {
+                        bashOutput = r.stdout
+                    }
+                }
+            }
+            if (bashCommand) {
+                return (
+                    <BashBlock
+                        key={part.id ?? index}
+                        command={bashCommand}
+                        status={part.toolInvocation.state}
+                        output={bashOutput}
+                        workdir={bashWorkdir}
+                        description={bashDescription}
+                        theme={theme}
+                    />
+                )
+            }
+            if (part.toolInvocation.toolName === "edit" && part.toolInvocation.args && typeof part.toolInvocation.args === "object") {
+                const args = part.toolInvocation.args as Record<string, unknown>
+                const filePath = typeof args.filePath === "string" ? args.filePath : undefined
+                const oldString = typeof args.oldString === "string" ? args.oldString : undefined
+                const newString = typeof args.newString === "string" ? args.newString : undefined
+                if (filePath && oldString !== undefined && newString !== undefined) {
+                    return (
+                        <EditBlock
+                            key={part.id ?? index}
+                            filePath={filePath}
+                            oldString={oldString}
+                            newString={newString}
+                            status={part.toolInvocation.state}
+                            theme={theme}
+                            projectId={projectId}
+                            sessionId={sessionId}
+                        />
+                    )
+                }
+            }
             return (
                 <ToolBlock
                     key={part.id ?? index}
@@ -123,6 +188,42 @@ function PartRenderer({ part, index, message, theme, pendingQuestions, onQuestio
                             />
                         )
                     }
+                }
+            }
+            if (part.tool === "bash" && part.state?.input) {
+                const command = part.state.input.command as string | undefined
+                const description = (part.state.input.description as string | undefined) ?? part.state.title
+                const output = part.state.output
+                if (command) {
+                    return (
+                        <BashBlock
+                            key={part.id ?? index}
+                            command={command}
+                            status={part.state.status}
+                            output={output}
+                            description={description}
+                            theme={theme}
+                        />
+                    )
+                }
+            }
+            if (part.tool === "edit" && part.state?.input) {
+                const filePath = part.state.input.filePath as string | undefined
+                const oldString = part.state.input.oldString as string | undefined
+                const newString = part.state.input.newString as string | undefined
+                if (filePath && oldString !== undefined && newString !== undefined) {
+                    return (
+                        <EditBlock
+                            key={part.id ?? index}
+                            filePath={filePath}
+                            oldString={oldString}
+                            newString={newString}
+                            status={part.state.status}
+                            theme={theme}
+                            projectId={projectId}
+                            sessionId={sessionId}
+                        />
+                    )
                 }
             }
             return (
@@ -152,9 +253,9 @@ function PartRenderer({ part, index, message, theme, pendingQuestions, onQuestio
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.pendingQuestions === next.pendingQuestions)
+const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions)
 
-function MessageItemInner({ message, theme, pendingQuestions, onQuestionReply, onQuestionReject }: MessageItemProps) {
+function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject }: MessageItemProps) {
     const hasError = message.role === "assistant" && "error" in message && message.error
 
     const duration =
@@ -188,12 +289,12 @@ function MessageItemInner({ message, theme, pendingQuestions, onQuestionReply, o
                         />
                     )
                 }
-                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} />
+                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} />
             })}
         </View>
     )
 }
 
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
-    return prev.message === next.message && prev.theme === next.theme && prev.pendingQuestions === next.pendingQuestions
+    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions
 })

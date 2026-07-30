@@ -368,12 +368,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             <MessageItem
                 message={item}
                 theme={theme}
+                projectId={projectId}
+                sessionId={sessionId}
                 pendingQuestions={pendingQuestions}
                 onQuestionReply={handleQuestionReply}
                 onQuestionReject={handleQuestionReject}
             />
         ),
-        [theme, pendingQuestions, handleQuestionReply, handleQuestionReject]
+        [theme, projectId, sessionId, pendingQuestions, handleQuestionReply, handleQuestionReject]
     )
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
@@ -467,6 +469,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     keyboardShouldPersistTaps="handled"
                     onScrollBeginDrag={() => Keyboard.dismiss()}
                     className="flex-1 px-4 pt-2"
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
                     ListFooterComponent={ListFooterComponent}
                     removeClippedSubviews

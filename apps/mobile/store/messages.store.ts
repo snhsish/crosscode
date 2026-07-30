@@ -17,7 +17,7 @@ export type Part =
     | { id?: string; sessionID?: string; messageID?: string; type: "text"; text: string }
     | { id?: string; sessionID?: string; messageID?: string; type: "reasoning"; text: string }
     | { id?: string; sessionID?: string; messageID?: string; type: "tool-invocation"; toolInvocation: ToolInvocation }
-    | { id?: string; sessionID?: string; messageID?: string; type: "tool"; tool: string; callID?: string; state?: { status: string } }
+    | { id?: string; sessionID?: string; messageID?: string; type: "tool"; tool: string; callID?: string; state?: { status: string; input?: Record<string, unknown>; output?: string; title?: string; metadata?: Record<string, unknown> } }
     | { id?: string; sessionID?: string; messageID?: string; type: "source-url"; url: string; title?: string }
     | { id?: string; sessionID?: string; messageID?: string; type: "file"; mime: string; url: string; filename?: string }
     | { id?: string; sessionID?: string; messageID?: string; type: "step-start"; snapshot?: string }

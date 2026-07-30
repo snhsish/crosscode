@@ -18,6 +18,7 @@ interface ToolBlockProps {
   name: string
   status: string
   details?: Detail[]
+  command?: string
 }
 
 function formatValue(value: unknown): string {
@@ -29,7 +30,7 @@ function formatValue(value: unknown): string {
   }
 }
 
-export function ToolBlock({ name, status, details }: ToolBlockProps) {
+export function ToolBlock({ name, status, details, command }: ToolBlockProps) {
   const [expanded, setExpanded] = useState(false)
 
   const toggle = () => {
@@ -58,9 +59,16 @@ export function ToolBlock({ name, status, details }: ToolBlockProps) {
           <Text> ({status})</Text>
         </Text>
       </Pressable>
-      {expanded && details && details.length > 0 && (
+      {expanded && (command || (details && details.length > 0)) && (
         <View className="px-2 pb-2 gap-2">
-          {details.map((detail, i) => (
+          {command && (
+            <View className="bg-black/5 dark:bg-white/5 rounded-md px-2 py-1.5 border border-accent/20">
+              <Text className="text-xs text-foreground font-mono leading-relaxed">
+                {command}
+              </Text>
+            </View>
+          )}
+          {details && details.length > 0 && details.map((detail, i) => (
             <View key={i}>
               <Text className="text-xs text-muted-foreground font-medium mb-0.5">
                 {detail.label}

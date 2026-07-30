@@ -12,6 +12,18 @@
         ".next/**",
         "!.next/cache/**",
         "dist/**"
+      ],
+      "env": [
+        "DATABASE_URL",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURE",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "SMTP_FROM",
+        "SMTP_FROM_NAME",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL"
       ]
     },
     "dev": {

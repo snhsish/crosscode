@@ -19,9 +19,9 @@ ENV NODE_ENV=production
 ENV PORT=3100
 
 COPY --from=builder /app/packages/tunnel-server/dist ./dist
-COPY --from=builder /app/packages/tunnel-server/package.json ./package.json
 
-RUN npm install --omit=dev
+RUN echo '{"name":"tunnel-server","type":"module","dependencies":{"postgres":"^3.4.5","ws":"^8.18.0"}}' > package.json && \
+    npm install --omit=dev
 
 EXPOSE 3100
 

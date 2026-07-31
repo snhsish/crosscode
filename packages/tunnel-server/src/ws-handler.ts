@@ -100,12 +100,6 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         return
       }
 
-      if (result.tier === "free") {
-        send(ws, { type: "auth.fail", reason: "Paid tier required" })
-        ws.close(4003, "Paid tier required")
-        return
-      }
-
       authenticated = true
       projectId = projId
       register(projectId, result.userId, ws)

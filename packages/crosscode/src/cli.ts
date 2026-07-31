@@ -71,23 +71,37 @@ function saveConfig(config: Config) {
     writeFileSync(configFile, JSON.stringify(config, null, 2))
 }
 
-const AUTH_API_URL = process.env.CROSSCODE_AUTH_URL || "http://localhost:3000/api/auth"
 const WEB_URL = process.env.CROSSCODE_WEB_URL || "https://crosscode.sish.work"
+const AUTH_API_URL = process.env.CROSSCODE_AUTH_URL || `${WEB_URL}/api/auth`
 
 function promptInput(prompt: string): Promise<string> {
     return new Promise((resolve) => {
         process.stdout.write(prompt)
         process.stdin.resume()
         process.stdin.setEncoding("utf8")
+        process.stdin.setRawMode(true)
 
-        const onData = (data: string) => {
-            const char = data.toString()
-            if (char === "\n" || char === "\r") {
+        let input = ""
+        const onData = (char: string) => {
+            if (char === "\r" || char === "\n") {
+                process.stdin.setRawMode(false)
                 process.stdin.removeListener("data", onData)
                 process.stdin.pause()
                 console.log()
-                resolve(char)
+                resolve(input)
+            } else if (char === "\u0003") {
+                process.stdin.setRawMode(false)
+                process.stdin.removeListener("data", onData)
+                process.stdin.pause()
+                console.log()
+                process.exit(1)
+            } else if (char === "\u007F" || char === "\b") {
+                if (input.length > 0) {
+                    input = input.slice(0, -1)
+                    process.stdout.write("\b \b")
+                }
             } else {
+                input += char
                 process.stdout.write(char)
             }
         }
@@ -116,10 +130,14 @@ async function validateApiKey(apiKey: string): Promise<{ email: string; name: st
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ apiKey }),
         })
-        if (!response.ok) return null
+        if (!response.ok) {
+            console.log(chalk.dim(`\n Server returned ${response.status}`))
+            return null
+        }
         const data = await response.json()
         return { email: data.email, name: data.name, tier: data.tier }
-    } catch {
+    } catch (err) {
+        console.log(chalk.dim(`\n Connection failed: ${err instanceof Error ? err.message : err}`))
         return null
     }
 }
@@ -217,7 +235,7 @@ async function main() {
             console.log(chalk.green(`\n Logged in as ${config.auth.email}`))
             console.log(chalk.dim(` Tier: ${config.auth.tier || "free"}\n`))
         } else {
-            console.log(chalk.dim("\n Not logged in (free tier)\n"))
+            console.log(chalk.dim("\n Not logged in (using cloudflared tunnel)\n"))
         }
         process.exit(0)
     }
@@ -235,22 +253,24 @@ ${chalk.yellow("Commands:")}
   status             Show login status and tier
 
 ${chalk.yellow("Options:")}
-  --ngrok            Use ngrok instead of cloudflared
+  --cloudflared      Use Cloudflare tunnel (default for free tier)
+  --ngrok            Use ngrok tunnel
   --help, -h         Show this help message
 
 ${chalk.yellow("Examples:")}
-  crosscode          Start with free tier (cloudflared)
+  crosscode          Start with CrossCode tunnel (paid) or cloudflared (free)
   crosscode --ngrok  Start with ngrok tunnel
   crosscode login    Authenticate for paid tier features
 
-${chalk.dim("Paid users: automatically uses CrossCode tunnel after login.")}
+${chalk.dim("Default: uses tunnel.sish.work when logged in with a paid tier.")}
 `)
         process.exit(0)
     }
 
     const useNgrok = args.includes("--ngrok")
-    const useTunnel = !!(config.auth?.sessionToken && config.auth.tier !== "free" && !useNgrok)
-    const tunnelProvider = useTunnel ? "tunnel" : (useNgrok ? "ngrok" : "cloudflared")
+    const useCloudflared = args.includes("--cloudflared")
+    const canUseTunnel = !!(config.auth?.sessionToken)
+    const tunnelProvider = useNgrok ? "ngrok" : (useCloudflared ? "cloudflared" : (canUseTunnel ? "tunnel" : "cloudflared"))
     const port = config.port || 4096
 
     let missingDep = false
@@ -270,6 +290,7 @@ ${chalk.dim("Paid users: automatically uses CrossCode tunnel after login.")}
             console.error(chalk.red("[DEPENDENCY ERROR] cloudflared not found. Install cloudflared and try again."))
             console.log(chalk.yellow("Install cloudflared: ") + chalk.underline.blue("https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/"))
             console.log(chalk.dim("Or use ngrok instead: ") + chalk.cyan("crosscode --ngrok"))
+            console.log(chalk.dim("Or login for CrossCode tunnel: ") + chalk.cyan("crosscode login"))
             logCrosscode("Dependency check failed: cloudflared")
             missingDep = true
         }
@@ -277,7 +298,7 @@ ${chalk.dim("Paid users: automatically uses CrossCode tunnel after login.")}
         if (!checkDep("ngrok")) {
             console.error(chalk.red("[DEPENDENCY ERROR] ngrok not found."))
             console.log(chalk.yellow("Install ngrok: ") + chalk.underline.blue("https://ngrok.com/download"))
-            console.log(chalk.dim("Or use cloudflared instead (default): ") + chalk.cyan("crosscode"))
+            console.log(chalk.dim("Or use cloudflared instead: ") + chalk.cyan("crosscode --cloudflared"))
             logCrosscode("Dependency check failed: ngrok")
             missingDep = true
         }

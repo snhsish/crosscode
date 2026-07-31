@@ -18,8 +18,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3100
 
-COPY packages/tunnel-server/dist ./dist
-COPY packages/tunnel-server/package.json ./package.json
+COPY --from=builder /app/packages/tunnel-server/dist ./dist
+COPY --from=builder /app/packages/tunnel-server/package.json ./package.json
 
 RUN npm install --omit=dev
 

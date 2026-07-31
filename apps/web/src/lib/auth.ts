@@ -29,8 +29,15 @@ export const auth = betterAuth({
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
-        console.log(`[Auth] sendVerificationOTP called: email=${email}, type=${type}, otp=${otp}`)
-        await sendOTPEmail(email, otp, "Your OTP code")
+        console.log(`[Auth] sendVerificationOTP START: email=${email}, type=${type}, otp=${otp}`)
+        try {
+          console.log(`[Auth] About to call sendOTPEmail...`)
+          await sendOTPEmail(email, otp, "Your OTP code")
+          console.log(`[Auth] sendOTPEmail completed successfully`)
+        } catch (error) {
+          console.error(`[Auth] sendOTPEmail failed:`, error)
+          throw error
+        }
       },
     }),
   ],

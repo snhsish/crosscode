@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsup src/index.ts --out-dir dist --format esm --clean",
-    "dev": "tsup src/index.ts --out-dir dist --format esm --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "start": "node dist/index.js"
   },
   "dependencies": {

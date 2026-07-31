@@ -2,7 +2,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error"
+type ConnectionStatus = "connected" | "connecting" | "reconnecting" | "connectivity-issues" | "disconnected" | "error"
+
+export type SendRetryState = {
+    attempt: number
+    delaySeconds: number
+    message: string
+    targetSessionId: string
+    selectedAgent: string
+    selectedModel?: { id: string; providerID: string }
+} | null
 
 export type SelectedModel = {
     id: string
@@ -20,6 +29,9 @@ type ChatStore = {
 
     connectionStatus: ConnectionStatus
     setConnectionStatus: (status: ConnectionStatus) => void
+
+    sendRetry: SendRetryState
+    setSendRetry: (state: SendRetryState) => void
 
     activeMessageIdBySession: Record<string, string | null>
     setActiveMessageId: (sessionId: string, messageId: string | null) => void
@@ -63,6 +75,9 @@ export const useChatStore = create<ChatStore>()(
             
             connectionStatus: "disconnected",
             setConnectionStatus: (status) => set({ connectionStatus: status }),
+
+            sendRetry: null,
+            setSendRetry: (state) => set({ sendRetry: state }),
 
             activeMessageIdBySession: {},
             setActiveMessageId: (sessionId, messageId) =>

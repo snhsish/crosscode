@@ -262,7 +262,7 @@ export default function HomeScreen() {
             <Pressable onPress={() => router.push("/notifications")} className="p-2">
               <Bell size={22} color={THEME[theme].mutedForeground} />
             </Pressable>
-            <Pressable onPress={() => router.push("/account")} className="p-2">
+            <Pressable onPress={() => router.push("/user")} className="p-2">
               <User size={22} color={THEME[theme].mutedForeground} />
             </Pressable>
           </View>

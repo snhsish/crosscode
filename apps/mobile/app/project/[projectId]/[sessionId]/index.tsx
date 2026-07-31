@@ -73,6 +73,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [isAtBottom, setIsAtBottom] = useState(true)
     const [sending, setSending] = useState(false)
     const [sendError, setSendError] = useState<{ title: string; hint?: string } | null>(null)
+    const [retryCountdown, setRetryCountdown] = useState(0)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
 
@@ -90,6 +91,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
     )
     const connectionStatus = useChatStore((s) => s.connectionStatus)
+    const sendRetry = useChatStore((s) => s.sendRetry)
+    const setSendRetry = useChatStore((s) => s.setSendRetry)
     const draft = useChatStore(
         useCallback((s) => s.draftBySession[sessionId!] ?? "", [sessionId])
     )
@@ -128,6 +131,25 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (questionPollRef.current) clearTimeout(questionPollRef.current)
         }
     }, [pollQuestions])
+
+    const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    useEffect(() => {
+        if (retryCountdown > 0) {
+            retryTimerRef.current = setInterval(() => {
+                setRetryCountdown((prev) => {
+                    if (prev <= 1) {
+                        if (retryTimerRef.current) clearInterval(retryTimerRef.current)
+                        return 0
+                    }
+                    return prev - 1
+                })
+            }, 1000)
+            return () => {
+                if (retryTimerRef.current) clearInterval(retryTimerRef.current)
+            }
+        }
+    }, [retryCountdown > 0])
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
         if (!connection?.url || !connection?.token) return
@@ -172,6 +194,193 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     useEventStream(connection?.url, isNewSession ? undefined : sessionId, connection?.token)
 
+    const retryAttemptRef = useRef(0)
+    const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const retryDataRef = useRef<{
+        text: string
+        targetSessionId: string
+        localId: string
+        modelId?: string
+        providerId?: string
+    } | null>(null)
+
+    const RETRY_DELAYS = [10, 30, 120, 300, 600]
+
+    const formatRetryTime = (seconds: number): string => {
+        if (seconds < 60) return `${seconds}s`
+        const mins = Math.floor(seconds / 60)
+        const secs = seconds % 60
+        return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+    }
+
+    const attemptSendMessage = useCallback(async (
+        connectionUrl: string,
+        connectionToken: string,
+        targetSessionId: string,
+        text: string,
+        agent: string,
+        modelId?: string,
+        providerId?: string,
+    ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
+        try {
+            const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent }
+            if (modelId && providerId) {
+                body.model = { modelID: modelId, providerID: providerId }
+            }
+            const res = await fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
+                method: "POST",
+                headers: {
+                    "Authorization": `Basic ${btoa(`opencode:${connectionToken}`)}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(body),
+            })
+
+            if (!res.ok) {
+                let errorText = `${res.status} ${res.statusText}`
+                let errorName = "UnknownError"
+                try {
+                    const errorBody = await res.json()
+                    if (errorBody.error) {
+                        errorText = errorBody.error
+                        errorName = errorBody.name || "UnknownError"
+                    } else if (errorBody.message) {
+                        errorText = errorBody.message
+                        errorName = errorBody.name || "UnknownError"
+                    }
+                } catch {}
+
+                const retryable = res.status >= 500 || errorName === "APIError"
+                return { ok: false, retryable, errorText, errorName, status: res.status }
+            }
+
+            return { ok: true, retryable: false }
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to send message"
+            return { ok: false, retryable: true, errorText: message, errorName: "NetworkError" }
+        }
+    }, [])
+
+    const finalizeSendError = useCallback((
+        targetSessionId: string,
+        localId: string,
+        text: string,
+        errorName: string,
+        errorText: string,
+        status?: number,
+        modelId?: string,
+        providerId?: string,
+    ) => {
+        const now = Date.now()
+        const existing = getMessagesBySession(targetSessionId)
+        setMessages(targetSessionId, existing.filter((m) => m.id !== localId))
+        setDraft(targetSessionId, text)
+
+        const errorMsg: Message = {
+            id: `error-${now}`,
+            sessionID: targetSessionId,
+            role: "assistant",
+            time: { created: now, completed: now },
+            parentID: localId,
+            modelID: modelId ?? "...",
+            providerID: providerId ?? "...",
+            mode: selectedAgent,
+            path: { cwd: "", root: "" },
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            error: { name: errorName as any, data: { message: errorText } } as any,
+            parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
+        }
+        upsertMessages(targetSessionId, [errorMsg])
+
+        let title = "Failed to send message"
+        let hint: string | undefined
+        if (errorName === "ProviderAuthError") {
+            title = "Authentication Error"
+            hint = "Check your API key or provider credentials"
+        } else if (errorName === "APIError" || (status && status >= 500)) {
+            title = "API Error"
+            hint = "Try switching to a different model"
+        } else if (errorName === "MessageOutputLengthError") {
+            title = "Output Too Long"
+            hint = "Try a shorter prompt or split your request"
+        } else if (errorName === "MessageAbortedError") {
+            title = "Request Aborted"
+        } else if (status === 429) {
+            title = "Rate Limited"
+            hint = "Too many requests, please wait a moment"
+        } else if (status === 404) {
+            title = "Not Found"
+            hint = "The endpoint or session may not exist"
+        } else if (errorName === "NetworkError") {
+            title = "Connection Failed"
+            hint = "Check your internet connection and try again"
+        }
+        setSendError({ title, hint })
+    }, [getMessagesBySession, setMessages, setDraft, upsertMessages, selectedAgent])
+
+    const scheduleRetry = useCallback((attempt: number) => {
+        const data = retryDataRef.current
+        if (!data || !connection?.url || !connection?.token) return
+        if (attempt >= RETRY_DELAYS.length) {
+            finalizeSendError(
+                data.targetSessionId, data.localId, data.text,
+                "NetworkError", "Failed after multiple retry attempts",
+                undefined, data.modelId, data.providerId,
+            )
+            setSending(false)
+            setSendRetry(null)
+            retryDataRef.current = null
+            retryAttemptRef.current = 0
+            return
+        }
+
+        const delaySec = RETRY_DELAYS[attempt]
+        setRetryCountdown(delaySec)
+        setSendRetry({
+            attempt: attempt + 1,
+            delaySeconds: delaySec,
+            message: data.text,
+            targetSessionId: data.targetSessionId,
+            selectedAgent,
+            selectedModel: data.modelId && data.providerId
+                ? { id: data.modelId, providerID: data.providerId }
+                : undefined,
+        })
+
+        retryTimeoutRef.current = setTimeout(async () => {
+            if (!connection?.url || !connection?.token) return
+            const result = await attemptSendMessage(
+                connection.url, connection.token, data.targetSessionId,
+                data.text, selectedAgent, data.modelId, data.providerId,
+            )
+
+            if (result.ok) {
+                setSending(false)
+                setSendRetry(null)
+                setRetryCountdown(0)
+                retryDataRef.current = null
+                retryAttemptRef.current = 0
+                return
+            }
+
+            if (result.retryable) {
+                scheduleRetry(attempt + 1)
+            } else {
+                finalizeSendError(
+                    data.targetSessionId, data.localId, data.text,
+                    result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
+                    result.status, data.modelId, data.providerId,
+                )
+                setSending(false)
+                setSendRetry(null)
+                setRetryCountdown(0)
+                retryDataRef.current = null
+                retryAttemptRef.current = 0
+            }
+        }, delaySec * 1000)
+    }, [connection, selectedAgent, attemptSendMessage, finalizeSendError, setSendRetry])
+
     const sendMessage = useCallback(async () => {
         if (!connection?.url || sending) return
 
@@ -201,6 +410,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         clearDraft(targetSessionId)
         setSending(true)
         setSendError(null)
+        setRetryCountdown(0)
 
         const localId = `local-${now}`
 
@@ -216,117 +426,35 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         upsertMessages(targetSessionId, [userMsg])
 
-        try {
-            const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent: selectedAgent }
-            if (modelId && providerId) {
-                body.model = { modelID: modelId, providerID: providerId }
-            }
-            const res = await fetch(`${connection.url}/session/${targetSessionId}/message`, {
-                method: "POST",
-                headers: {
-                    "Authorization": `Basic ${btoa(`opencode:${connection.token}`)}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(body),
-            })
+        const result = await attemptSendMessage(
+            connection.url, connection.token, targetSessionId,
+            text, selectedAgent, modelId, providerId,
+        )
 
-            if (!res.ok) {
-                let errorText = `${res.status} ${res.statusText}`
-                let errorName = "UnknownError"
-                try {
-                    const errorBody = await res.json()
-                    if (errorBody.error) {
-                        errorText = errorBody.error
-                        errorName = errorBody.name || "UnknownError"
-                    } else if (errorBody.message) {
-                        errorText = errorBody.message
-                        errorName = errorBody.name || "UnknownError"
-                    }
-                } catch {}
+        if (result.ok) {
+            setSending(false)
+            return
+        }
 
-                const existing = getMessagesBySession(targetSessionId)
-                setMessages(targetSessionId, existing.filter((m) => m.id !== localId))
-                setDraft(targetSessionId, text)
-
-                const errorMsg: Message = {
-                    id: `error-${now}`,
-                    sessionID: targetSessionId,
-                    role: "assistant",
-                    time: { created: now, completed: now },
-                    parentID: localId,
-                    modelID: modelId ?? "...",
-                    providerID: providerId ?? "...",
-                    mode: selectedAgent,
-                    path: { cwd: "", root: "" },
-                    cost: 0,
-                    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                    error: { name: errorName as any, data: { message: errorText } } as any,
-                    parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
-                }
-                upsertMessages(targetSessionId, [errorMsg])
-
-                let title = "Failed to send message"
-                let hint: string | undefined
-                if (errorName === "ProviderAuthError") {
-                    title = "Authentication Error"
-                    hint = "Check your API key or provider credentials"
-                } else if (errorName === "APIError" || res.status >= 500) {
-                    title = "API Error"
-                    hint = "Try switching to a different model"
-                } else if (errorName === "MessageOutputLengthError") {
-                    title = "Output Too Long"
-                    hint = "Try a shorter prompt or split your request"
-                } else if (errorName === "MessageAbortedError") {
-                    title = "Request Aborted"
-                } else if (res.status === 429) {
-                    title = "Rate Limited"
-                    hint = "Too many requests, please wait a moment"
-                } else if (res.status === 404) {
-                    title = "Not Found"
-                    hint = "The endpoint or session may not exist"
-                }
-                setSendError({ title, hint })
-                return
-            }
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : "Failed to send message"
-
-            const existing = getMessagesBySession(targetSessionId)
-            setMessages(targetSessionId, existing.filter((m) => m.id !== localId))
-            setDraft(targetSessionId, text)
-
-            let title = "Network Error"
-            let hint: string | undefined
-            if (message.includes("Network request failed") || message.includes("timeout")) {
-                title = "Connection Failed"
-                hint = "Check your internet connection and try again"
-            } else if (message.includes("Aborted")) {
-                title = "Request Cancelled"
-            } else {
-                hint = message
-            }
-
-            const errorMsg: Message = {
-                id: `error-${now}`,
-                sessionID: targetSessionId,
-                role: "assistant",
-                time: { created: now, completed: now },
-                parentID: localId,
-                modelID: modelId ?? "...",
-                providerID: providerId ?? "...",
-                mode: selectedAgent,
-                path: { cwd: "", root: "" },
-                cost: 0,
-                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                error: { name: "NetworkError", data: { message } },
-                parts: [{ type: "text", text: `Failed to send message: ${message}` }],
-            }
-            upsertMessages(targetSessionId, [errorMsg])
-            setSendError({ title, hint })
-        } finally {
+        if (result.retryable) {
+            retryDataRef.current = { text, targetSessionId, localId, modelId, providerId }
+            retryAttemptRef.current = 0
+            scheduleRetry(0)
+        } else {
+            finalizeSendError(
+                targetSessionId, localId, text,
+                result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
+                result.status, modelId, providerId,
+            )
             setSending(false)
         }
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, isNewSession, project, upsertSession, router, projectId, clearDraft, upsertMessages, getMessagesBySession, setMessages, setDraft])
+    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, isNewSession, project, upsertSession, router, projectId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, scheduleRetry])
+
+    useEffect(() => {
+        return () => {
+            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
+        }
+    }, [])
 
     const getAndSetMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
@@ -527,10 +655,16 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 paddingTop={insets.top}
             />
 
-            {connectionStatus === "connecting" && (
+            {(connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "connectivity-issues") && (
                 <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
                     <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
-                    <Text className="text-xs text-muted-foreground">Connecting...</Text>
+                    <Text className="text-xs text-muted-foreground">
+                        {connectionStatus === "connecting"
+                            ? "Connecting..."
+                            : connectionStatus === "reconnecting"
+                                ? "Reconnecting..."
+                                : "Connectivity issues, retrying..."}
+                    </Text>
                 </View>
             )}
 
@@ -575,6 +709,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             {isStreaming && (
                 <View className="px-4 py-2">
                     <TypingDots />
+                </View>
+            )}
+
+            {retryCountdown > 0 && (
+                <View className="px-4 pb-2">
+                    <View className="flex-row items-center gap-2 p-3 rounded-xl bg-accent/50 border border-accent">
+                        <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+                        <Text className="text-xs text-muted-foreground">
+                            Retrying in {formatRetryTime(retryCountdown)}...
+                        </Text>
+                    </View>
                 </View>
             )}
 

@@ -52,7 +52,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         let buffer = ""
         let reconnectAttempts = 0
         const maxReconnectAttempts = 10
-        const reconnectDelay = 3000
+        const reconnectDelays = [3000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]
 
         function handleEvent(event: SSEEvent, currentSessionId: string) {
             const props = event.properties
@@ -202,13 +202,19 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
             }
 
             reconnectAttempts++
-            setConnectionStatus("connecting")
+            const delay = reconnectDelays[Math.min(reconnectAttempts - 1, reconnectDelays.length - 1)]
+
+            if (reconnectAttempts <= 2) {
+                setConnectionStatus("reconnecting")
+            } else {
+                setConnectionStatus("connectivity-issues")
+            }
 
             setTimeout(() => {
                 if (!abort.signal.aborted) {
                     connect()
                 }
-            }, reconnectDelay)
+            }, delay)
         }
 
         async function connect() {

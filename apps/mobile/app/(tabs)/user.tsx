@@ -2,9 +2,8 @@ import { View, ScrollView, Switch, AppState, Linking, Alert, TouchableOpacity } 
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon } from "lucide-react-native"
+import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon, Bell, Mail } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -14,7 +13,7 @@ import { useConnections } from "@/store/connection.store"
 import { useAuth } from "@/store/auth.store"
 import React from "react"
 
-const SUPPORT_EMAIL = "support@crosscode.app"
+const SUPPORT_EMAIL = "crosscode@sish.work"
 
 export default function UserPage() {
   const insets = useSafeAreaInsets()
@@ -31,9 +30,6 @@ export default function UserPage() {
   const emailForUpdates = useSettings((s) => s.emailForUpdates)
   const setEmailForUpdates = useSettings((s) => s.setEmailForUpdates)
 
-  const [emailInput, setEmailInput] = React.useState(emailForUpdates)
-  const [emailSaved, setEmailSaved] = React.useState(false)
-
   const setCurrent = useConnections((s) => s.setCurrent)
 
   React.useEffect(() => {
@@ -47,17 +43,6 @@ export default function UserPage() {
 
     return () => subscription.remove()
   }, [clearLastRemoteUrlOnClose])
-
-  const handleSaveEmail = () => {
-    const trimmed = emailInput.trim()
-    if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      Alert.alert("Invalid email", "Please enter a valid email address.")
-      return
-    }
-    setEmailForUpdates(trimmed)
-    setEmailSaved(true)
-    setTimeout(() => setEmailSaved(false), 2000)
-  }
 
   const handleLogout = () => {
     Alert.alert(
@@ -154,36 +139,16 @@ export default function UserPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Session</CardTitle>
-            <CardDescription>Remote connection preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <View className="flex-row items-center justify-between py-2">
-              <View className="flex-1 mr-4">
-                <Text className="text-sm">Clear last remote session URL after closing app</Text>
-                <Text className="text-xs text-muted-foreground mt-1">
-                  Removes the stored connection URL when the app goes to background
-                </Text>
-              </View>
-              <Switch
-                value={clearLastRemoteUrlOnClose}
-                onValueChange={setClearLastRemoteUrlOnClose}
-                trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
-                thumbColor={THEME[theme].foreground}
-              />
-            </View>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Notifications</CardTitle>
             <CardDescription>Manage app notification preferences</CardDescription>
           </CardHeader>
           <CardContent>
             <View className="flex-row items-center justify-between py-2">
               <View className="flex-1 mr-4">
-                <Text className="text-sm">Enable notifications</Text>
+                <View className="flex-row items-center gap-2">
+                  <Bell size={18} color={THEME[theme].foreground} />
+                  <Text className="text-sm">Enable notifications</Text>
+                </View>
                 <Text className="text-xs text-muted-foreground mt-1">
                   Receive alerts for connection status and session activity
                 </Text>
@@ -204,19 +169,22 @@ export default function UserPage() {
             <CardDescription>Stay informed about new features and improvements</CardDescription>
           </CardHeader>
           <CardContent>
-            <View className="flex-row items-center gap-2">
-              <Input
-                className="flex-1"
-                placeholder="your@email.com"
-                placeholderTextColor={THEME[theme].mutedForeground}
-                value={emailInput}
-                onChangeText={setEmailInput}
-                autoCapitalize="none"
-                keyboardType="email-address"
+            <View className="flex-row items-center justify-between py-2">
+              <View className="flex-1 mr-4">
+                <View className="flex-row items-center gap-2">
+                  <Mail size={18} color={THEME[theme].foreground} />
+                  <Text className="text-sm">Receive product updates</Text>
+                </View>
+                <Text className="text-xs text-muted-foreground mt-1">
+                  {isLoggedIn && user?.email ? `Updates sent to ${user.email}` : "Login to receive updates"}
+                </Text>
+              </View>
+              <Switch
+                value={emailForUpdates === (user?.email ?? "")}
+                onValueChange={(value) => setEmailForUpdates(value ? (user?.email ?? "") : "")}
+                trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
+                thumbColor={THEME[theme].foreground}
               />
-              <Button size="sm" onPress={handleSaveEmail} disabled={emailSaved}>
-                <Text>{emailSaved ? "Saved" : "Save"}</Text>
-              </Button>
             </View>
           </CardContent>
         </Card>
@@ -256,21 +224,21 @@ export default function UserPage() {
 
             <View className="flex-row items-center justify-between">
               <Text className="text-sm">Privacy Policy</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.app/privacy")}>
+              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/privacy")}>
                 <ExternalLink size={16} color={THEME[theme].mutedForeground} />
               </Button>
             </View>
 
             <View className="flex-row items-center justify-between">
               <Text className="text-sm">Terms of Use</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.app/terms")}>
+              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/terms")}>
                 <ExternalLink size={16} color={THEME[theme].mutedForeground} />
               </Button>
             </View>
 
             <View className="flex-row items-center justify-between">
               <Text className="text-sm">Support</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.app/support")}>
+              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/support")}>
                 <ExternalLink size={16} color={THEME[theme].mutedForeground} />
               </Button>
             </View>

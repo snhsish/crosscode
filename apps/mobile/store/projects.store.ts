@@ -6,6 +6,7 @@ export type Project = {
     id: string
     name: string
     worktree: string
+    directory: string
     vcs: string
     connectionId: string
     time: {

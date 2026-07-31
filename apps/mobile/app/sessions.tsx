@@ -154,7 +154,7 @@ export default function SessionsScreen() {
   const fetchSessions = React.useCallback(async () => {
     if (!connection?.url || !connection?.token || !project) return
     setLoading(true)
-    const data = await getSessionsByProjectDir(connection.url, connection.token, project.worktree)
+    const data = await getSessionsByProjectDir(connection.url, connection.token, project.directory)
     if (data) {
       upsertSessions(data)
     }
@@ -218,7 +218,7 @@ export default function SessionsScreen() {
           <View className="flex-1">
             <Text className="text-lg font-semibold tracking-tight">Sessions</Text>
             <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-              {project?.name ?? project?.worktree ?? "No project"}
+              {project?.name ?? project?.directory ?? "No project"}
             </Text>
           </View>
         </View>

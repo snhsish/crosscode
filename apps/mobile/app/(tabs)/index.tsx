@@ -8,7 +8,7 @@ import { Dialog, DialogHeader, DialogFooter } from "@/components/ui/dialog"
 import { useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
-import { cn, formatWorktree } from "@/lib/utils"
+import { cn, formatDirectory } from "@/lib/utils"
 import { getCurrentProject } from "@/lib/projects"
 import { AlertTriangle, ArrowUpDown, Bell, Filter, Pencil, Plus, Search, Server, Trash2, User, Wifi, WifiOff, X } from "lucide-react-native"
 import { THEME } from "@/lib/theme"
@@ -28,7 +28,7 @@ function ConnectionItem({
 }: {
   connection: { id: string; name: string; url: string }
   isActive: boolean
-  project?: { worktree: string }
+  project?: { directory: string }
   onPress: () => void
   onRename: () => void
   onDelete: () => void
@@ -83,7 +83,7 @@ function ConnectionItem({
           </Text>
           {project && (
             <Text className="text-xs text-muted-foreground/70 mt-0.5" numberOfLines={1}>
-              {formatWorktree(project.worktree)}
+              {formatDirectory(project.directory)}
             </Text>
           )}
         </View>
@@ -117,7 +117,7 @@ function ConnectionItem({
                 </Text>
                 {project && (
                   <Text className="text-xs text-muted-foreground/70" numberOfLines={1}>
-                    {formatWorktree(project.worktree)}
+                    {formatDirectory(project.directory)}
                   </Text>
                 )}
                 {isActive && (

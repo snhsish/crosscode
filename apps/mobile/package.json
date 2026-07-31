@@ -1,6 +1,6 @@
 {
   "name": "@crosscode/mobile",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
     "@crosscode/shared": "workspace:^",

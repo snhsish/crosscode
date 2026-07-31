@@ -186,8 +186,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         let targetSession = session
 
         if (isNewSession) {
-            if (!project?.worktree) return
-            const newSession = await createSession(connection.url, connection.token, project.worktree)
+            if (!project?.directory) return
+            const newSession = await createSession(connection.url, connection.token, project.directory)
             if (!newSession) {
                 setSendError("Failed to create session")
                 return
@@ -500,7 +500,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 sessionId={sessionId!}
                 title={session?.title}
                 projectName={project?.name}
-                projectWorktree={project?.worktree}
+                projectDirectory={project?.directory}
                 theme={theme}
                 paddingTop={insets.top}
             />

@@ -11,7 +11,7 @@ interface SessionHeaderProps {
     sessionId: string
     title?: string
     projectName?: string
-    projectWorktree?: string
+    projectDirectory?: string
     theme: "light" | "dark"
     paddingTop: number
 }
@@ -21,7 +21,7 @@ function SessionHeaderInner({
     sessionId,
     title,
     projectName,
-    projectWorktree,
+    projectDirectory,
     theme,
     paddingTop,
 }: SessionHeaderProps) {
@@ -43,7 +43,7 @@ function SessionHeaderInner({
                     {displayTitle}
                 </Text>
                 <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
-                    {projectName ?? projectWorktree}
+                    {projectName ?? projectDirectory}
                 </Text>
             </View>
 

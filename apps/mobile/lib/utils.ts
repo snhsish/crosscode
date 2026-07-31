@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatWorktree(path: string | undefined | null): string {
+export function formatDirectory(path: string | undefined | null): string {
    if (!path) return ""
    const cleaned = path.replace(/\/+$/, '')
   const parts = cleaned.split('/').filter(Boolean)

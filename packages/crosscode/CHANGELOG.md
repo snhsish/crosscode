@@ -1,5 +1,15 @@
 # crosscode
 
+## 0.2.0
+
+### Minor Changes
+
+- 02e7aed: custom tunnel fixes
+
+### Patch Changes
+
+- fix opencode spawning
+
 ## 0.2.0-beta.1
 
 ### Minor Changes

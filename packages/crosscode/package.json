@@ -8,7 +8,7 @@
   "bin": {
     "crosscode": "./dist/cli.js"
   },
-  "version": "0.2.0-beta.1",
+  "version": "0.2.0",
   "description": "An OpenCode Remote Client CLI",
   "main": "./dist/index.js",
   "scripts": {

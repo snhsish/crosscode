@@ -322,6 +322,7 @@ ${chalk.dim("Default: uses tunnel.sish.work when logged in with a paid tier.")}
         logCrosscode("Session token generated")
 
         const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+            cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
         })
@@ -474,6 +475,7 @@ ${chalk.dim("Default: uses tunnel.sish.work when logged in with a paid tier.")}
         logCrosscode("Session token generated")
 
         const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+            cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
         })
@@ -547,6 +549,7 @@ ${chalk.dim("Default: uses tunnel.sish.work when logged in with a paid tier.")}
         logCrosscode("Session token generated")
 
         const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+            cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
         })

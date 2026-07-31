@@ -336,8 +336,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     : raw
 
             if (data.length > 0) {
-                // Prepend older messages
-                setMessages(sessionId!, [...data, ...existing])
+                const map = new Map<string, Message>()
+                for (const m of [...data, ...existing]) {
+                    map.set(m.id, m)
+                }
+                setMessages(sessionId!, Array.from(map.values()))
                 
                 // If we got fewer messages than requested, there are no more to load
                 if (data.length < MESSAGES_PER_PAGE) {

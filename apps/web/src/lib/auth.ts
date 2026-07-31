@@ -29,6 +29,7 @@ export const auth = betterAuth({
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
+        console.log(`[Auth] sendVerificationOTP called: email=${email}, type=${type}, otp=${otp}`)
         await sendOTPEmail(email, otp, "Your OTP code")
       },
     }),

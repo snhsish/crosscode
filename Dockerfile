@@ -19,6 +19,10 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 WORKDIR /app
 
+# Build args for public env vars (read at build time by Next.js)
+ARG NEXT_PUBLIC_BETTER_AUTH_URL=http://localhost:3000
+ARG BETTER_AUTH_URL=http://localhost:3000
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
@@ -28,6 +32,8 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_BETTER_AUTH_URL=$NEXT_PUBLIC_BETTER_AUTH_URL
+ENV BETTER_AUTH_URL=$BETTER_AUTH_URL
 
 # Build Next.js app
 RUN pnpm --filter @crosscode/web build

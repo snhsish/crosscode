@@ -7,12 +7,41 @@ import { sendOTPEmail } from "./email"
 
 console.log("[Auth] Module loaded, DATABASE_URL:", process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@"))
 
-// Test database connectivity
-client`SELECT 1`.then(() => {
-  console.log("[Auth] Database connection OK")
-}).catch((err: Error) => {
-  console.error("[Auth] Database connection FAILED:", err.message)
-})
+// Test database connectivity and check if verification table exists
+async function checkDatabase() {
+  try {
+    await client`SELECT 1`
+    console.log("[Auth] Database connection OK")
+    
+    // Check if verification table exists
+    const tables = await client`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name = 'verification'
+    `
+    
+    if (tables.length === 0) {
+      console.log("[Auth] Creating verification table...")
+      await client`
+        CREATE TABLE IF NOT EXISTS verification (
+          id TEXT PRIMARY KEY,
+          identifier TEXT NOT NULL,
+          value TEXT NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `
+      console.log("[Auth] Verification table created")
+    } else {
+      console.log("[Auth] Verification table exists")
+    }
+  } catch (err: any) {
+    console.error("[Auth] Database check failed:", err.message)
+  }
+}
+
+checkDatabase()
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

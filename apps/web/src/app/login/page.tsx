@@ -24,7 +24,7 @@ export default function LoginPage() {
     try {
       const { error } = await authClient.emailOtp.sendVerificationOtp({
         email,
-        type: "email-verification",
+        type: "sign-in",
       })
 
       if (error) {
@@ -45,7 +45,7 @@ export default function LoginPage() {
     setError("")
 
     try {
-      const { error } = await authClient.emailOtp.verifyEmail({
+      const { error } = await authClient.signIn.emailOtp({
         email,
         otp,
       })

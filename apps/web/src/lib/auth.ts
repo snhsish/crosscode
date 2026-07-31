@@ -7,13 +7,11 @@ import { sendOTPEmail } from "./email"
 
 console.log("[Auth] Module loaded, DATABASE_URL:", process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@"))
 
-// Test database connectivity and check if verification table exists
 async function checkDatabase() {
   try {
     await client`SELECT 1`
     console.log("[Auth] Database connection OK")
     
-    // Check if verification table exists
     const tables = await client`
       SELECT table_name 
       FROM information_schema.tables 
@@ -67,15 +65,8 @@ export const auth = betterAuth({
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
-        console.log(`[Auth] sendVerificationOTP START: email=${email}, type=${type}, otp=${otp}`)
-        try {
-          console.log(`[Auth] About to call sendOTPEmail...`)
-          await sendOTPEmail(email, otp, "Your OTP code")
-          console.log(`[Auth] sendOTPEmail completed successfully`)
-        } catch (error) {
-          console.error(`[Auth] sendOTPEmail failed:`, error)
-          throw error
-        }
+        console.log(`[Auth] Sending OTP: email=${email}, type=${type}`)
+        await sendOTPEmail(email, otp, type === "sign-in" ? "Your sign-in code" : "Your OTP code")
       },
     }),
   ],

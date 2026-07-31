@@ -1,36 +1,27 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 ENV PNPM_HOME=/usr/local/bin
 WORKDIR /app
 
-FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/tunnel-server/package.json ./packages/tunnel-server/
 COPY packages/shared/package.json ./packages/shared/
 RUN pnpm install --frozen-lockfile
 
-FROM base AS builder
-WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/tunnel-server/node_modules ./packages/tunnel-server/node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
-
 COPY . .
-
 RUN pnpm --filter @crosscode/tunnel-server build
 
-FROM base AS runner
-WORKDIR /app
+FROM node:20-alpine AS runner
 
+WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3100
 
-COPY --from=builder /app/packages/tunnel-server/dist ./dist
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/tunnel-server/node_modules ./packages/tunnel-server/node_modules
-COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY packages/tunnel-server/dist ./dist
+COPY packages/tunnel-server/package.json ./package.json
+
+RUN npm install --omit=dev
 
 EXPOSE 3100
 

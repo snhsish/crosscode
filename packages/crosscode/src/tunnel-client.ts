@@ -1,7 +1,6 @@
 import WebSocket from "ws"
 import http from "http"
 import crypto from "crypto"
-import { execSync } from "child_process"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 
 const TUNNEL_WS_URL = process.env.CROSSCODE_TUNNEL_WS_URL || "wss://tunnel.sish.work/ws"
@@ -166,10 +165,5 @@ export function connectTunnel(
 }
 
 export function deriveProjectId(): string {
-  try {
-    const remote = execSync("git remote get-url origin", { stdio: ["pipe", "pipe", "pipe"] }).toString().trim()
-    return crypto.createHash("sha256").update(remote).digest("hex").slice(0, 8)
-  } catch {
-    return crypto.createHash("sha256").update(process.cwd()).digest("hex").slice(0, 8)
-  }
+  return crypto.randomBytes(4).toString("hex")
 }

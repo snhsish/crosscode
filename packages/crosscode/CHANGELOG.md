@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.2.0-beta.1
+
+### Minor Changes
+
+- custom tunnel fixes
+
 ## 1.0.0
 
 ### Major Changes

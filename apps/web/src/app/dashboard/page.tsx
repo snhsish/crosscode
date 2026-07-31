@@ -60,12 +60,12 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto pt-12">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-            <p className="text-slate-400 mt-1">Welcome back, {user?.name || user?.email}</p>
+            <h1 className="text-3xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">Welcome back, {user?.name || user?.email}</p>
           </div>
           <Button variant="outline" onClick={logout}>
             Logout
@@ -115,11 +115,11 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-600 dark:text-slate-400">Email:</span>
+              <span className="text-muted-foreground">Email:</span>
               <span className="font-medium">{user?.email}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-600 dark:text-slate-400">Tier:</span>
+              <span className="text-muted-foreground">Tier:</span>
               <span className="font-medium capitalize">{user?.tier || "free"}</span>
             </div>
           </CardContent>

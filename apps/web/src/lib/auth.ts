@@ -1,11 +1,18 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { emailOTP } from "better-auth/plugins"
-import { db } from "./db"
+import { db, client } from "./db"
 import * as schema from "./db/schema"
 import { sendOTPEmail } from "./email"
 
 console.log("[Auth] Module loaded, DATABASE_URL:", process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@"))
+
+// Test database connectivity
+client`SELECT 1`.then(() => {
+  console.log("[Auth] Database connection OK")
+}).catch((err: Error) => {
+  console.error("[Auth] Database connection FAILED:", err.message)
+})
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {

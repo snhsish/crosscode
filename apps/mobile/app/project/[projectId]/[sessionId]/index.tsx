@@ -72,7 +72,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
     const [sending, setSending] = useState(false)
-    const [sendError, setSendError] = useState<string | null>(null)
+    const [sendError, setSendError] = useState<{ title: string; hint?: string } | null>(null)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
 
@@ -189,7 +189,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (!project?.directory) return
             const newSession = await createSession(connection.url, connection.token, project.directory)
             if (!newSession) {
-                setSendError("Failed to create session")
+                setSendError({ title: "Failed to create session", hint: "Please try again" })
                 return
             }
             upsertSession(newSession)
@@ -232,10 +232,16 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
             if (!res.ok) {
                 let errorText = `${res.status} ${res.statusText}`
+                let errorName = "UnknownError"
                 try {
                     const errorBody = await res.json()
-                    if (errorBody.error) errorText = errorBody.error
-                    else if (errorBody.message) errorText = errorBody.message
+                    if (errorBody.error) {
+                        errorText = errorBody.error
+                        errorName = errorBody.name || "UnknownError"
+                    } else if (errorBody.message) {
+                        errorText = errorBody.message
+                        errorName = errorBody.name || "UnknownError"
+                    }
                 } catch {}
 
                 const existing = getMessagesBySession(targetSessionId)
@@ -254,11 +260,32 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     path: { cwd: "", root: "" },
                     cost: 0,
                     tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                    error: { name: "UnknownError", data: { message: errorText } },
+                    error: { name: errorName as any, data: { message: errorText } } as any,
                     parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
                 }
                 upsertMessages(targetSessionId, [errorMsg])
-                setSendError(errorText)
+
+                let title = "Failed to send message"
+                let hint: string | undefined
+                if (errorName === "ProviderAuthError") {
+                    title = "Authentication Error"
+                    hint = "Check your API key or provider credentials"
+                } else if (errorName === "APIError" || res.status >= 500) {
+                    title = "API Error"
+                    hint = "Try switching to a different model"
+                } else if (errorName === "MessageOutputLengthError") {
+                    title = "Output Too Long"
+                    hint = "Try a shorter prompt or split your request"
+                } else if (errorName === "MessageAbortedError") {
+                    title = "Request Aborted"
+                } else if (res.status === 429) {
+                    title = "Rate Limited"
+                    hint = "Too many requests, please wait a moment"
+                } else if (res.status === 404) {
+                    title = "Not Found"
+                    hint = "The endpoint or session may not exist"
+                }
+                setSendError({ title, hint })
                 return
             }
         } catch (err: unknown) {
@@ -268,11 +295,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             setMessages(targetSessionId, existing.filter((m) => m.id !== localId))
             setDraft(targetSessionId, text)
 
-            let errorText = "Network error. Please check your connection and try again."
+            let title = "Network Error"
+            let hint: string | undefined
             if (message.includes("Network request failed") || message.includes("timeout")) {
-                errorText = "Connection failed. The server may be unreachable."
-            } else if (message) {
-                errorText = message
+                title = "Connection Failed"
+                hint = "Check your internet connection and try again"
+            } else if (message.includes("Aborted")) {
+                title = "Request Cancelled"
+            } else {
+                hint = message
             }
 
             const errorMsg: Message = {
@@ -287,11 +318,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 path: { cwd: "", root: "" },
                 cost: 0,
                 tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                error: { name: "UnknownError", data: { message: errorText } },
-                parts: [{ type: "text", text: `Failed to send message: ${errorText}` }],
+                error: { name: "NetworkError", data: { message } },
+                parts: [{ type: "text", text: `Failed to send message: ${message}` }],
             }
             upsertMessages(targetSessionId, [errorMsg])
-            setSendError(errorText)
+            setSendError({ title, hint })
         } finally {
             setSending(false)
         }
@@ -420,7 +451,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
 
-    const ListHeaderComponent = useMemo(() => {
+    const ListFooterComponent = useMemo(() => {
         if (!isLoadingMore) return null
         return (
             <View className="flex flex-col gap-0 p-4">
@@ -428,15 +459,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             </View>
         )
     }, [isLoadingMore, theme])
-
-    const ListFooterComponent = useMemo(() => {
-        if (!isStreaming) return null
-        return (
-            <View className="flex flex-col gap-0 p-4">
-                <TypingDots />
-            </View>
-        )
-    }, [isStreaming])
 
     const ListEmptyComponent = useMemo(() => {
         if (refreshing) {
@@ -526,7 +548,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     className="flex-1 px-4 pt-2"
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
-                    ListHeaderComponent={ListHeaderComponent}
                     ListFooterComponent={ListFooterComponent}
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
@@ -551,13 +572,26 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </View>
             )}
 
+            {isStreaming && (
+                <View className="px-4 py-2">
+                    <TypingDots />
+                </View>
+            )}
+
             {sendError && (
-                <View className="px-4">
-                    <View className="flex-row items-center gap-2 p-3 rounded-xl bg-destructive/15 border border-destructive/30">
-                        <TriangleAlertIcon size={14} color={THEME[theme].destructive ?? "#ef4444"} />
-                        <Text className="text-sm text-destructive flex-1" numberOfLines={2}>
-                            {sendError}
-                        </Text>
+                <View className="px-4 pb-2">
+                    <View className="flex-row items-start gap-2 p-3 rounded-xl bg-destructive/15 border border-destructive/30">
+                        <TriangleAlertIcon size={14} color={THEME[theme].destructive ?? "#ef4444"} style={{ marginTop: 2 }} />
+                        <View className="flex-1 gap-1">
+                            <Text className="text-sm font-medium text-destructive">
+                                {sendError.title}
+                            </Text>
+                            {sendError.hint && (
+                                <Text className="text-xs text-destructive/70">
+                                    {sendError.hint}
+                                </Text>
+                            )}
+                        </View>
                         <Pressable onPress={() => setSendError(null)} hitSlop={8}>
                             <XIcon size={12} color={THEME[theme].mutedForeground} />
                         </Pressable>

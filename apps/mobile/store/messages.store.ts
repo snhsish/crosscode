@@ -55,7 +55,7 @@ export type AssistantMessage = {
         created: number
         completed?: number
     }
-    error?: ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | ApiError
+    error?: ProviderAuthError | UnknownError | MessageOutputLengthError | MessageAbortedError | ApiError | NetworkError
     parentID: string
     modelID: string
     providerID: string
@@ -118,6 +118,13 @@ export type ApiError = {
             [key: string]: string
         }
         responseBody?: string
+    }
+}
+
+export type NetworkError = {
+    name: "NetworkError"
+    data: {
+        message: string
     }
 }
 

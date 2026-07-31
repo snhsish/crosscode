@@ -51,10 +51,21 @@ interface MessageItemProps {
 function getErrorLabel(name?: string): string {
     switch (name) {
         case "ProviderAuthError": return "Authentication Error"
-        case "MessageOutputLengthError": return "Output Length Error"
-        case "MessageAbortedError": return "Aborted"
+        case "MessageOutputLengthError": return "Output Too Long"
+        case "MessageAbortedError": return "Request Aborted"
         case "APIError": return "API Error"
+        case "NetworkError": return "Network Error"
         default: return "Error"
+    }
+}
+
+function getErrorHint(name?: string): string | undefined {
+    switch (name) {
+        case "ProviderAuthError": return "Check your API key or credentials"
+        case "MessageOutputLengthError": return "Try a shorter prompt"
+        case "APIError": return "Try switching to a different model"
+        case "NetworkError": return "Check your connection"
+        default: return undefined
     }
 }
 
@@ -274,9 +285,16 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">
                     <TriangleAlertIcon size={12} color={THEME[theme].destructive ?? "#ef4444"} />
-                    <Text className="text-xs font-medium text-destructive">
-                        {getErrorLabel(message.error?.name)}
-                    </Text>
+                    <View className="flex-1">
+                        <Text className="text-xs font-medium text-destructive">
+                            {getErrorLabel(message.error?.name)}
+                        </Text>
+                        {getErrorHint(message.error?.name) && (
+                            <Text className="text-xs text-destructive/70 mt-0.5">
+                                {getErrorHint(message.error?.name)}
+                            </Text>
+                        )}
+                    </View>
                 </View>
             ) : null}
             {message.parts?.map((part, j) => {

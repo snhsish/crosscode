@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { GlyphMatrix } from "@/components/ui/glyph-matrix";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -92,19 +93,12 @@ export function Hero() {
         {message && (
           <p className={`mt-2 text-sm ${status === "success" ? "text-emerald-500" : "text-red-500"}`}>{message}</p>
         )}
-        {/* <div className="mt-10 flex flex-col sm:flex-row gap-4">
-          <Button size="lg" className="rounded-full" asChild>
-            <Link href="/download">
-              Get Started
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button variant="outline" size="lg" className="rounded-full" asChild>
-            <Link href="/login">
-              Login
-            </Link>
-          </Button>
-        </div> */}
+        <p className="mt-4 text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/login" className="text-primary hover:underline font-medium">
+            Login
+          </Link>
+        </p>
         <div className="mt-16 w-full max-w-5xl flex flex-col lg:flex-row gap-10 items-start justify-center">
           <div className="w-full max-w-lg flex flex-col">
             <div className="rounded-xl border bg-card h-[300px] md:h-[380px] shadow-2xl overflow-hidden flex flex-col">
@@ -127,12 +121,12 @@ export function Hero() {
                   <span className="text-emerald-500">✓</span> Cloudflare Tunnel connected
                 </div>
                 <div>
-                  <span className="text-sky-500">▲</span> <span className="text-muted-foreground">Ready →</span> <span className="text-sky-500 underline">https://myapp.trycrosscode.dev</span>
+                  <span className="text-emerald-500">▲</span> <span className="text-muted-foreground">Ready →</span> <span className="text-emerald-500 underline">https://myapp.trycrosscode.dev</span>
                 </div>
                 <div className="pt-4">
                   <svg width="140" height="140" viewBox="0 0 29 29" className="block">
                     <rect width="29" height="29" fill="currentColor" className="text-background"/>
-                    <g className="text-foreground">
+                    <g className="text-foreground" fill="currentColor">
                       <rect x="0" y="0.5" width="7" height="1"/><rect x="9" y="0.5" width="7" height="1"/><rect x="18" y="0.5" width="3" height="1"/><rect x="22" y="0.5" width="7" height="1"/>
                       <rect x="0" y="1.5" width="1" height="1"/><rect x="6" y="1.5" width="1" height="1"/><rect x="9" y="1.5" width="3" height="1"/><rect x="13" y="1.5" width="6" height="1"/><rect x="20" y="1.5" width="1" height="1"/><rect x="22" y="1.5" width="1" height="1"/><rect x="28" y="1.5" width="1" height="1"/>
                       <rect x="0" y="2.5" width="1" height="1"/><rect x="2" y="2.5" width="3" height="1"/><rect x="6" y="2.5" width="1" height="1"/><rect x="8" y="2.5" width="3" height="1"/><rect x="12" y="2.5" width="2" height="1"/><rect x="15" y="2.5" width="1" height="1"/><rect x="19" y="2.5" width="1" height="1"/><rect x="22" y="2.5" width="1" height="1"/><rect x="24" y="2.5" width="3" height="1"/><rect x="28" y="2.5" width="1" height="1"/>
@@ -172,7 +166,7 @@ export function Hero() {
             </div>
           </div>
           <div className="flex-shrink-0 flex items-stretch justify-center w-full lg:w-auto">
-            <div className="relative w-[220px] md:w-[260px] bg-white dark:bg-[#0a0a0a] rounded-[36px] border-[3px] border-gray-300 dark:border-gray-800 shadow-2xl overflow-hidden flex flex-col">
+            <div className="relative w-[220px] md:w-[260px] bg-white dark:bg-black rounded-[36px] border-[3px] border-gray-300 dark:border-gray-800 shadow-2xl overflow-hidden flex flex-col">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 md:w-28 h-5 bg-gray-900 dark:bg-black rounded-b-xl z-10 border-b border-x border-gray-800 dark:border-gray-700"></div>
               <div className="flex flex-col h-[500px] md:h-[620px]">
                 <div className="flex items-center gap-1.5 border-b border-gray-200 dark:border-gray-700 pb-2 px-3 pt-7">
@@ -187,8 +181,8 @@ export function Hero() {
                     <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
                 </div>
-                <div className="flex-1 overflow-hidden px-3 py-2 flex flex-col gap-2 bg-white dark:bg-[#0a0a0a]">
-                  <div className="max-w-[200px] bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-br-sm px-3 py-2 self-end">
+                <div className="flex-1 overflow-hidden px-3 py-2 flex flex-col gap-2 bg-white dark:bg-black">
+                  <div className="max-w-[200px] bg-gray-100 dark:bg-black rounded-2xl rounded-br-sm px-3 py-2 self-end border border-gray-200 dark:border-gray-800">
                     <p className="text-[11px] text-gray-800 dark:text-gray-200 leading-relaxed text-left">The auth middleware is throwing 401 on valid tokens. Can you check the verify function?</p>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -197,11 +191,11 @@ export function Hero() {
                       <span className="text-[10px] font-medium">read_file</span>
                       <span className="text-[9px] text-green-600 dark:text-green-400 font-medium">done</span>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5">
+                    <div className="bg-gray-50 dark:bg-black border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5">
                       <code className="text-[10px] text-gray-600 dark:text-gray-300 font-mono">src/middleware/auth.ts</code>
                     </div>
-                    <p className="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed text-left">Found it. The <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-[10px]">verify</code> function expects the token without the <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-[10px]">Bearer</code> prefix, but the header includes it. Here&apos;s the fix:</p>
-                    <div className="bg-gray-900 rounded-lg p-2">
+                    <p className="text-[11px] text-gray-700 dark:text-gray-300 leading-relaxed text-left">Found it. The <code className="bg-gray-100 dark:bg-black px-1 py-0.5 rounded text-[10px]">verify</code> function expects the token without the <code className="bg-gray-100 dark:bg-black px-1 py-0.5 rounded text-[10px]">Bearer</code> prefix, but the header includes it. Here&apos;s the fix:</p>
+                    <div className="bg-gray-900 dark:bg-black rounded-lg p-2">
                       <div className="flex items-center gap-1 mb-1">
                         <span className="text-[9px] text-gray-400 font-mono">auth.ts</span>
                         <span className="text-[9px] text-green-400 font-mono ml-auto">+2 -1</span>
@@ -216,14 +210,14 @@ export function Hero() {
                   </div>
                 </div>
                 <div className="px-3 pb-4 pt-1">
-                  <div className="rounded-2xl bg-gray-100 dark:bg-gray-800 p-2 border border-gray-200 dark:border-gray-700">
+                  <div className="rounded-2xl bg-gray-100 dark:bg-black p-2 border border-gray-200 dark:border-gray-800">
                     <div className="text-[10px] text-gray-400 px-1 pb-1 text-left">Ask anything...</div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-black border border-gray-300 dark:border-gray-700 flex items-center justify-center">
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
                         </div>
-                        <div className="px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-gray-700">
+                        <div className="px-1.5 py-0.5 rounded-full bg-gray-200 dark:bg-black border border-gray-300 dark:border-gray-700">
                           <span className="text-[9px] text-gray-600 dark:text-gray-300 font-medium">build</span>
                         </div>
                       </div>

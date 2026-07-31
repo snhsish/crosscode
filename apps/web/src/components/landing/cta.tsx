@@ -1,4 +1,6 @@
-import { Terminal } from "lucide-react";
+import Link from "next/link";
+import { Terminal, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { FlickeringGrid } from "./flickering-grid";
 
 export function CTA() {
@@ -18,17 +20,17 @@ export function CTA() {
               <Terminal className="h-4 w-4" />
               <span>npx crosscode</span>
             </div>
-            {/* <div className="flex items-center gap-3">
-              <Button variant="secondary" size="lg" asChild>
-                <Link href="/login">Login</Link>
-              </Button>
-              <Button variant="secondary" size="lg" asChild>
-                <a href="https://github.com/snhsish/crosscode" target="_blank" rel="noopener noreferrer">
-                  View on GitHub
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
-            </div> */}
+          </div>
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <Button variant="secondary" size="lg" asChild>
+              <Link href="/login">Login</Link>
+            </Button>
+            <Button variant="secondary" size="lg" asChild>
+              <a href="https://github.com/snhsish/crosscode" target="_blank" rel="noopener noreferrer">
+                View on GitHub
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
           </div>
         </div>
       </div>

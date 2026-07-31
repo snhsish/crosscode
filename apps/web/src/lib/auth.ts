@@ -5,6 +5,8 @@ import { db } from "./db"
 import * as schema from "./db/schema"
 import { sendOTPEmail } from "./email"
 
+console.log("[Auth] Module loaded, DATABASE_URL:", process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@"))
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",

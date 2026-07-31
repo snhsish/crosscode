@@ -28,6 +28,9 @@ ENV NODE_ENV=production
 ENV PORT=3100
 
 COPY --from=builder /app/packages/tunnel-server/dist ./dist
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/tunnel-server/node_modules ./packages/tunnel-server/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 EXPOSE 3100
 

@@ -16,6 +16,7 @@ interface SessionHeaderProps {
     title?: string
     projectName?: string
     projectDirectory?: string
+    sessionDirectory?: string
     theme: "light" | "dark"
     paddingTop: number
 }
@@ -26,6 +27,7 @@ function SessionHeaderInner({
     title,
     projectName,
     projectDirectory,
+    sessionDirectory,
     theme,
     paddingTop,
 }: SessionHeaderProps) {
@@ -76,7 +78,7 @@ function SessionHeaderInner({
                     {displayTitle}
                 </Text>
                 <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
-                    {projectName ?? projectDirectory}
+                    {sessionDirectory ?? projectDirectory ?? projectName}
                 </Text>
             </View>
 

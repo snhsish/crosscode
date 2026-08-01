@@ -651,6 +651,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 title={session?.title}
                 projectName={project?.name}
                 projectDirectory={project?.directory}
+                sessionDirectory={session?.directory}
                 theme={theme}
                 paddingTop={insets.top}
             />

@@ -61,53 +61,67 @@ export type Provider = {
 }
 
 export async function fetchModels(url: string, token: string): Promise<Model[]> {
-    const res = await fetch(`${url}/api/model`, {
-        method: "GET",
-        headers: {
-            "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+    try {
+        const res = await fetch(`${url}/api/model`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+            }
+        })
+        if (!res.ok) {
+            console.error(`[fetchModels] HTTP ${res.status} from ${url}/api/model`)
+            return []
         }
-    })
-    if (!res.ok) {
-        console.error(`[fetchModels] HTTP ${res.status} from ${url}/api/model`)
+        const data = await res.json()
+        if (Array.isArray(data)) return data
+        if (data && typeof data === "object") {
+            if (Array.isArray(data.models)) return data.models
+            if (Array.isArray(data.data)) return data.data
+            const values = Object.values(data)
+            if (values.length > 0 && typeof values[0] === "object" && !Array.isArray(values[0])) {
+                return values as Model[]
+            }
+        }
+        console.error("[fetchModels] Unexpected response shape:", JSON.stringify(data).slice(0, 200))
+        return []
+    } catch (error) {
+        console.error("[fetchModels] Network error:", error)
         return []
     }
-    const data = await res.json()
-    if (Array.isArray(data)) return data
-    if (data && typeof data === "object") {
-        if (Array.isArray(data.models)) return data.models
-        if (Array.isArray(data.data)) return data.data
-        const values = Object.values(data)
-        if (values.length > 0 && typeof values[0] === "object" && !Array.isArray(values[0])) {
-            return values as Model[]
-        }
-    }
-    console.error("[fetchModels] Unexpected response shape:", JSON.stringify(data).slice(0, 200))
-    return []
 }
 
 export async function fetchProviders(url: string, token: string): Promise<Provider[]> {
-    const res = await fetch(`${url}/api/provider`, {
-        method: "GET",
-        headers: {
-            "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+    try {
+        const res = await fetch(`${url}/api/provider`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+            }
+        })
+        if (!res.ok) return []
+        const data = await res.json()
+        if (Array.isArray(data)) return data
+        if (data && typeof data === "object") {
+            return Object.values(data)
         }
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    if (Array.isArray(data)) return data
-    if (data && typeof data === "object") {
-        return Object.values(data)
+        return []
+    } catch (error) {
+        console.error("[fetchProviders] Network error:", error)
+        return []
     }
-    return []
 }
 
 export async function updateSessionModel(url: string, token: string, sessionId: string, model: { id: string; providerID: string; variant?: string }) {
-    await fetch(`${url}/session/${sessionId}`, {
-        method: "PATCH",
-        headers: {
-            "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ model })
-    })
+    try {
+        await fetch(`${url}/session/${sessionId}`, {
+            method: "PATCH",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ model })
+        })
+    } catch (error) {
+        console.error("[updateSessionModel] Failed:", error)
+    }
 }

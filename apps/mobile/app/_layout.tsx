@@ -23,6 +23,9 @@ export default function RootLayout() {
   React.useEffect(() => {
     if (fontsLoaded) {
       SplashScreen.hideAsync()
+    } else {
+      const timeout = setTimeout(() => SplashScreen.hideAsync(), 5000)
+      return () => clearTimeout(timeout)
     }
   }, [fontsLoaded])
 

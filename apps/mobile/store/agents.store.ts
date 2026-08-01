@@ -26,8 +26,8 @@ export const useAgents = create<AgentStore>()(
                     if (!res.ok) return
                     const all: Agent[] = await res.json()
                     set({ agents: all.filter(a => a.mode === "primary" && !a.hidden) })
-                } catch {
-                    // keep existing agents on fetch failure
+                } catch (error) {
+                    console.error("[fetchAgents] Failed to fetch agents:", error)
                 }
             }
         }),

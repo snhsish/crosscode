@@ -1,14 +1,8 @@
-import { LayoutAnimation, Platform, Pressable, UIManager, View } from "react-native"
-import { useState } from "react"
+import { Pressable, View } from "react-native"
+import { memo, useState } from "react"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { Text } from "./ui/text"
 import { Checkbox } from "./ui/checkbox"
-
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 
 export interface TodoItem {
   content: string
@@ -20,20 +14,21 @@ interface TodoBlockProps {
   items: TodoItem[]
 }
 
-export function TodoBlock({ items }: TodoBlockProps) {
+export const TodoBlock = memo(function TodoBlock({ items }: TodoBlockProps) {
   const [expanded, setExpanded] = useState(true)
   const completed = items.filter((i) => i.status === "completed").length
+  const progress = useSharedValue(1)
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    maxHeight: progress.value * 2000,
+    overflow: "hidden" as const,
+  }))
 
   const toggle = () => {
-    LayoutAnimation.configureNext({
-      duration: 200,
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-    })
-    setExpanded(!expanded)
+    const next = !expanded
+    setExpanded(next)
+    progress.value = withTiming(next ? 1 : 0, { duration: 200 })
   }
 
   return (
@@ -52,29 +47,31 @@ export function TodoBlock({ items }: TodoBlockProps) {
           ({completed}/{items.length})
         </Text>
       </Pressable>
-      {expanded && (
-        <View className="px-2 pb-2 gap-1.5">
-          {items.map((item, i) => (
-            <View key={i} className="flex-row items-start gap-2">
-              <Checkbox
-                checked={item.status === "completed"}
-                onCheckedChange={() => {}}
-                disabled
-                className="mt-0.5"
-              />
-              <Text
-                className={`text-xs flex-1 leading-relaxed ${
-                  item.status === "completed"
-                    ? "text-muted-foreground line-through"
-                    : "text-foreground"
-                }`}
-              >
-                {item.content}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
+      <Animated.View style={animatedStyle}>
+        {expanded && (
+          <View className="px-2 pb-2 gap-1.5">
+            {items.map((item, i) => (
+              <View key={i} className="flex-row items-start gap-2">
+                <Checkbox
+                  checked={item.status === "completed"}
+                  onCheckedChange={() => {}}
+                  disabled
+                  className="mt-0.5"
+                />
+                <Text
+                  className={`text-xs flex-1 leading-relaxed ${
+                    item.status === "completed"
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground"
+                  }`}
+                >
+                  {item.content}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </Animated.View>
     </View>
   )
-}
+})

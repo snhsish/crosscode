@@ -1,65 +1,40 @@
-import { useEffect, useRef } from "react"
-import { View, Animated } from "react-native"
+import { useEffect } from "react"
+import { View } from "react-native"
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from "react-native-reanimated"
 
-export function TypingDots() {
-    const dot1 = useRef(new Animated.Value(0)).current
-    const dot2 = useRef(new Animated.Value(0)).current
-    const dot3 = useRef(new Animated.Value(0)).current
+function TypingDot({ delay }: { delay: number }) {
+    const progress = useSharedValue(0)
 
     useEffect(() => {
-        const animate = (dot: Animated.Value, delay: number) =>
-            Animated.loop(
-                Animated.sequence([
-                    Animated.delay(delay),
-                    Animated.timing(dot, {
-                        toValue: 1,
-                        duration: 300,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(dot, {
-                        toValue: 0,
-                        duration: 300,
-                        useNativeDriver: true,
-                    }),
-                ])
+        progress.value = withDelay(
+            delay,
+            withRepeat(
+                withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) }),
+                -1,
+                true
             )
-
-        const anims = [
-            animate(dot1, 0),
-            animate(dot2, 150),
-            animate(dot3, 300),
-        ]
-
-        anims.forEach((a) => a.start())
-        return () => anims.forEach((a) => a.stop())
+        )
     }, [])
 
-    const dotStyle = (dot: Animated.Value) => ({
-        opacity: dot,
-        transform: [
-            {
-                translateY: dot.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -4],
-                }),
-            },
-        ],
-    })
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: progress.value,
+        transform: [{ translateY: progress.value * -4 }],
+    }))
 
     return (
+        <Animated.View
+            className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
+            style={animatedStyle}
+        />
+    )
+}
+
+export function TypingDots() {
+    return (
         <View className="flex-row items-center gap-1 px-3 py-2">
-            <Animated.View
-                className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
-                style={dotStyle(dot1)}
-            />
-            <Animated.View
-                className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
-                style={dotStyle(dot2)}
-            />
-            <Animated.View
-                className="w-1.5 h-1.5 rounded-full bg-muted-foreground"
-                style={dotStyle(dot3)}
-            />
+            <TypingDot delay={0} />
+            <TypingDot delay={150} />
+            <TypingDot delay={300} />
         </View>
     )
 }

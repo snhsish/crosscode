@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native"
-import { useState } from "react"
+import { memo, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { Text } from "./ui/text"
 
@@ -8,7 +8,7 @@ interface ReasoningBlockProps {
   duration?: number
 }
 
-export function ReasoningBlock({ text, duration }: ReasoningBlockProps) {
+export const ReasoningBlock = memo(function ReasoningBlock({ text, duration }: ReasoningBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const progress = useSharedValue(0)
 
@@ -53,4 +53,4 @@ export function ReasoningBlock({ text, duration }: ReasoningBlockProps) {
       </Animated.View>
     </View>
   )
-}
+})

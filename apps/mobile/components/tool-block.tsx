@@ -1,5 +1,5 @@
+import { memo, useState } from "react"
 import { Pressable, View } from "react-native"
-import { useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { Text } from "./ui/text"
 
@@ -24,7 +24,7 @@ function formatValue(value: unknown): string {
   }
 }
 
-export function ToolBlock({ name, status, details, command }: ToolBlockProps) {
+export const ToolBlock = memo(function ToolBlock({ name, status, details, command }: ToolBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const progress = useSharedValue(0)
 
@@ -81,4 +81,4 @@ export function ToolBlock({ name, status, details, command }: ToolBlockProps) {
       </Animated.View>
     </View>
   )
-}
+})

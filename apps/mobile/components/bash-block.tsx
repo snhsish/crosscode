@@ -1,5 +1,5 @@
 import { Platform, Pressable, View } from "react-native"
-import { useState } from "react"
+import { memo, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { TerminalIcon } from "lucide-react-native"
 import { Text } from "./ui/text"
@@ -19,7 +19,7 @@ function truncateOutput(output: string, maxLength: number = 2000): string {
   return output.slice(0, maxLength) + "\n... (truncated)"
 }
 
-export function BashBlock({ command, status, output, workdir, description, theme }: BashBlockProps) {
+export const BashBlock = memo(function BashBlock({ command, status, output, workdir, description, theme }: BashBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const progress = useSharedValue(0)
 
@@ -92,4 +92,4 @@ export function BashBlock({ command, status, output, workdir, description, theme
       </Animated.View>
     </View>
   )
-}
+})

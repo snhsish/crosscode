@@ -1,5 +1,5 @@
+import { memo, useMemo, useState } from "react"
 import { Pressable, View } from "react-native"
-import { useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { FileEditIcon, ExpandIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
@@ -18,14 +18,14 @@ interface EditBlockProps {
     sessionId: string
 }
 
-export function EditBlock({ filePath, oldString, newString, status, theme, projectId, sessionId }: EditBlockProps) {
+export const EditBlock = memo(function EditBlock({ filePath, oldString, newString, status, theme, projectId, sessionId }: EditBlockProps) {
     const [expanded, setExpanded] = useState(false)
     const router = useRouter()
     const setDiff = useDiffStore((s) => s.setDiff)
     const progress = useSharedValue(0)
 
-    const diffLines = computeLineDiff(oldString, newString)
-    const { additions, deletions } = countChanges(diffLines)
+    const diffLines = useMemo(() => computeLineDiff(oldString, newString), [oldString, newString])
+    const { additions, deletions } = useMemo(() => countChanges(diffLines), [diffLines])
     const statusColor = status === "error" ? "#ef4444" : status === "result" ? "#22c55e" : "#f59e0b"
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -94,7 +94,7 @@ export function EditBlock({ filePath, oldString, newString, status, theme, proje
             </Animated.View>
         </View>
     )
-}
+})
 
 function DiffLineView({ line, theme }: { line: DiffLine; theme: "light" | "dark" }) {
     const isDark = theme === "dark"

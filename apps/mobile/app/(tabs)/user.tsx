@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon, Bell, Mail } from "lucide-react-native"
+import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -70,7 +70,10 @@ export default function UserPage() {
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="p-4">
+      <View className="p-4 flex-row items-center gap-2">
+        <Button variant="ghost" className="w-10 h-10" onPress={() => router.back()}>
+          <ArrowLeft size={25} color={THEME[theme].foreground} />
+        </Button>
         <Text className="text-2xl font-semibold tracking-tight">Account</Text>
       </View>
 

@@ -26,7 +26,7 @@ function ConnectionItem({
   onRename,
   onDelete,
 }: {
-  connection: { id: string; name: string; url: string }
+  connection: { id: string; name: string; url: string; healthy?: boolean | null }
   isActive: boolean
   project?: { directory: string }
   onPress: () => void
@@ -36,6 +36,7 @@ function ConnectionItem({
   const theme = useColorScheme().colorScheme ?? "light"
   const [menuVisible, setMenuVisible] = React.useState(false)
   const pressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isUnreachable = connection.healthy === false
 
   const handlePressIn = () => {
     pressTimer.current = setTimeout(() => {
@@ -51,7 +52,7 @@ function ConnectionItem({
   }
 
   const handlePress = () => {
-    if (!menuVisible) {
+    if (!menuVisible && !isUnreachable) {
       onPress()
     }
   }
@@ -63,14 +64,20 @@ function ConnectionItem({
       <Wrapper
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        onPress={isActive ? handlePress : undefined}
+        onPress={isActive && !isUnreachable ? handlePress : undefined}
         className={cn(
           "flex-row items-center gap-3 rounded-xl p-4",
           isActive ? "bg-muted/50 border border-border active:bg-muted/70" : "bg-muted/30 active:bg-muted/50"
         )}
+        style={isUnreachable ? { opacity: 0.5 } : undefined}
       >
-        <View className={cn("w-10 h-10 rounded-xl items-center justify-center", isActive ? "bg-green-500/20" : "bg-muted")}>
-          {isActive ? (
+        <View className={cn(
+          "w-10 h-10 rounded-xl items-center justify-center",
+          isUnreachable ? "bg-destructive/15" : isActive ? "bg-green-500/20" : "bg-muted"
+        )}>
+          {isUnreachable ? (
+            <WifiOff size={18} color={THEME[theme].destructive} />
+          ) : isActive ? (
             <Wifi size={18} color={THEME[theme].foreground} />
           ) : (
             <WifiOff size={18} color={THEME[theme].mutedForeground} />
@@ -87,11 +94,15 @@ function ConnectionItem({
             </Text>
           )}
         </View>
-        {isActive && (
+        {isUnreachable ? (
+          <View className="px-2 py-0.5 rounded-full bg-destructive/10">
+            <Text className="text-[10px] font-medium text-destructive">Unreachable</Text>
+          </View>
+        ) : isActive ? (
           <View className="px-2 py-0.5 rounded-full bg-primary/10">
             <Text className="text-[10px] font-medium text-primary">Active</Text>
           </View>
-        )}
+        ) : null}
       </Wrapper>
 
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
@@ -101,8 +112,10 @@ function ConnectionItem({
             <View className="w-10 h-1 rounded-full bg-muted mx-auto my-3" />
 
             <View className="flex-row items-start gap-4 mb-6">
-              <View className={cn("w-12 h-12 rounded-xl items-center justify-center shrink-0", isActive ? "bg-green-500/20" : "bg-muted")}>
-                {isActive ? (
+              <View className={cn("w-12 h-12 rounded-xl items-center justify-center shrink-0", isUnreachable ? "bg-destructive/15" : isActive ? "bg-green-500/20" : "bg-muted")}>
+                {isUnreachable ? (
+                  <WifiOff size={20} color={THEME[theme].destructive} />
+                ) : isActive ? (
                   <Wifi size={20} color={THEME[theme].foreground} />
                 ) : (
                   <WifiOff size={20} color={THEME[theme].mutedForeground} />
@@ -120,11 +133,15 @@ function ConnectionItem({
                     {formatDirectory(project.directory)}
                   </Text>
                 )}
-                {isActive && (
+                {isUnreachable ? (
+                  <View className="mt-1 self-start px-2 py-0.5 rounded-full bg-destructive/10">
+                    <Text className="text-[10px] font-medium text-destructive">Unreachable</Text>
+                  </View>
+                ) : isActive ? (
                   <View className="mt-1 self-start px-2 py-0.5 rounded-full bg-primary/10">
                     <Text className="text-[10px] font-medium text-primary">Active</Text>
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
 
@@ -160,7 +177,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { colorScheme } = useColorScheme()
-  const { connections, current } = useConnections()
+  const { connections, current, setConnectionHealth } = useConnections()
   const { projects, setProjectForConnection } = useProjects()
 
   const theme = colorScheme ?? "light"
@@ -171,6 +188,29 @@ export default function HomeScreen() {
   const [sortBy, setSortBy] = React.useState<SortType>("recent")
   const [showFilterMenu, setShowFilterMenu] = React.useState(false)
   const [showSortMenu, setShowSortMenu] = React.useState(false)
+
+  React.useEffect(() => {
+    const checkHealth = async () => {
+      for (const conn of connections) {
+        if (!conn.url || !conn.token) continue
+        try {
+          const res = await fetch(`${conn.url}/global/health`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Basic ${btoa(`opencode:${conn.token}`)}`
+            }
+          })
+          setConnectionHealth(conn.id, res.ok)
+        } catch {
+          setConnectionHealth(conn.id, false)
+        }
+      }
+    }
+
+    checkHealth()
+    const interval = setInterval(checkHealth, 30000)
+    return () => clearInterval(interval)
+  }, [connections])
 
   React.useEffect(() => {
     if (!currentConnection?.url || !currentConnection?.token) return

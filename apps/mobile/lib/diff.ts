@@ -1,3 +1,27 @@
+export type FileDiff = {
+    file: string
+    before: string
+    after: string
+    additions: number
+    deletions: number
+}
+
+export async function fetchSessionDiffs(url: string, token: string, sessionId: string): Promise<FileDiff[]> {
+    try {
+        const res = await fetch(`${url}/session/${sessionId}/diff`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+            },
+        })
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data) ? data : []
+    } catch {
+        return []
+    }
+}
+
 export type DiffLine =
     | { type: "context"; content: string; oldLine?: number; newLine?: number }
     | { type: "add"; content: string; newLine: number }

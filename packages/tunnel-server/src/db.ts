@@ -1,7 +1,15 @@
 import postgres from "postgres"
 import { logger } from "./logger.js"
 
-const sql = postgres(process.env.DATABASE_URL!)
+const sql = postgres(process.env.DATABASE_URL!, {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  keep_alive: 60,
+  connection: {
+    statement_timeout: 30000,
+  },
+})
 
 export async function validateApiKey(apiKey: string): Promise<{ userId: string; email: string; tier: string } | null> {
   logger.debug("Validating API key", { apiKey: apiKey.substring(0, 8) + "..." })

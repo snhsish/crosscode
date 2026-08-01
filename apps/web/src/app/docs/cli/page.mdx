@@ -1,0 +1,36 @@
+# CLI Reference
+
+The CrossCode CLI provides two commands: starting the tunnel server and logging in.
+
+## Commands
+
+### `crosscode`
+
+Start the tunnel server.
+
+```bash
+crosscode
+```
+
+This launches a secure tunnel server that allows you to expose your local development environment.
+
+### `crosscode login`
+
+Log in to your CrossCode account.
+
+```bash
+crosscode login
+```
+
+Authenticate with your CrossCode account to access your projects and settings.
+
+## Configuration
+
+The CLI stores configuration in `~/.crosscoderc`:
+
+```json
+{
+  "apiKey": "your-api-key",
+  "apiUrl": "https://api.crosscode.dev"
+}
+```

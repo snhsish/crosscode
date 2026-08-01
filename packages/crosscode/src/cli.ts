@@ -242,27 +242,36 @@ async function main() {
 
     if (command === "help" || command === "--help" || command === "-h") {
         console.log(`
-${chalk.cyan("CrossCode")} - Mobile remote client for OpenCode
+${chalk.cyan.bold("CrossCode")} - Mobile remote client for OpenCode
 
-${chalk.yellow("Usage:")}
-  crosscode [options]
+${chalk.yellow.bold("USAGE:")}
+  crosscode [command] [options]
 
-${chalk.yellow("Commands:")}
-  login              Login with API key (opens browser)
-  logout             Clear saved authentication
-  status             Show login status and tier
+${chalk.yellow.bold("COMMANDS:")}
+  ${chalk.green("login")}              Authenticate with API key (opens browser)
+  ${chalk.green("logout")}             Clear saved authentication data
+  ${chalk.green("status")}             Show current login status and tier
+  ${chalk.green("help")}               Show this help message
 
-${chalk.yellow("Options:")}
-  --cloudflared      Use Cloudflare tunnel (default for free tier)
-  --ngrok            Use ngrok tunnel
-  --help, -h         Show this help message
+${chalk.yellow.bold("OPTIONS:")}
+  ${chalk.green("--cloudflared")}      Use Cloudflare tunnel (default for free tier)
+  ${chalk.green("--ngrok")}            Use ngrok tunnel (requires auth token)
+  ${chalk.green("--help, -h")}         Show this help message
 
-${chalk.yellow("Examples:")}
-  crosscode          Start with CrossCode tunnel (paid) or cloudflared (free)
-  crosscode --ngrok  Start with ngrok tunnel
-  crosscode login    Authenticate for paid tier features
+${chalk.yellow.bold("EXAMPLES:")}
+  ${chalk.dim("$")} crosscode                   Start with auto-selected tunnel
+  ${chalk.dim("$")} crosscode --ngrok           Start with ngrok tunnel
+  ${chalk.dim("$")} crosscode --cloudflared     Start with Cloudflare tunnel
+  ${chalk.dim("$")} crosscode login             Authenticate for paid tier features
+  ${chalk.dim("$")} crosscode status            Check authentication status
 
-${chalk.dim("Default: uses tunnel.sish.work when logged in with a paid tier.")}
+${chalk.yellow.bold("TUNNEL PROVIDERS:")}
+  ${chalk.blue("Free tier")}       Cloudflare tunnel (default when not logged in)
+  ${chalk.blue("Paid tier")}       CrossCode tunnel (default when logged in)
+  ${chalk.blue("ngrok")}           Alternative tunnel (requires ngrok auth token)
+
+${chalk.dim("Default behavior: uses tunnel.sish.work when logged in with a paid tier.")}
+${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 `)
         process.exit(0)
     }

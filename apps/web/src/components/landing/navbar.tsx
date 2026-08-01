@@ -13,7 +13,10 @@ export function Navbar() {
           <Link href="/#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Features
           </Link>
-          <Link href="/#cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Docs
+          </Link>
+          <Link href="/docs/cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             CLI
           </Link>
           <a

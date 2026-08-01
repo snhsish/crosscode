@@ -18,8 +18,19 @@ import { AlertTriangle, ArrowLeft, ArrowUpDown, Filter, MessageCircle, Plus, Sea
 type FilterType = "all" | "active" | "completed"
 type SortType = "recent" | "oldest" | "name"
 
-function formatTime(ts: number) {
-  const now = Date.now()
+const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "active", label: "Active" },
+    { key: "completed", label: "Completed" },
+]
+
+const SORT_OPTIONS: { key: SortType; label: string }[] = [
+    { key: "recent", label: "Recent" },
+    { key: "oldest", label: "Oldest" },
+    { key: "name", label: "Name" },
+]
+
+function formatTime(ts: number, now: number) {
   const diff = now - ts
   const mins = Math.floor(diff / 60000)
   const hours = Math.floor(diff / 3600000)
@@ -32,39 +43,54 @@ function formatTime(ts: number) {
   return new Date(ts).toLocaleDateString()
 }
 
-function SessionItem({
+const SessionItem = React.memo(function SessionItem({
   session,
   isLast,
-  onPress,
+  onNavigate,
   onDelete,
+  now,
 }: {
   session: Session
   isLast: boolean
-  onPress: () => void
-  onDelete: () => void
+  onNavigate: (id: string) => void
+  onDelete: (id: string) => void
+  now: number
 }) {
   const theme = useColorScheme().colorScheme ?? "light"
   const [menuVisible, setMenuVisible] = React.useState(false)
   const pressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const handlePressIn = () => {
+  React.useEffect(() => {
+    return () => {
+      if (pressTimer.current) clearTimeout(pressTimer.current)
+    }
+  }, [])
+
+  const handleCloseMenu = React.useCallback(() => setMenuVisible(false), [])
+
+  const handlePressIn = React.useCallback(() => {
     pressTimer.current = setTimeout(() => {
       setMenuVisible(true)
     }, 500)
-  }
+  }, [])
 
-  const handlePressOut = () => {
+  const handlePressOut = React.useCallback(() => {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current)
       pressTimer.current = null
     }
-  }
+  }, [])
 
-  const handlePress = () => {
+  const handlePress = React.useCallback(() => {
     if (!menuVisible) {
-      onPress()
+      onNavigate(session.id)
     }
-  }
+  }, [menuVisible, onNavigate, session.id])
+
+  const handleDeletePress = React.useCallback(() => {
+    setMenuVisible(false)
+    onDelete(session.id)
+  }, [onDelete, session.id])
 
   return (
     <>
@@ -82,14 +108,14 @@ function SessionItem({
             {session.title || "Untitled session"}
           </Text>
           <Text className="text-xs text-muted-foreground">
-            {formatTime(session.time.updated)}
+            {formatTime(session.time.updated, now)}
             {session.agent && ` · ${session.agent}`}
           </Text>
         </View>
       </Pressable>
 
-      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-        <Pressable className="flex-1 justify-end" onPress={() => setMenuVisible(false)}>
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={handleCloseMenu}>
+        <Pressable className="flex-1 justify-end" onPress={handleCloseMenu}>
           <View className="bg-black/40 flex-1" />
           <View className="bg-card rounded-t-2xl pb-8 px-6">
             <View className="w-10 h-1 rounded-full bg-muted mx-auto my-3" />
@@ -103,7 +129,7 @@ function SessionItem({
                   {session.title || "Untitled session"}
                 </Text>
                 <Text className="text-xs text-muted-foreground">
-                  {formatTime(session.time.updated)}
+                  {formatTime(session.time.updated, now)}
                   {session.agent && ` · ${session.agent}`}
                 </Text>
               </View>
@@ -112,7 +138,7 @@ function SessionItem({
             <View className="h-px bg-border/50 mb-4" />
 
             <Pressable
-              onPress={() => { setMenuVisible(false); onDelete() }}
+              onPress={handleDeletePress}
               className="flex-row items-center gap-4 py-3.5 active:bg-destructive/10 rounded-xl px-2 -mx-2"
             >
               <View className="w-9 h-9 rounded-lg bg-destructive/10 items-center justify-center">
@@ -125,7 +151,7 @@ function SessionItem({
       </Modal>
     </>
   )
-}
+})
 
 export default function SessionsScreen() {
   const insets = useSafeAreaInsets()
@@ -150,7 +176,13 @@ export default function SessionsScreen() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
   const [creatingSession, setCreatingSession] = React.useState(false)
+  const [now, setNow] = React.useState(Date.now())
   const { removeSession } = useSessions()
+
+  React.useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleCreateSession = React.useCallback(async () => {
     if (!connection?.url || !connection?.token || !project?.directory || creatingSession) return
@@ -178,7 +210,7 @@ export default function SessionsScreen() {
     if (connection && project) {
       fetchSessions()
     }
-  }, [connection?.id, project?.id])
+  }, [connection?.id, project?.id, fetchSessions])
 
   const filteredSessions = React.useMemo(() => {
     let result = sessions.filter((s) => s.projectID === project?.id)
@@ -211,6 +243,10 @@ export default function SessionsScreen() {
     setSelectedSessionId(sessionId)
     setDeleteDialogOpen(true)
   }, [])
+
+  const handleNavigate = React.useCallback((sessionId: string) => {
+    router.push(`/project/${project?.id}/${sessionId}`)
+  }, [router, project?.id])
 
   const handleDeleteConfirm = React.useCallback(async () => {
     if (!selectedSessionId || !connection?.url || !connection?.token) return
@@ -277,20 +313,20 @@ export default function SessionsScreen() {
           <View className="flex-row gap-2">
             {showFilterMenu && (
               <View className="flex-row gap-1.5 flex-1">
-                {(["all", "active", "completed"] as FilterType[]).map((f) => (
+                {FILTER_OPTIONS.map((f) => (
                   <Pressable
-                    key={f}
-                    onPress={() => { setFilter(f); setShowFilterMenu(false) }}
+                    key={f.key}
+                    onPress={() => { setFilter(f.key); setShowFilterMenu(false) }}
                     className={cn(
                       "px-3 py-1.5 rounded-full",
-                      filter === f ? "bg-primary" : "bg-muted/50"
+                      filter === f.key ? "bg-primary" : "bg-muted/50"
                     )}
                   >
                     <Text className={cn(
                       "text-xs font-medium capitalize",
-                      filter === f ? "text-primary-foreground" : "text-muted-foreground"
+                      filter === f.key ? "text-primary-foreground" : "text-muted-foreground"
                     )}>
-                      {f}
+                      {f.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -298,11 +334,7 @@ export default function SessionsScreen() {
             )}
             {showSortMenu && (
               <View className="flex-row gap-1.5 flex-1">
-                {([
-                  { key: "recent", label: "Recent" },
-                  { key: "oldest", label: "Oldest" },
-                  { key: "name", label: "Name" },
-                ] as { key: SortType; label: string }[]).map((s) => (
+                {SORT_OPTIONS.map((s) => (
                   <Pressable
                     key={s.key}
                     onPress={() => { setSortBy(s.key); setShowSortMenu(false) }}
@@ -370,8 +402,9 @@ export default function SessionsScreen() {
                 key={session.id}
                 session={session}
                 isLast={index === filteredSessions.length - 1}
-                onPress={() => router.push(`/project/${project?.id}/${session.id}`)}
-                onDelete={() => handleDelete(session.id)}
+                onNavigate={handleNavigate}
+                onDelete={handleDelete}
+                now={now}
               />
             ))}
           </View>

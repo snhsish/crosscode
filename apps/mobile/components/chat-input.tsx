@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react"
+import { memo, useCallback, useMemo } from "react"
 import { Image, Keyboard, Platform, Pressable, View } from "react-native"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
@@ -26,6 +26,12 @@ export type ImageAttachment = {
 
 const MAX_IMAGES = 2
 
+const ATTACHMENT_OPTIONS = [
+    { icon: VideoIcon, label: "Video" },
+    { icon: FilesIcon, label: "Files" },
+    { icon: CameraIcon, label: "Camera" },
+] as const
+
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
 type Agent = { name: string; [key: string]: unknown }
@@ -52,7 +58,7 @@ interface ChatInputProps {
     onVariantSelect: (variant: string) => void
     onSessionModelUpdate: (model: { id: string; providerID: string; variant: string }) => void
     images: ImageAttachment[]
-    onImagesChange: (images: ImageAttachment[]) => void
+    onImagesChange: React.Dispatch<React.SetStateAction<ImageAttachment[]>>
 }
 
 function ChatInputInner({
@@ -166,25 +172,25 @@ function ChatInputInner({
                 fileName: asset.fileName ?? undefined,
                 base64: asset.base64 ?? undefined,
             }))
-            onImagesChange([...images, ...newImages].slice(0, MAX_IMAGES))
+            onImagesChange((prev: ImageAttachment[]) => [...prev, ...newImages].slice(0, MAX_IMAGES))
         }
         hideAttachmentMenu()
-    }, [images, onImagesChange, hideAttachmentMenu])
+    }, [images.length, onImagesChange, hideAttachmentMenu])
 
     const removeImage = useCallback((index: number) => {
-        onImagesChange(images.filter((_, i) => i !== index))
-    }, [images, onImagesChange])
+        onImagesChange((prev: ImageAttachment[]) => prev.filter((_, i) => i !== index))
+    }, [onImagesChange])
 
     const animatedInputStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: -keyboardHeight.value }],
     }))
 
-    const contentInsets = {
+    const contentInsets = useMemo(() => ({
         top: insets.top,
         bottom: Platform.select({ ios: insets.bottom, android: insets.bottom + 24 }),
         left: 12,
         right: 12,
-    }
+    }), [insets.top, insets.bottom])
 
     return (
         <Animated.View style={animatedInputStyle}>
@@ -318,11 +324,7 @@ function ChatInputInner({
                                     Image{images.length >= MAX_IMAGES ? " (max)" : ""}
                                 </Text>
                             </Pressable>
-                            {[
-                                { icon: VideoIcon, label: "Video" },
-                                { icon: FilesIcon, label: "Files" },
-                                { icon: CameraIcon, label: "Camera" },
-                            ].map((option) => (
+                            {ATTACHMENT_OPTIONS.map((option) => (
                                 <Pressable
                                     key={option.label}
                                     disabled

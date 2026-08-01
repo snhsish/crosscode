@@ -18,50 +18,78 @@ import { Input } from "@/components/ui/input"
 type FilterType = "all" | "active" | "inactive"
 type SortType = "name" | "recent" | "status"
 
-function ConnectionItem({
+const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
+    { key: "all", label: "All" },
+    { key: "active", label: "Active" },
+    { key: "inactive", label: "Inactive" },
+]
+
+const SORT_OPTIONS: { key: SortType; label: string }[] = [
+    { key: "recent", label: "Recent" },
+    { key: "name", label: "Name" },
+    { key: "status", label: "Status" },
+]
+
+const ConnectionItem = React.memo(function ConnectionItem({
   connection,
   isActive,
   project,
-  onPress,
+  onNavigate,
   onRename,
   onDelete,
 }: {
   connection: { id: string; name: string; url: string; healthy?: boolean | null }
   isActive: boolean
   project?: { directory: string }
-  onPress: () => void
-  onRename: () => void
-  onDelete: () => void
+  onNavigate: (id: string) => void
+  onRename: (id: string) => void
+  onDelete: (id: string) => void
 }) {
   const theme = useColorScheme().colorScheme ?? "light"
   const [menuVisible, setMenuVisible] = React.useState(false)
   const pressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const isUnreachable = connection.healthy === false
 
-  const handlePressIn = () => {
+  React.useEffect(() => {
+    return () => {
+      if (pressTimer.current) clearTimeout(pressTimer.current)
+    }
+  }, [])
+
+  const handleCloseMenu = React.useCallback(() => setMenuVisible(false), [])
+
+  const handlePressIn = React.useCallback(() => {
     pressTimer.current = setTimeout(() => {
       setMenuVisible(true)
     }, 500)
-  }
+  }, [])
 
-  const handlePressOut = () => {
+  const handlePressOut = React.useCallback(() => {
     if (pressTimer.current) {
       clearTimeout(pressTimer.current)
       pressTimer.current = null
     }
-  }
+  }, [])
 
-  const handlePress = () => {
+  const handlePress = React.useCallback(() => {
     if (!menuVisible && !isUnreachable) {
-      onPress()
+      onNavigate(connection.id)
     }
-  }
+  }, [menuVisible, isUnreachable, onNavigate, connection.id])
 
-  const Wrapper = Pressable
+  const handleRenamePress = React.useCallback(() => {
+    setMenuVisible(false)
+    onRename(connection.id)
+  }, [onRename, connection.id])
+
+  const handleDeletePress = React.useCallback(() => {
+    setMenuVisible(false)
+    onDelete(connection.id)
+  }, [onDelete, connection.id])
 
   return (
     <>
-      <Wrapper
+      <Pressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onPress={isActive && !isUnreachable ? handlePress : undefined}
@@ -103,10 +131,10 @@ function ConnectionItem({
             <Text className="text-[10px] font-medium text-primary">Active</Text>
           </View>
         ) : null}
-      </Wrapper>
+      </Pressable>
 
-      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-        <Pressable className="flex-1 justify-end" onPress={() => setMenuVisible(false)}>
+      <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={handleCloseMenu}>
+        <Pressable className="flex-1 justify-end" onPress={handleCloseMenu}>
           <View className="bg-black/40 flex-1" />
           <View className="bg-card rounded-t-2xl pb-8 px-6">
             <View className="w-10 h-1 rounded-full bg-muted mx-auto my-3" />
@@ -148,7 +176,7 @@ function ConnectionItem({
             <View className="h-px bg-border/50 mb-4" />
 
             <Pressable
-              onPress={() => { setMenuVisible(false); onRename() }}
+              onPress={handleRenamePress}
               className="flex-row items-center gap-4 py-3.5 active:bg-muted/50 rounded-xl px-2 -mx-2"
             >
               <View className="w-9 h-9 rounded-lg bg-muted/50 items-center justify-center">
@@ -158,7 +186,7 @@ function ConnectionItem({
             </Pressable>
 
             <Pressable
-              onPress={() => { setMenuVisible(false); onDelete() }}
+              onPress={handleDeletePress}
               className="flex-row items-center gap-4 py-3.5 active:bg-destructive/10 rounded-xl px-2 -mx-2"
             >
               <View className="w-9 h-9 rounded-lg bg-destructive/10 items-center justify-center">
@@ -171,7 +199,7 @@ function ConnectionItem({
       </Modal>
     </>
   )
-}
+})
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets()
@@ -190,8 +218,8 @@ export default function HomeScreen() {
   const [showSortMenu, setShowSortMenu] = React.useState(false)
 
   const checkHealth = React.useCallback(async () => {
-    for (const conn of connections) {
-      if (!conn.url || !conn.token) continue
+    await Promise.all(connections.map(async (conn) => {
+      if (!conn.url || !conn.token) return
       try {
         const res = await fetch(`${conn.url}/global/health`, {
           method: "GET",
@@ -203,8 +231,8 @@ export default function HomeScreen() {
       } catch {
         setConnectionHealth(conn.id, false)
       }
-    }
-  }, [connections, setConnectionHealth])
+    }))
+  }, [connections.length, setConnectionHealth])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -220,7 +248,7 @@ export default function HomeScreen() {
         setProjectForConnection(currentConnection.id, project)
       }
     })
-  }, [currentConnection?.id])
+  }, [currentConnection?.id, currentConnection?.url, currentConnection?.token, setProjectForConnection])
 
   const filteredConnections = React.useMemo(() => {
     let result = [...connections]
@@ -280,6 +308,10 @@ export default function HomeScreen() {
     setSelectedConnectionId(connectionId)
     setDeleteDialogOpen(true)
   }, [])
+
+  const handleNavigate = React.useCallback((_id: string) => {
+    router.push("/sessions")
+  }, [router])
 
   const handleDeleteConfirm = React.useCallback(() => {
     if (selectedConnectionId) {
@@ -348,20 +380,20 @@ export default function HomeScreen() {
           <View className="flex-row gap-2">
             {showFilterMenu && (
               <View className="flex-row gap-1.5 flex-1">
-                {(["all", "active", "inactive"] as FilterType[]).map((f) => (
+                {FILTER_OPTIONS.map((f) => (
                   <Pressable
-                    key={f}
-                    onPress={() => { setFilter(f); setShowFilterMenu(false) }}
+                    key={f.key}
+                    onPress={() => { setFilter(f.key); setShowFilterMenu(false) }}
                     className={cn(
                       "px-3 py-1.5 rounded-full",
-                      filter === f ? "bg-primary" : "bg-muted/50"
+                      filter === f.key ? "bg-primary" : "bg-muted/50"
                     )}
                   >
                     <Text className={cn(
                       "text-xs font-medium capitalize",
-                      filter === f ? "text-primary-foreground" : "text-muted-foreground"
+                      filter === f.key ? "text-primary-foreground" : "text-muted-foreground"
                     )}>
-                      {f}
+                      {f.label}
                     </Text>
                   </Pressable>
                 ))}
@@ -369,11 +401,7 @@ export default function HomeScreen() {
             )}
             {showSortMenu && (
               <View className="flex-row gap-1.5 flex-1">
-                {([
-                  { key: "recent", label: "Recent" },
-                  { key: "name", label: "Name" },
-                  { key: "status", label: "Status" },
-                ] as { key: SortType; label: string }[]).map((s) => (
+                {SORT_OPTIONS.map((s) => (
                   <Pressable
                     key={s.key}
                     onPress={() => { setSortBy(s.key); setShowSortMenu(false) }}
@@ -430,9 +458,9 @@ export default function HomeScreen() {
                   connection={c}
                   isActive={isActive}
                   project={project}
-                  onPress={() => router.push("/sessions")}
-                  onRename={() => handleRename(c.id)}
-                  onDelete={() => handleDelete(c.id)}
+                  onNavigate={handleNavigate}
+                  onRename={handleRename}
+                  onDelete={handleDelete}
                 />
               )
             })}

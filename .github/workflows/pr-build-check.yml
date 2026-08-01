@@ -1,0 +1,103 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      tunnel: ${{ steps.filter.outputs.tunnel }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'pnpm-lock.yaml'
+            tunnel:
+              - 'packages/tunnel-server/**'
+              - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+            mobile:
+              - 'apps/mobile/**'
+              - 'pnpm-lock.yaml'
+
+  build-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build web Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_BETTER_AUTH_URL=https://crosscode.sish.work
+            BETTER_AUTH_URL=https://crosscode.sish.work
+
+  build-tunnel:
+    needs: changes
+    if: needs.changes.outputs.tunnel == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build tunnel Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/tunnel-server/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  check-mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Verify mobile app builds
+        run: npx expo export --platform android --dump-sourcemap false

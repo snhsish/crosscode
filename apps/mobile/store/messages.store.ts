@@ -1,6 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
-import { createJSONStorage, persist } from "zustand/middleware"
 import { FileDiff } from "./sessions.store"
 
 export type ToolInvocation = {
@@ -138,40 +136,34 @@ type MessagesStore = {
 }
 
 export const useMessages = create<MessagesStore>()(
-    persist(
-        (set, get) => ({
-            messagesBySession: {},
+    (set, get) => ({
+        messagesBySession: {},
 
-            upsertMessages: (sessionId, messages) =>
-                set((state) => {
-                    const existing = state.messagesBySession[sessionId] ?? []
-                    const map = new Map(existing.map((m) => [m.id, m]))
+        upsertMessages: (sessionId, messages) =>
+            set((state) => {
+                const existing = state.messagesBySession[sessionId] ?? []
+                const map = new Map(existing.map((m) => [m.id, m]))
 
-                    for (const m of messages) {
-                        map.set(m.id, m)
-                    }
+                for (const m of messages) {
+                    map.set(m.id, m)
+                }
 
-                    return {
-                        messagesBySession: {
-                            ...state.messagesBySession,
-                            [sessionId]: Array.from(map.values()),
-                        },
-                    }
-                }),
-            
-            getMessagesBySession: (sessionId) => get().messagesBySession[sessionId] ?? [],
-
-            setMessages: (sessionId, messages) =>
-                set((state) => ({
+                return {
                     messagesBySession: {
                         ...state.messagesBySession,
-                        [sessionId]: messages,
+                        [sessionId]: Array.from(map.values()),
                     },
-                })),
-        }),
-        {
-            name: "crosscode-messages",
-            storage: createJSONStorage(() => AsyncStorage)
-        }
-    )
+                }
+            }),
+        
+        getMessagesBySession: (sessionId) => get().messagesBySession[sessionId] ?? [],
+
+        setMessages: (sessionId, messages) =>
+            set((state) => ({
+                messagesBySession: {
+                    ...state.messagesBySession,
+                    [sessionId]: messages,
+                },
+            })),
+    })
 )

@@ -1,18 +1,12 @@
-import { LayoutAnimation, Platform, Pressable, UIManager, View } from "react-native"
+import { Pressable, View } from "react-native"
 import { useState } from "react"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { FileEditIcon, ExpandIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Text } from "./ui/text"
 import { THEME } from "@/lib/theme"
 import { computeLineDiff, countChanges, DiffLine } from "@/lib/diff"
 import { useDiffStore } from "@/store/diff.store"
-
-if (
-    Platform.OS === "android" &&
-    UIManager.setLayoutAnimationEnabledExperimental
-) {
-    UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 
 interface EditBlockProps {
     filePath: string
@@ -28,21 +22,22 @@ export function EditBlock({ filePath, oldString, newString, status, theme, proje
     const [expanded, setExpanded] = useState(false)
     const router = useRouter()
     const setDiff = useDiffStore((s) => s.setDiff)
+    const progress = useSharedValue(0)
 
     const diffLines = computeLineDiff(oldString, newString)
     const { additions, deletions } = countChanges(diffLines)
     const statusColor = status === "error" ? "#ef4444" : status === "result" ? "#22c55e" : "#f59e0b"
 
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: progress.value,
+        maxHeight: progress.value * 2000,
+        overflow: "hidden" as const,
+    }))
+
     const toggle = () => {
-        LayoutAnimation.configureNext({
-            duration: 200,
-            create: {
-                type: LayoutAnimation.Types.easeInEaseOut,
-                property: LayoutAnimation.Properties.opacity,
-            },
-            update: { type: LayoutAnimation.Types.easeInEaseOut },
-        })
-        setExpanded(!expanded)
+        const next = !expanded
+        setExpanded(next)
+        progress.value = withTiming(next ? 1 : 0, { duration: 200 })
     }
 
     const openDiff = () => {
@@ -77,24 +72,26 @@ export function EditBlock({ filePath, oldString, newString, status, theme, proje
                     {expanded ? "─" : "+"}
                 </Text>
             </Pressable>
-            {expanded && (
-                <View className="rounded-b-lg border-t border-accent/50">
-                    <View className="px-2 py-1.5 max-h-[200px]">
-                        {diffLines.map((line, i) => (
-                            <DiffLineView key={i} line={line} theme={theme} />
-                        ))}
+            <Animated.View style={animatedStyle}>
+                {expanded && (
+                    <View className="rounded-b-lg border-t border-accent/50">
+                        <View className="px-2 py-1.5 max-h-[200px]">
+                            {diffLines.map((line, i) => (
+                                <DiffLineView key={i} line={line} theme={theme} />
+                            ))}
+                        </View>
+                        <Pressable
+                            onPress={openDiff}
+                            className="flex-row items-center justify-center gap-1.5 py-2 border-t border-accent/30 active:opacity-70"
+                        >
+                            <ExpandIcon size={12} color={THEME[theme].mutedForeground ?? "#737373"} />
+                            <Text className="text-xs text-muted-foreground font-medium">
+                                Open diff view
+                            </Text>
+                        </Pressable>
                     </View>
-                    <Pressable
-                        onPress={openDiff}
-                        className="flex-row items-center justify-center gap-1.5 py-2 border-t border-accent/30 active:opacity-70"
-                    >
-                        <ExpandIcon size={12} color={THEME[theme].mutedForeground ?? "#737373"} />
-                        <Text className="text-xs text-muted-foreground font-medium">
-                            Open diff view
-                        </Text>
-                    </Pressable>
-                </View>
-            )}
+                )}
+            </Animated.View>
         </View>
     )
 }

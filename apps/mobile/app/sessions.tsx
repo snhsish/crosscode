@@ -137,8 +137,8 @@ export default function SessionsScreen() {
 
   const theme = colorScheme ?? "light"
 
-  const connection = connections.find((c) => c.id === current) ?? null
-  const project = projects.find((p) => p.connectionId === current) ?? null
+  const connection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
+  const project = React.useMemo(() => projects.find((p) => p.connectionId === current) ?? null, [projects, current])
 
   const [loading, setLoading] = React.useState(false)
   const [refreshing, setRefreshing] = React.useState(false)
@@ -172,11 +172,13 @@ export default function SessionsScreen() {
     }
     setLoading(false)
     setRefreshing(false)
-  }, [connection, project, upsertSessions])
+  }, [connection?.url, connection?.token, project?.directory, upsertSessions])
 
   React.useEffect(() => {
-    fetchSessions()
-  }, [fetchSessions])
+    if (connection && project) {
+      fetchSessions()
+    }
+  }, [connection?.id, project?.id])
 
   const filteredSessions = React.useMemo(() => {
     let result = sessions.filter((s) => s.projectID === project?.id)

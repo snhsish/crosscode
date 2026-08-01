@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react"
-import { ScrollView, View } from "react-native"
+import { useCallback, useEffect, useMemo } from "react"
+import { FlatList, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useColorScheme } from "nativewind"
@@ -18,7 +18,6 @@ export default function DiffPage() {
     const { projectId, sessionId } = useLocalSearchParams<{ projectId: string; sessionId: string }>()
     const currentDiff = useDiffStore((s) => s.currentDiff)
     const clearDiff = useDiffStore((s) => s.clearDiff)
-    const scrollRef = useRef<ScrollView>(null)
 
     useEffect(() => {
         return () => clearDiff()
@@ -31,6 +30,59 @@ export default function DiffPage() {
 
     const { additions, deletions } = useMemo(() => countChanges(diffLines), [diffLines])
 
+    const isDark = theme === "dark"
+    const addColor = isDark ? "#86efac" : "#166534"
+    const delColor = isDark ? "#fca5a5" : "#991b1b"
+    const addBg = isDark ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.08)"
+    const delBg = isDark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)"
+    const ctxColor = isDark ? "#a1a1aa" : "#52525b"
+    const lineNumColor = isDark ? "#3f3f46" : "#e4e4e7"
+
+    const renderLine = useCallback(({ item: line, index }: { item: DiffLine; index: number }) => {
+        let oldNum: string | undefined
+        let newNum: string | undefined
+
+        if (line.type === "context") {
+            oldNum = String(line.oldLine ?? "")
+            newNum = String(line.newLine ?? "")
+        } else if (line.type === "remove") {
+            oldNum = String(line.oldLine ?? "")
+        } else {
+            newNum = String(line.newLine ?? "")
+        }
+
+        const bg = line.type === "add" ? addBg : line.type === "remove" ? delBg : "transparent"
+        const textColor = line.type === "add" ? addColor : line.type === "remove" ? delColor : ctxColor
+        const prefix = line.type === "add" ? "+" : line.type === "remove" ? "-" : " "
+
+        return (
+            <View style={{ backgroundColor: bg }} className="flex-row">
+                <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
+                    <Text className="text-xs font-mono leading-5" style={{ color: lineNumColor }}>
+                        {oldNum ?? ""}
+                    </Text>
+                </View>
+                <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
+                    <Text className="text-xs font-mono leading-5" style={{ color: lineNumColor }}>
+                        {newNum ?? ""}
+                    </Text>
+                </View>
+                <View style={{ minWidth: 16, paddingHorizontal: 4 }}>
+                    <Text className="text-xs font-mono leading-5" style={{ color: textColor }}>
+                        {prefix}
+                    </Text>
+                </View>
+                <View style={{ paddingHorizontal: 4, flexShrink: 0 }}>
+                    <Text className="text-xs font-mono leading-5" style={{ color: textColor }}>
+                        {line.content || " "}
+                    </Text>
+                </View>
+            </View>
+        )
+    }, [addBg, delBg, addColor, delColor, ctxColor, lineNumColor])
+
+    const keyExtractor = useCallback((_: DiffLine, index: number) => String(index), [])
+
     if (!currentDiff) {
         return (
             <View className="flex-1 bg-background items-center justify-center">
@@ -39,17 +91,7 @@ export default function DiffPage() {
         )
     }
 
-    const isDark = theme === "dark"
     const fileName = currentDiff.filePath.split("/").pop() ?? currentDiff.filePath
-    const addColor = isDark ? "#86efac" : "#166534"
-    const delColor = isDark ? "#fca5a5" : "#991b1b"
-    const addBg = isDark ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.08)"
-    const delBg = isDark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)"
-    const ctxColor = isDark ? "#a1a1aa" : "#52525b"
-    const lineNumColor = isDark ? "#3f3f46" : "#e4e4e7"
-
-    let oldLineNum = 0
-    let newLineNum = 0
 
     return (
         <View className="flex-1 bg-background">
@@ -80,75 +122,16 @@ export default function DiffPage() {
                 )}
             </View>
 
-            <ScrollView
-                ref={scrollRef}
-                horizontal
-                style={{ paddingBottom: insets.bottom + 10 }}
-                contentContainerStyle={{ minWidth: "100%" }}
-            >
-                <View style={{ minWidth: "100%" }}>
-                    {diffLines.map((line, i) => {
-                        let oldNum: string | undefined
-                        let newNum: string | undefined
-
-                        if (line.type === "context") {
-                            oldLineNum++
-                            newLineNum++
-                            oldNum = String(line.oldLine ?? oldLineNum)
-                            newNum = String(line.newLine ?? newLineNum)
-                        } else if (line.type === "remove") {
-                            oldLineNum++
-                            oldNum = String(line.oldLine ?? oldLineNum)
-                        } else {
-                            newLineNum++
-                            newNum = String(line.newLine ?? newLineNum)
-                        }
-
-                        const bg =
-                            line.type === "add" ? addBg : line.type === "remove" ? delBg : "transparent"
-                        const textColor =
-                            line.type === "add" ? addColor : line.type === "remove" ? delColor : ctxColor
-                        const prefix = line.type === "add" ? "+" : line.type === "remove" ? "-" : " "
-
-                        return (
-                            <View key={i} style={{ backgroundColor: bg }} className="flex-row">
-                                <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
-                                    <Text
-                                        className="text-xs font-mono leading-5"
-                                        style={{ color: lineNumColor }}
-                                    >
-                                        {oldNum ?? ""}
-                                    </Text>
-                                </View>
-                                <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
-                                    <Text
-                                        className="text-xs font-mono leading-5"
-                                        style={{ color: lineNumColor }}
-                                    >
-                                        {newNum ?? ""}
-                                    </Text>
-                                </View>
-                                <View style={{ minWidth: 16, paddingHorizontal: 4 }}>
-                                    <Text
-                                        className="text-xs font-mono leading-5"
-                                        style={{ color: textColor }}
-                                    >
-                                        {prefix}
-                                    </Text>
-                                </View>
-                                <View style={{ paddingHorizontal: 4, flexShrink: 0 }}>
-                                    <Text
-                                        className="text-xs font-mono leading-5"
-                                        style={{ color: textColor }}
-                                    >
-                                        {line.content || " "}
-                                    </Text>
-                                </View>
-                            </View>
-                        )
-                    })}
-                </View>
-            </ScrollView>
+            <FlatList
+                data={diffLines}
+                renderItem={renderLine}
+                keyExtractor={keyExtractor}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 10 }}
+                removeClippedSubviews
+                maxToRenderPerBatch={20}
+                windowSize={10}
+                initialNumToRender={30}
+            />
         </View>
     )
 }

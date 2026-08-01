@@ -7,15 +7,14 @@ export const getRecents = async (url: string, token: string) => {
             headers: {
                 "Authorization": `Basic ${btoa(`opencode:${token}`)}`
             }
-        }).then((r) => r.json()) as OpenCodeProject[]
-
-        if (!res) return
-
-        const data = res
-            .sort((a, b) => a.time.updated - b.time.updated)
-            .filter((_, i) => i < 2)
+        })
+        if (!res.ok) return
+        const data = await res.json() as OpenCodeProject[]
+        if (!data) return
 
         return data
+            .sort((a, b) => a.time.updated - b.time.updated)
+            .filter((_, i) => i < 2)
     } catch {
         return
     }

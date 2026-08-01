@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogHeader, DialogFooter } from "@/components/ui/dialog"
-import { useRouter } from "expo-router"
+import { useFocusEffect, useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { cn, formatDirectory } from "@/lib/utils"
@@ -189,28 +189,28 @@ export default function HomeScreen() {
   const [showFilterMenu, setShowFilterMenu] = React.useState(false)
   const [showSortMenu, setShowSortMenu] = React.useState(false)
 
-  React.useEffect(() => {
-    const checkHealth = async () => {
-      for (const conn of connections) {
-        if (!conn.url || !conn.token) continue
-        try {
-          const res = await fetch(`${conn.url}/global/health`, {
-            method: "GET",
-            headers: {
-              "Authorization": `Basic ${btoa(`opencode:${conn.token}`)}`
-            }
-          })
-          setConnectionHealth(conn.id, res.ok)
-        } catch {
-          setConnectionHealth(conn.id, false)
-        }
+  const checkHealth = React.useCallback(async () => {
+    for (const conn of connections) {
+      if (!conn.url || !conn.token) continue
+      try {
+        const res = await fetch(`${conn.url}/global/health`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Basic ${btoa(`opencode:${conn.token}`)}`
+          }
+        })
+        setConnectionHealth(conn.id, res.ok)
+      } catch {
+        setConnectionHealth(conn.id, false)
       }
     }
+  }, [connections, setConnectionHealth])
 
-    checkHealth()
-    const interval = setInterval(checkHealth, 30000)
-    return () => clearInterval(interval)
-  }, [connections])
+  useFocusEffect(
+    React.useCallback(() => {
+      checkHealth()
+    }, [checkHealth])
+  )
 
   React.useEffect(() => {
     if (!currentConnection?.url || !currentConnection?.token) return

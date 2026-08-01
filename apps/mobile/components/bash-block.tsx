@@ -1,15 +1,9 @@
-import { LayoutAnimation, Platform, Pressable, UIManager, View } from "react-native"
+import { Platform, Pressable, View } from "react-native"
 import { useState } from "react"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { TerminalIcon } from "lucide-react-native"
 import { Text } from "./ui/text"
 import { THEME } from "@/lib/theme"
-
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 
 interface BashBlockProps {
   command: string
@@ -27,17 +21,18 @@ function truncateOutput(output: string, maxLength: number = 2000): string {
 
 export function BashBlock({ command, status, output, workdir, description, theme }: BashBlockProps) {
   const [expanded, setExpanded] = useState(false)
+  const progress = useSharedValue(0)
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    maxHeight: progress.value * 2000,
+    overflow: "hidden" as const,
+  }))
 
   const toggle = () => {
-    LayoutAnimation.configureNext({
-      duration: 200,
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-    })
-    setExpanded(!expanded)
+    const next = !expanded
+    setExpanded(next)
+    progress.value = withTiming(next ? 1 : 0, { duration: 200 })
   }
 
   const isDark = theme === "dark"
@@ -66,33 +61,35 @@ export function BashBlock({ command, status, output, workdir, description, theme
           {expanded ? "─" : "+"}
         </Text>
       </Pressable>
-      {expanded && (
-        <View className="rounded-b-lg border-t border-accent/50 px-3 py-2">
-          {workdir && (
-            <Text className="text-xs font-mono mb-1" style={{ color: THEME[theme].mutedForeground }}>
-              {workdir}
-            </Text>
-          )}
-          <View className="flex-row">
-            <Text className="text-xs font-mono" style={{ color: promptColor }}>
-              $
-            </Text>
-            <Text className="text-xs font-mono flex-1 ml-2" style={{ color: outputColor }}>
-              {command}
-            </Text>
-          </View>
-          {output && (
-            <View className="mt-2 border-t border-accent/20 pt-2">
-              <Text
-                className="text-xs font-mono leading-relaxed"
-                style={{ color: THEME[theme].mutedForeground }}
-              >
-                {truncateOutput(output)}
+      <Animated.View style={animatedStyle}>
+        {expanded && (
+          <View className="rounded-b-lg border-t border-accent/50 px-3 py-2">
+            {workdir && (
+              <Text className="text-xs font-mono mb-1" style={{ color: THEME[theme].mutedForeground }}>
+                {workdir}
+              </Text>
+            )}
+            <View className="flex-row">
+              <Text className="text-xs font-mono" style={{ color: promptColor }}>
+                $
+              </Text>
+              <Text className="text-xs font-mono flex-1 ml-2" style={{ color: outputColor }}>
+                {command}
               </Text>
             </View>
-          )}
-        </View>
-      )}
+            {output && (
+              <View className="mt-2 border-t border-accent/20 pt-2">
+                <Text
+                  className="text-xs font-mono leading-relaxed"
+                  style={{ color: THEME[theme].mutedForeground }}
+                >
+                  {truncateOutput(output)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </Animated.View>
     </View>
   )
 }

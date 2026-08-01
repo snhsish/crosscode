@@ -95,7 +95,10 @@ export async function fetchProviders(url: string, token: string): Promise<Provid
     if (!res.ok) return []
     const data = await res.json()
     if (Array.isArray(data)) return data
-    return Object.values(data)
+    if (data && typeof data === "object") {
+        return Object.values(data)
+    }
+    return []
 }
 
 export async function updateSessionModel(url: string, token: string, sessionId: string, model: { id: string; providerID: string; variant?: string }) {

@@ -65,7 +65,7 @@ export default function Connect() {
 
     useEffect(() => {
         testConnection()
-    }, [])
+    }, [url, token])
 
     return (
         <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>

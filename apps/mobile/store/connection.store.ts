@@ -58,11 +58,15 @@ export const useConnections = create<ConnectionStore>()(
                 })),
             setCurrent: (id) => set({ current: id }),
             setConnectionHealth: (id, healthy) =>
-                set((state) => ({
-                    connections: state.connections.map((c) =>
-                        c.id === id ? { ...c, healthy } : c
-                    ),
-                })),
+                set((state) => {
+                    const conn = state.connections.find((c) => c.id === id)
+                    if (conn && conn.healthy === healthy) return state
+                    return {
+                        connections: state.connections.map((c) =>
+                            c.id === id ? { ...c, healthy } : c
+                        ),
+                    }
+                }),
             toggleActiveConnection: (id) =>
                 set((state) => ({
                     activeConnections: state.activeConnections.includes(id)

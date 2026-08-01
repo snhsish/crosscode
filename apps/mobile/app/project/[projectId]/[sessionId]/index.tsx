@@ -133,9 +133,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         try {
             const qs = await getPendingQuestions(connection.url, connection.token)
             const sessionQs = qs.filter((q) => q.sessionID === sessionId)
-            setQuestions(sessionId!, sessionQs)
+            const current = useQuestions.getState().questionsBySession[sessionId!] ?? EMPTY_QUESTIONS
+            if (
+                sessionQs.length !== current.length ||
+                sessionQs.some((q, i) => q.id !== current[i]?.id)
+            ) {
+                setQuestions(sessionId!, sessionQs)
+            }
         } catch {}
-        questionPollRef.current = setTimeout(pollQuestions, 3000)
+        questionPollRef.current = setTimeout(pollQuestions, 5000)
     }, [connection?.url, connection?.token, sessionId, setQuestions])
 
     useEffect(() => {
@@ -578,7 +584,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 scrollRef.current?.scrollToOffset({ offset: 0, animated: false })
             })
         }
-    }, [messages, isAtBottom])
+    }, [messages.length, isAtBottom])
 
     useEffect(() => {
         if (keyboardHeight > 0) {
@@ -599,20 +605,31 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         []
     )
 
+    const handleScrollBeginDrag = useCallback(() => Keyboard.dismiss(), [])
+
     const renderItem = useCallback(
-        ({ item }: { item: Message }) => (
-            <MessageItem
-                message={item}
-                theme={theme}
-                projectId={projectId}
-                sessionId={sessionId}
-                pendingQuestions={pendingQuestions}
-                onQuestionReply={handleQuestionReply}
-                onQuestionReject={handleQuestionReject}
-            />
-        ),
+        ({ item }: { item: Message }) => {
+            const hasQuestionTool = item.parts?.some(
+                (p) =>
+                    (p.type === "tool-invocation" && p.toolInvocation.toolName === "question") ||
+                    (p.type === "tool" && p.tool === "question")
+            )
+            return (
+                <MessageItem
+                    message={item}
+                    theme={theme}
+                    projectId={projectId}
+                    sessionId={sessionId}
+                    pendingQuestions={hasQuestionTool ? pendingQuestions : EMPTY_QUESTIONS}
+                    onQuestionReply={handleQuestionReply}
+                    onQuestionReject={handleQuestionReject}
+                />
+            )
+        },
         [theme, projectId, sessionId, pendingQuestions, handleQuestionReply, handleQuestionReject]
     )
+
+    const reversedMessages = useMemo(() => [...messages].reverse(), [messages])
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
 
@@ -709,14 +726,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             {messages.length > 0 ? (
                 <FlatList
                     ref={scrollRef}
-                    data={[...messages].reverse()}
+                    data={reversedMessages}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     onContentSizeChange={scrollToBottomOnLoad}
                     onScroll={handleScroll}
                     scrollEventThrottle={150}
                     keyboardShouldPersistTaps="handled"
-                    onScrollBeginDrag={() => Keyboard.dismiss()}
+                    onScrollBeginDrag={handleScrollBeginDrag}
                     className="flex-1 px-4 pt-2"
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: keyboardHeight + 16 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}

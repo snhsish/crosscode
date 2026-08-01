@@ -1,13 +1,7 @@
-import { LayoutAnimation, Platform, Pressable, UIManager, View } from "react-native"
+import { Pressable, View } from "react-native"
 import { useState } from "react"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { Text } from "./ui/text"
-
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 
 interface ReasoningBlockProps {
   text: string
@@ -16,17 +10,18 @@ interface ReasoningBlockProps {
 
 export function ReasoningBlock({ text, duration }: ReasoningBlockProps) {
   const [expanded, setExpanded] = useState(false)
+  const progress = useSharedValue(0)
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    maxHeight: progress.value * 2000,
+    overflow: "hidden" as const,
+  }))
 
   const toggle = () => {
-    LayoutAnimation.configureNext({
-      duration: 200,
-      create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-      },
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-    })
-    setExpanded(!expanded)
+    const next = !expanded
+    setExpanded(next)
+    progress.value = withTiming(next ? 1 : 0, { duration: 200 })
   }
 
   return (
@@ -47,13 +42,15 @@ export function ReasoningBlock({ text, duration }: ReasoningBlockProps) {
           </Text>
         )}
       </Pressable>
-      {expanded && (
-        <View className="px-2 pb-2">
-          <Text className="text-xs text-muted-foreground leading-relaxed">
-            {text}
-          </Text>
-        </View>
-      )}
+      <Animated.View style={animatedStyle}>
+        {expanded && (
+          <View className="px-2 pb-2">
+            <Text className="text-xs text-muted-foreground leading-relaxed">
+              {text}
+            </Text>
+          </View>
+        )}
+      </Animated.View>
     </View>
   )
 }

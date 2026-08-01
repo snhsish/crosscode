@@ -3,20 +3,6 @@ import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
 
-/**
- * SSE Event Stream Hook
- * 
- * Connects to the opencode server via POST /mobile-event endpoint.
- * Uses a CLI proxy to work around Cloudflare tunnel buffering issues.
- * 
- * Architecture:
- * Mobile App → POST /mobile-event → Cloudflare Tunnel → CLI Proxy → GET /event → opencode serve
- * 
- * The CLI proxy (running on localhost) opens a GET connection to opencode's /event endpoint
- * and pipes SSE chunks back through the POST response. POST requests flush in real-time
- * through Cloudflare tunnels, while GET requests get buffered.
- */
-
 type SSEEvent = {
     type: string
     properties: Record<string, unknown>
@@ -54,6 +40,27 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         const maxReconnectAttempts = 10
         const reconnectDelays = [3000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]
 
+        let pendingMessages: Message[] | null = null
+        let flushScheduled = false
+
+        function scheduleFlush() {
+            if (flushScheduled) return
+            flushScheduled = true
+            requestAnimationFrame(() => {
+                flushScheduled = false
+                if (pendingMessages !== null) {
+                    useMessages.getState().setMessages(sid, pendingMessages)
+                    pendingMessages = null
+                }
+            })
+        }
+
+        function getOrCreatePending(): Message[] {
+            if (pendingMessages !== null) return pendingMessages
+            pendingMessages = [...useMessages.getState().getMessagesBySession(sid)]
+            return pendingMessages
+        }
+
         function handleEvent(event: SSEEvent, currentSessionId: string) {
             const props = event.properties
 
@@ -66,28 +73,29 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const info = props.info as Message | undefined
                     if (!info || info.sessionID !== currentSessionId) return
 
-                    const store = useMessages.getState()
-                    const existing = store.getMessagesBySession(currentSessionId)
+                    const existing = getOrCreatePending()
                     const existingIdx = existing.findIndex(m => m.id === info.id)
 
-                    let updated: Message[]
                     if (existingIdx >= 0) {
-                        updated = [...existing]
-                        const existingMsg = updated[existingIdx]
-                        updated[existingIdx] = { ...info, parts: existingMsg.parts } as Message
+                        const existingMsg = existing[existingIdx]
+                        existing[existingIdx] = { ...info, parts: existingMsg.parts } as Message
                     } else {
-                        updated = [...existing, { ...info, parts: [] } as Message]
+                        existing.push({ ...info, parts: [] } as Message)
                     }
 
-                    const localIds = updated.filter(m => m.id.startsWith("local-")).map(m => m.id)
+                    const localIds = existing.filter(m => m.id.startsWith("local-")).map(m => m.id)
                     if (localIds.length > 0 && info.role === "user") {
-                        const hasServerUserMsg = updated.some(m => m.role === "user" && !m.id.startsWith("local-"))
+                        const hasServerUserMsg = existing.some(m => m.role === "user" && !m.id.startsWith("local-"))
                         if (hasServerUserMsg) {
-                            updated = updated.filter(m => !m.id.startsWith("local-"))
+                            for (let i = existing.length - 1; i >= 0; i--) {
+                                if (existing[i].id.startsWith("local-")) {
+                                    existing.splice(i, 1)
+                                }
+                            }
                         }
                     }
 
-                    store.setMessages(currentSessionId, updated)
+                    scheduleFlush()
 
                     if (info.role === "assistant") {
                         setActiveMessageId(currentSessionId, info.id)
@@ -106,8 +114,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const isDelta = event.type === "message.part.delta"
                     const delta = props.delta as string | undefined
 
-                    const store = useMessages.getState()
-                    const existing = store.getMessagesBySession(currentSessionId)
+                    const existing = getOrCreatePending()
                     const msgIdx = existing.findIndex(m => m.id === part.messageID)
 
                     if (msgIdx < 0) return
@@ -134,9 +141,8 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                         newParts = [...parts, part as Part]
                     }
 
-                    const updated = [...existing]
-                    updated[msgIdx] = { ...msg, parts: newParts } as Message
-                    store.setMessages(currentSessionId, updated)
+                    existing[msgIdx] = { ...msg, parts: newParts } as Message
+                    scheduleFlush()
                     break
                 }
 
@@ -145,8 +151,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const messageId = props.messageID as string | undefined
                     if (!partId || !messageId || props.sessionID !== currentSessionId) return
 
-                    const store = useMessages.getState()
-                    const existing = store.getMessagesBySession(currentSessionId)
+                    const existing = getOrCreatePending()
                     const msgIdx = existing.findIndex(m => m.id === messageId)
 
                     if (msgIdx < 0) return
@@ -154,9 +159,8 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const msg = existing[msgIdx]
                     const parts = (msg.parts ?? []).filter(p => p.id !== partId)
 
-                    const updated = [...existing]
-                    updated[msgIdx] = { ...msg, parts } as Message
-                    store.setMessages(currentSessionId, updated)
+                    existing[msgIdx] = { ...msg, parts } as Message
+                    scheduleFlush()
                     break
                 }
 
@@ -164,10 +168,14 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const messageId = props.messageID as string | undefined
                     if (!messageId || props.sessionID !== currentSessionId) return
 
-                    const store = useMessages.getState()
-                    const existing = store.getMessagesBySession(currentSessionId)
-                    const filtered = existing.filter(m => m.id !== messageId)
-                    store.setMessages(currentSessionId, filtered)
+                    const existing = getOrCreatePending()
+                    for (let i = existing.length - 1; i >= 0; i--) {
+                        if (existing[i].id === messageId) {
+                            existing.splice(i, 1)
+                            break
+                        }
+                    }
+                    scheduleFlush()
                     break
                 }
 

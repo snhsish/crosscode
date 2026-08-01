@@ -30,6 +30,15 @@ export const useProjects = create<ProjectsStore>()(
                     const existing = state.projects.findIndex((p) => p.connectionId === connectionId)
                     const newProject = { ...project, connectionId }
                     if (existing >= 0) {
+                        const current = state.projects[existing]
+                        if (
+                            current.id === newProject.id &&
+                            current.name === newProject.name &&
+                            current.directory === newProject.directory &&
+                            current.time.updated === newProject.time.updated
+                        ) {
+                            return state
+                        }
                         const updated = [...state.projects]
                         updated[existing] = newProject
                         return { projects: updated }

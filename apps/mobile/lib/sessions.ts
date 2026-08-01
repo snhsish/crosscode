@@ -24,12 +24,9 @@ export const getSessionsByProjectDir = async (url: string, token: string, dir: s
             headers: {
                 "Authorization": `Basic ${btoa(`opencode:${token}`)}`
             }
-        }).then((r) => r.json()) as Session[]
-
-        if (!res) return
-
-        const data = res
-
+        })
+        if (!res.ok) return
+        const data = await res.json() as Session[]
         return data
     } catch {
         return

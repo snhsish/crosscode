@@ -63,3 +63,36 @@ export const shareSession = async (url: string, token: string, sessionId: string
         return null
     }
 }
+
+export const revertMessage = async (url: string, token: string, sessionId: string, messageID: string, partID?: string): Promise<boolean> => {
+    try {
+        const res = await fetch(`${url}/session/${sessionId}/revert`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ messageID, partID }),
+        })
+        return res.ok
+    } catch {
+        return false
+    }
+}
+
+export const forkSession = async (url: string, token: string, sessionId: string, messageID?: string): Promise<Session | null> => {
+    try {
+        const res = await fetch(`${url}/session/${sessionId}/fork`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ messageID }),
+        })
+        if (!res.ok) return null
+        return await res.json()
+    } catch {
+        return null
+    }
+}

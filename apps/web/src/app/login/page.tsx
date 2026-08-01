@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { authClient } from "@/lib/auth-client"
 import { GlyphMatrix } from "@/components/ui/glyph-matrix"
+import { BrandLogo } from "@/components/brand-logo"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -75,7 +76,7 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl">CrossCode</CardTitle>
+          <CardTitle className="text-2xl flex justify-center"><BrandLogo className="h-10 w-10" /></CardTitle>
           <CardDescription>
             {step === "email"
               ? "Sign in to your account"

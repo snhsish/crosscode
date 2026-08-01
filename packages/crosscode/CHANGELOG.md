@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.0
+
+### Minor Changes
+
+- aaf4e04: add: help menu
+
 ## 0.2.0
 
 ### Minor Changes

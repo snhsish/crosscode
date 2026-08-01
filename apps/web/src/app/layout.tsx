@@ -16,6 +16,12 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "CrossCode",
   description: "CrossCode Web Application",
+  icons: {
+    icon: [
+      { url: "/icon-light-mode.png", media: "(prefers-color-scheme: light)" },
+      { url: "/icon-dark-mode.png", media: "(prefers-color-scheme: dark)" },
+    ],
+  },
 };
 
 export default function RootLayout({

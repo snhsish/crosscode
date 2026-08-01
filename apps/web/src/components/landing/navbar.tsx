@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
       <div className="container flex h-16 items-center justify-between">
-        <Link href="/" className="text-xl font-bold">
-          CrossCode
+        <Link href="/" className="flex items-center">
+          <BrandLogo />
         </Link>
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">

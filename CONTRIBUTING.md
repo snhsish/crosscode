@@ -64,19 +64,32 @@ crosscode/
 
 Before starting work, check if there's an existing issue. If not, open one to discuss your idea first. This avoids duplicate work and ensures your contribution aligns with the project's direction.
 
-### 2. Make Your Changes
+### 2. Create a Branch
+
+Always work on a feature branch — never push directly to `main`. Use these prefixes:
+
+- `feat/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation
+- `chore/` - Maintenance, dependencies
+- `refactor/` - Code refactoring
+- `test/` - Tests
+
+Example: `git checkout -b feat/your-feature-name`
+
+### 3. Make Your Changes
 
 - Follow the existing code style and conventions
 - Keep commits focused and atomic
 - Write clear commit messages (prefer [Conventional Commits](https://www.conventionalcommits.org/))
 
-### 3. Test Your Changes
+### 4. Test Your Changes
 
 - Test the CLI locally with `npx crosscode` from the built output
 - Test the mobile app on a real device or emulator
 - Make sure `pnpm build` and `pnpm lint` pass
 
-### 4. Open a Pull Request
+### 5. Open a Pull Request
 
 - Push your branch to your fork
 - Open a PR against `main`

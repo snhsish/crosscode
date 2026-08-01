@@ -1,5 +1,5 @@
-import { memo, useState, useCallback } from "react"
-import { View, Pressable } from "react-native"
+import { memo, useState, useCallback, useRef } from "react"
+import { View, Pressable, Modal } from "react-native"
 import { ArrowLeftIcon, MoreVerticalIcon, ListTodoIcon, FileIcon, ShareIcon, EditIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,9 @@ function SessionHeaderInner({
     const { connections, current } = useConnections()
     const connection = connections.find((c) => c.id === current) ?? null
     const upsertSession = useSessions((s) => s.upsertSession)
+
+    const buttonRef = useRef<View>(null)
+    const [buttonPos, setButtonPos] = useState({ top: 0, right: 0 })
 
     const displayTitle = title && title.length > 40 ? title.slice(0, 37) + "..." : title
 
@@ -82,7 +85,15 @@ function SessionHeaderInner({
                 </Text>
             </View>
 
-            <View className="relative">
+            <View
+                className="relative"
+                ref={buttonRef}
+                onLayout={(e) => {
+                    buttonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                        setButtonPos({ top: pageY + height, right: width })
+                    })
+                }}
+            >
                 <Pressable
                     className="w-10 h-10 rounded-full bg-accent/60 active:bg-accent border border-border/50 items-center justify-center"
                     onPress={toggleMenu}
@@ -90,13 +101,12 @@ function SessionHeaderInner({
                     <MoreVerticalIcon size={18} color={THEME[theme].mutedForeground} />
                 </Pressable>
 
-                {showMenu && (
-                    <>
-                        <Pressable
-                            className="absolute inset-0 -top-20 -left-20 -right-20 -bottom-20"
-                            onPress={closeMenu}
-                        />
-                        <View className="absolute right-0 top-12 w-56 rounded-xl bg-card border border-border shadow-lg z-50">
+                <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
+                    <Pressable className="flex-1" onPress={closeMenu}>
+                        <View
+                            className="w-56 rounded-xl bg-card border border-border shadow-lg"
+                            style={{ position: "absolute", top: buttonPos.top, right: buttonPos.right }}
+                        >
                             <View className="py-2">
                                 <Pressable
                                     className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
@@ -135,8 +145,8 @@ function SessionHeaderInner({
                                 </Pressable>
                             </View>
                         </View>
-                    </>
-                )}
+                    </Pressable>
+                </Modal>
             </View>
 
             <ShareSessionModal

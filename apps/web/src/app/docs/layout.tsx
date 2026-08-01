@@ -1,5 +1,6 @@
 import { DocsSidebar } from "@/components/docs/sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandLogo } from "@/components/brand-logo";
 import Link from "next/link";
 
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
@@ -7,8 +8,8 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
         <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            CrossCode
+          <Link href="/" className="flex items-center">
+            <BrandLogo />
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />

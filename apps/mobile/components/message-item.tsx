@@ -1,6 +1,7 @@
-import { memo } from "react"
-import { Image, View } from "react-native"
-import { TriangleAlertIcon } from "lucide-react-native"
+import { memo, useState, useRef, useCallback } from "react"
+import { Image, View, Pressable, Modal, Share } from "react-native"
+import { TriangleAlertIcon, RotateCcwIcon, CopyIcon, GitBranchIcon } from "lucide-react-native"
+import { useRouter } from "expo-router"
 import { Message, Part } from "@/store/messages.store"
 import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
@@ -13,6 +14,9 @@ import { BashBlock } from "@/components/bash-block"
 import { EditBlock } from "@/components/edit-block"
 import { QuestionBlock } from "@/components/question-block"
 import { QuestionRequest } from "@/store/questions.store"
+import { revertMessage, forkSession } from "@/lib/sessions"
+import { useConnections } from "@/store/connection.store"
+import { useSessions } from "@/store/sessions.store"
 
 function extractTodos(result: unknown): TodoItem[] | null {
     if (!result || typeof result !== "object") return null
@@ -276,7 +280,25 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
 
 const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions)
 
+function getPlainText(message: Message): string {
+    if (!message.parts) return ""
+    return message.parts
+        .filter((p) => p.type === "text")
+        .map((p) => (p as { text: string }).text)
+        .join("\n")
+}
+
 function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject }: MessageItemProps) {
+    const router = useRouter()
+    const [showMenu, setShowMenu] = useState(false)
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+    const containerRef = useRef<View>(null)
+
+    const connections = useConnections((s) => s.connections)
+    const current = useConnections((s) => s.current)
+    const connection = connections.find((c) => c.id === current) ?? null
+    const upsertSession = useSessions((s) => s.upsertSession)
+
     const hasError = message.role === "assistant" && "error" in message && message.error
 
     const duration =
@@ -284,13 +306,48 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             ? (message.time.completed - message.time.created) / 1000
             : undefined
 
+    const closeMenu = useCallback(() => setShowMenu(false), [])
+
+    const handleLongPress = useCallback(() => {
+        containerRef.current?.measure((x, y, width, height, pageX, pageY) => {
+            setMenuPos({ top: pageY + height / 2, left: pageX + width / 2 - 100 })
+            setShowMenu(true)
+        })
+    }, [])
+
+    const handleCopy = useCallback(async () => {
+        closeMenu()
+        const text = getPlainText(message)
+        if (text) {
+            await Share.share({ message: text })
+        }
+    }, [message, closeMenu])
+
+    const handleRevert = useCallback(async () => {
+        closeMenu()
+        if (!connection?.url || !connection?.token) return
+        await revertMessage(connection.url, connection.token, sessionId, message.id)
+    }, [connection, sessionId, message.id, closeMenu])
+
+    const handleFork = useCallback(async () => {
+        closeMenu()
+        if (!connection?.url || !connection?.token) return
+        const forked = await forkSession(connection.url, connection.token, sessionId, message.id)
+        if (forked) {
+            upsertSession(forked)
+            router.push(`/project/${projectId}/${forked.id}`)
+        }
+    }, [connection, sessionId, message.id, projectId, router, upsertSession, closeMenu])
+
     return (
-        <View
+        <Pressable
+            ref={containerRef}
             className={cn(
                 "flex flex-col gap-1.5 p-4 rounded-xl",
                 message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
                 hasError ? "bg-destructive/10 border border-destructive/30" : null,
             )}
+            onLongPress={handleLongPress}
         >
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">
@@ -319,7 +376,42 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                 }
                 return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} />
             })}
-        </View>
+
+            <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
+                <Pressable className="flex-1" onPress={closeMenu}>
+                    <View
+                        className="w-48 rounded-xl bg-card border border-border shadow-lg"
+                        style={{ position: "absolute", top: menuPos.top, left: menuPos.left }}
+                    >
+                        <View className="py-2">
+                            <Pressable
+                                className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
+                                onPress={handleRevert}
+                            >
+                                <RotateCcwIcon size={16} color={THEME[theme].mutedForeground} />
+                                <Text className="text-sm text-foreground">Revert</Text>
+                            </Pressable>
+
+                            <Pressable
+                                className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
+                                onPress={handleCopy}
+                            >
+                                <CopyIcon size={16} color={THEME[theme].mutedForeground} />
+                                <Text className="text-sm text-foreground">Copy</Text>
+                            </Pressable>
+
+                            <Pressable
+                                className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
+                                onPress={handleFork}
+                            >
+                                <GitBranchIcon size={16} color={THEME[theme].mutedForeground} />
+                                <Text className="text-sm text-foreground">Fork</Text>
+                            </Pressable>
+                        </View>
+                    </View>
+                </Pressable>
+            </Modal>
+        </Pressable>
     )
 }
 

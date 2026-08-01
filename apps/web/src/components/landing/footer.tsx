@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Smartphone, Github, Instagram } from "lucide-react";
+import { Github, Instagram } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandLogo } from "@/components/brand-logo";
 
 function XIcon({ className }: { className?: string }) {
   return (
@@ -25,8 +26,7 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <Smartphone className="h-5 w-5" />
-              <span className="font-semibold text-lg">CrossCode</span>
+              <BrandLogo />
             </div>
             <p className="text-sm text-muted-foreground max-w-xs">
               Control your AI coding agent from anywhere. Open source and built for developers.

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import { Pressable, View } from "react-native"
 import { CheckIcon, ChevronRightIcon, HelpCircleIcon, XIcon } from "lucide-react-native"
 import { Text } from "@/components/ui/text"
@@ -16,7 +16,7 @@ interface QuestionBlockProps {
     onReject: (requestId: string) => void
 }
 
-function SingleQuestion({
+const SingleQuestion = memo(function SingleQuestion({
     question,
     index,
     selected,
@@ -119,9 +119,9 @@ function SingleQuestion({
             </View>
         </View>
     )
-}
+})
 
-export function QuestionBlock({ request, theme, onReply, onReject }: QuestionBlockProps) {
+export const QuestionBlock = memo(function QuestionBlock({ request, theme, onReply, onReject }: QuestionBlockProps) {
     const [selections, setSelections] = useState<string[][]>(
         request.questions.map(() => [])
     )
@@ -155,13 +155,13 @@ export function QuestionBlock({ request, theme, onReply, onReject }: QuestionBlo
         })
     }, [])
 
-    const canSubmit = selections.every((sel, i) => {
+    const canSubmit = useMemo(() => selections.every((sel, i) => {
         const hasCustom = request.questions[i].custom ?? false
         const hasCustomText = hasCustom && (customTexts[i] ?? "").trim().length > 0
         return sel.length > 0 || hasCustomText
-    })
+    }), [selections, customTexts, request.questions])
 
-    const handleSubmit = useCallback(() => {
+    const handleSubmit = useCallback(async () => {
         if (!canSubmit || submitting) return
         setSubmitting(true)
 
@@ -174,13 +174,21 @@ export function QuestionBlock({ request, theme, onReply, onReject }: QuestionBlo
             return sel
         })
 
-        onReply(request.id, answers)
+        try {
+            await onReply(request.id, answers)
+        } finally {
+            setSubmitting(false)
+        }
     }, [canSubmit, submitting, selections, customTexts, request, onReply])
 
-    const handleReject = useCallback(() => {
+    const handleReject = useCallback(async () => {
         if (submitting) return
         setSubmitting(true)
-        onReject(request.id)
+        try {
+            await onReject(request.id)
+        } finally {
+            setSubmitting(false)
+        }
     }, [submitting, request.id, onReject])
 
     return (
@@ -231,4 +239,4 @@ export function QuestionBlock({ request, theme, onReply, onReject }: QuestionBlo
             </View>
         </View>
     )
-}
+})

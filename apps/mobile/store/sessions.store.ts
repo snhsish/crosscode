@@ -73,12 +73,26 @@ export const useSessions = create<SessionsStore>()(
             upsertSessions: (incoming) =>
                 set((state) => {
                     const byId = new Map(state.sessions.map((s) => [s.id, s]))
+                    let changed = false
 
                     for (const session of incoming) {
                         const existing = byId.get(session.id)
-                        byId.set(session.id, existing ? { ...existing, ...session } : session)
+                        if (existing) {
+                            const merged = { ...existing, ...session }
+                            const hasChanges = Object.keys(merged).some(
+                                (key) => (merged as any)[key] !== (existing as any)[key]
+                            )
+                            if (hasChanges) {
+                                byId.set(session.id, merged)
+                                changed = true
+                            }
+                        } else {
+                            byId.set(session.id, session)
+                            changed = true
+                        }
                     }
 
+                    if (!changed) return state
                     return { sessions: Array.from(byId.values()) }
                 }),
             removeSession: (id) =>

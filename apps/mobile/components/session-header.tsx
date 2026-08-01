@@ -1,10 +1,14 @@
-import { memo, useState } from "react"
+import { memo, useState, useCallback } from "react"
 import { View, Pressable } from "react-native"
 import { ArrowLeftIcon, MoreVerticalIcon, ListTodoIcon, FileIcon, ShareIcon, EditIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
+import { shareSession } from "@/lib/sessions"
+import { useConnections } from "@/store/connection.store"
+import { useSessions } from "@/store/sessions.store"
+import { ShareSessionModal } from "@/components/share-session-modal"
 
 interface SessionHeaderProps {
     projectId: string
@@ -27,6 +31,12 @@ function SessionHeaderInner({
 }: SessionHeaderProps) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
+    const [showShareModal, setShowShareModal] = useState(false)
+    const [shareUrl, setShareUrl] = useState<string | null>(null)
+    const [shareLoading, setShareLoading] = useState(false)
+    const { connections, current } = useConnections()
+    const connection = connections.find((c) => c.id === current) ?? null
+    const upsertSession = useSessions((s) => s.upsertSession)
 
     const displayTitle = title && title.length > 40 ? title.slice(0, 37) + "..." : title
 
@@ -37,6 +47,20 @@ function SessionHeaderInner({
         closeMenu()
         router.push(path)
     }
+
+    const handleShare = useCallback(async () => {
+        closeMenu()
+        if (!connection?.url || !connection?.token) return
+        setShareLoading(true)
+        setShareUrl(null)
+        setShowShareModal(true)
+        const session = await shareSession(connection.url, connection.token, sessionId)
+        setShareLoading(false)
+        if (session?.share?.url) {
+            setShareUrl(session.share.url)
+            upsertSession(session)
+        }
+    }, [connection?.url, connection?.token, sessionId, upsertSession])
 
     return (
         <View
@@ -92,9 +116,7 @@ function SessionHeaderInner({
                             <View className="border-t border-border/50 py-2">
                                 <Pressable
                                     className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => {
-                                        closeMenu()
-                                    }}
+                                    onPress={handleShare}
                                 >
                                     <ShareIcon size={16} color={THEME[theme].mutedForeground} />
                                     <Text className="text-sm text-foreground">Share session</Text>
@@ -114,6 +136,14 @@ function SessionHeaderInner({
                     </>
                 )}
             </View>
+
+            <ShareSessionModal
+                open={showShareModal}
+                onClose={() => setShowShareModal(false)}
+                shareUrl={shareUrl}
+                loading={shareLoading}
+                theme={theme}
+            />
         </View>
     )
 }

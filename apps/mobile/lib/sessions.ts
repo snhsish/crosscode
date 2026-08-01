@@ -50,3 +50,19 @@ export const deleteSession = async (url: string, token: string, sessionId: strin
         return false
     }
 }
+
+export const shareSession = async (url: string, token: string, sessionId: string): Promise<Session | null> => {
+    try {
+        const res = await fetch(`${url}/session/${sessionId}/share`, {
+            method: "POST",
+            headers: {
+                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Content-Type": "application/json",
+            },
+        })
+        if (!res.ok) return null
+        return await res.json()
+    } catch {
+        return null
+    }
+}

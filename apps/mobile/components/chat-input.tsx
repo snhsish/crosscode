@@ -1,9 +1,10 @@
 import { memo, useCallback } from "react"
-import { Keyboard, Platform, Pressable, View } from "react-native"
+import { Image, Keyboard, Platform, Pressable, View } from "react-native"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
+import * as ImagePicker from "expo-image-picker"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { Textarea } from "@/components/ui/textarea"
@@ -16,14 +17,16 @@ import { useRef, useEffect, useState } from "react"
 import { BackHandler } from "react-native"
 import { SelectedModel } from "@/store/chat.store"
 
-const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
+export type ImageAttachment = {
+    uri: string
+    mime: string
+    fileName?: string
+    base64?: string
+}
 
-const ATTACHMENT_OPTIONS = [
-    { icon: ImageIcon, label: "Image" },
-    { icon: VideoIcon, label: "Video" },
-    { icon: FilesIcon, label: "Files" },
-    { icon: CameraIcon, label: "Camera" },
-] as const
+const MAX_IMAGES = 2
+
+const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
 type Agent = { name: string; [key: string]: unknown }
 
@@ -48,6 +51,8 @@ interface ChatInputProps {
     onModelSelect: (model: { id: string; providerID: string; variant?: string }) => void
     onVariantSelect: (variant: string) => void
     onSessionModelUpdate: (model: { id: string; providerID: string; variant: string }) => void
+    images: ImageAttachment[]
+    onImagesChange: (images: ImageAttachment[]) => void
 }
 
 function ChatInputInner({
@@ -71,6 +76,8 @@ function ChatInputInner({
     onSessionModelUpdate,
     connectionUrl,
     connectionToken,
+    images,
+    onImagesChange,
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
@@ -140,6 +147,34 @@ function ChatInputInner({
         }
     }, [showAttachmentMenu, navigation, hideAttachmentMenu])
 
+    const pickImages = useCallback(async () => {
+        const remaining = MAX_IMAGES - images.length
+        if (remaining <= 0) return
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsMultipleSelection: true,
+            selectionLimit: remaining,
+            base64: true,
+            quality: 0.8,
+        })
+
+        if (!result.canceled && result.assets.length > 0) {
+            const newImages: ImageAttachment[] = result.assets.map((asset) => ({
+                uri: asset.uri,
+                mime: asset.mimeType ?? "image/jpeg",
+                fileName: asset.fileName ?? undefined,
+                base64: asset.base64 ?? undefined,
+            }))
+            onImagesChange([...images, ...newImages].slice(0, MAX_IMAGES))
+        }
+        hideAttachmentMenu()
+    }, [images, onImagesChange, hideAttachmentMenu])
+
+    const removeImage = useCallback((index: number) => {
+        onImagesChange(images.filter((_, i) => i !== index))
+    }, [images, onImagesChange])
+
     const animatedInputStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: -keyboardHeight.value }],
     }))
@@ -155,6 +190,25 @@ function ChatInputInner({
         <Animated.View style={animatedInputStyle}>
             <View className="p-4 !bg-transparent" style={{ paddingBottom: insets.bottom + 16 }}>
                 <View className="p-2 rounded-3xl bg-accent">
+                    {images.length > 0 && (
+                        <View className="flex-row gap-2 px-2 pt-2 pb-1">
+                            {images.map((img, index) => (
+                                <View key={img.uri} className="relative">
+                                    <Image
+                                        source={{ uri: img.uri }}
+                                        className="w-16 h-16 rounded-xl"
+                                        resizeMode="cover"
+                                    />
+                                    <Pressable
+                                        onPress={() => removeImage(index)}
+                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive items-center justify-center"
+                                    >
+                                        <XIcon size={12} color="#fff" />
+                                    </Pressable>
+                                </View>
+                            ))}
+                        </View>
+                    )}
                     <Textarea
                         placeholder={`Ask anything... "Fix broken tests"`}
                         style={{ borderWidth: 0, backgroundColor: "transparent" }}
@@ -252,7 +306,23 @@ function ChatInputInner({
                 {showAttachmentMenu && (
                     <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
                         <View className="flex-row flex-wrap">
-                            {ATTACHMENT_OPTIONS.map((option) => (
+                            <Pressable
+                                onPress={pickImages}
+                                disabled={images.length >= MAX_IMAGES}
+                                className={`w-1/2 items-center justify-center py-4 ${images.length >= MAX_IMAGES ? "opacity-40" : ""}`}
+                            >
+                                <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
+                                    <ImageIcon size={22} color={THEME[theme].foreground} />
+                                </View>
+                                <Text className="text-xs text-muted-foreground">
+                                    Image{images.length >= MAX_IMAGES ? " (max)" : ""}
+                                </Text>
+                            </Pressable>
+                            {[
+                                { icon: VideoIcon, label: "Video" },
+                                { icon: FilesIcon, label: "Files" },
+                                { icon: CameraIcon, label: "Camera" },
+                            ].map((option) => (
                                 <Pressable
                                     key={option.label}
                                     disabled

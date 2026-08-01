@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, FlatList, Keyboard, View } from "react-native"
+import { ActivityIndicator, FlatList, Keyboard, Platform, View } from "react-native"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { useProjects } from "@/store/projects.store"
 import { useSessions } from "@/store/sessions.store"
@@ -16,7 +16,7 @@ import { Pressable } from "react-native"
 import { Button } from "@/components/ui/button"
 import { MessageItem } from "@/components/message-item"
 import { SessionHeader } from "@/components/session-header"
-import { ChatInput } from "@/components/chat-input"
+import { ChatInput, ImageAttachment } from "@/components/chat-input"
 import { useEventStream } from "@/components/hooks/event-stream"
 import { useChatStore, SelectedModel } from "@/store/chat.store"
 import { useModels } from "@/store/models.store"
@@ -24,7 +24,6 @@ import { updateSessionModel } from "@/lib/models"
 import { TypingDots } from "@/components/typing-animation"
 import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
-import { createSession } from "@/lib/sessions"
 import { QuestionRequest } from "@/store/questions.store"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
@@ -76,16 +75,30 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [retryCountdown, setRetryCountdown] = useState(0)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
+    const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([])
+    const [keyboardHeight, setKeyboardHeight] = useState(0)
 
     const scrollRef = useRef<FlatList<Message>>(null)
     const MESSAGES_PER_PAGE = 20
+
+    useEffect(() => {
+        const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
+            setKeyboardHeight(e.endCoordinates.height)
+        })
+        const hideListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide", () => {
+            setKeyboardHeight(0)
+        })
+        return () => {
+            showListener.remove()
+            hideListener.remove()
+        }
+    }, [])
 
     const theme = (colorScheme ?? "light") as "light" | "dark"
 
     const connection = useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
     const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId])
     const session = useMemo(() => sessions.find((s) => s.id === sessionId) ?? null, [sessions, sessionId])
-    const isNewSession = sessionId === "new"
 
     const isStreaming = useChatStore(
         useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
@@ -192,7 +205,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const onScrollToIndexFailed = useCallback(() => {}, [])
 
-    useEventStream(connection?.url, isNewSession ? undefined : sessionId, connection?.token)
+    useEventStream(connection?.url, sessionId, connection?.token)
 
     const retryAttemptRef = useRef(0)
     const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -202,6 +215,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         localId: string
         modelId?: string
         providerId?: string
+        images?: ImageAttachment[]
     } | null>(null)
 
     const RETRY_DELAYS = [10, 30, 120, 300, 600]
@@ -221,9 +235,23 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         agent: string,
         modelId?: string,
         providerId?: string,
+        images?: ImageAttachment[],
     ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
         try {
-            const body: Record<string, unknown> = { parts: [{ type: "text", text }], agent }
+            const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
+            if (images && images.length > 0) {
+                for (const img of images) {
+                    if (img.base64) {
+                        parts.push({
+                            type: "file",
+                            mime: img.mime,
+                            url: `data:${img.mime};base64,${img.base64}`,
+                            filename: img.fileName,
+                        })
+                    }
+                }
+            }
+            const body: Record<string, unknown> = { parts, agent }
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
@@ -352,7 +380,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (!connection?.url || !connection?.token) return
             const result = await attemptSendMessage(
                 connection.url, connection.token, data.targetSessionId,
-                data.text, selectedAgent, data.modelId, data.providerId,
+                data.text, selectedAgent, data.modelId, data.providerId, data.images,
             )
 
             if (result.ok) {
@@ -391,21 +419,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         const modelId = selectedModel?.id ?? session?.model?.id
         const providerId = selectedModel?.providerID ?? session?.model?.providerID
 
-        let targetSessionId = sessionId
-        let targetSession = session
-
-        if (isNewSession) {
-            if (!project?.directory) return
-            const newSession = await createSession(connection.url, connection.token, project.directory)
-            if (!newSession) {
-                setSendError({ title: "Failed to create session", hint: "Please try again" })
-                return
-            }
-            upsertSession(newSession)
-            targetSessionId = newSession.id
-            targetSession = newSession
-            router.replace(`/project/${projectId}/${newSession.id}`)
-        }
+        const targetSessionId = sessionId
+        const targetSession = session
 
         clearDraft(targetSessionId)
         setSending(true)
@@ -414,6 +429,18 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const localId = `local-${now}`
 
+        const userParts: Part[] = [{ type: "text", text }]
+        if (selectedImages.length > 0) {
+            for (const img of selectedImages) {
+                userParts.push({
+                    type: "file",
+                    mime: img.mime,
+                    url: img.uri,
+                    filename: img.fileName,
+                })
+            }
+        }
+
         const userMsg: Message = {
             id: localId,
             sessionID: targetSessionId,
@@ -421,23 +448,24 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             time: { created: now },
             agent: selectedAgent,
             model: { providerID: providerId ?? "...", modelID: modelId ?? "..." },
-            parts: [{ type: "text", text }],
+            parts: userParts,
         }
 
         upsertMessages(targetSessionId, [userMsg])
 
         const result = await attemptSendMessage(
             connection.url, connection.token, targetSessionId,
-            text, selectedAgent, modelId, providerId,
+            text, selectedAgent, modelId, providerId, selectedImages,
         )
 
         if (result.ok) {
             setSending(false)
+            setSelectedImages([])
             return
         }
 
         if (result.retryable) {
-            retryDataRef.current = { text, targetSessionId, localId, modelId, providerId }
+            retryDataRef.current = { text, targetSessionId, localId, modelId, providerId, images: selectedImages }
             retryAttemptRef.current = 0
             scheduleRetry(0)
         } else {
@@ -448,7 +476,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )
             setSending(false)
         }
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, isNewSession, project, upsertSession, router, projectId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, scheduleRetry])
+        setSelectedImages([])
+    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, scheduleRetry, selectedImages])
 
     useEffect(() => {
         return () => {
@@ -514,7 +543,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [connection, sessionId, isLoadingMore, hasMoreMessages, getMessagesBySession, setMessages])
 
     useEffect(() => {
-        if (session && !isNewSession) getAndSetMessages()
+        if (session) getAndSetMessages()
     }, [session?.id])
 
     useEffect(() => {
@@ -550,6 +579,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             })
         }
     }, [messages, isAtBottom])
+
+    useEffect(() => {
+        if (keyboardHeight > 0) {
+            requestAnimationFrame(() => {
+                scrollRef.current?.scrollToOffset({ offset: 0, animated: true })
+            })
+        }
+    }, [keyboardHeight])
 
     const handleScroll = useCallback(
         (e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
@@ -681,7 +718,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     keyboardShouldPersistTaps="handled"
                     onScrollBeginDrag={() => Keyboard.dismiss()}
                     className="flex-1 px-4 pt-2"
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: keyboardHeight + 16 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
                     ListFooterComponent={ListFooterComponent}
                     removeClippedSubviews
@@ -697,7 +734,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )}
 
             {!isAtBottom && messages.length > 0 && (
-                <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + 150 }}>
+                <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + 150 + keyboardHeight }}>
                     <View className="items-center">
                         <Button variant="secondary" size="xs" className="rounded-full shadow-md" onPress={scrollToBottom}>
                             <ArrowDownIcon size={12} color={THEME[theme].foreground} />
@@ -766,6 +803,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 onModelSelect={handleModelSelect}
                 onVariantSelect={handleVariantSelect}
                 onSessionModelUpdate={handleSessionModelUpdate}
+                images={selectedImages}
+                onImagesChange={setSelectedImages}
             />
         </View>
     )

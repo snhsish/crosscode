@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { View } from "react-native"
+import { Image, View } from "react-native"
 import { TriangleAlertIcon } from "lucide-react-native"
 import { Message, Part } from "@/store/messages.store"
 import { THEME } from "@/lib/theme"
@@ -251,6 +251,16 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                 </Text>
             )
         case "file":
+            if (part.mime.startsWith("image/")) {
+                return (
+                    <Image
+                        key={part.id ?? index}
+                        source={{ uri: part.url }}
+                        className="w-full h-40 rounded-xl"
+                        resizeMode="cover"
+                    />
+                )
+            }
             return (
                 <Text key={part.id ?? index} className="text-xs text-muted-foreground">
                     File: <Text className="underline">{part.filename ?? part.url}</Text>

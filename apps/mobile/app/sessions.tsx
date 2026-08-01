@@ -10,7 +10,7 @@ import { Dialog, DialogHeader, DialogFooter } from "@/components/ui/dialog"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { useSessions, Session } from "@/store/sessions.store"
-import { getSessionsByProjectDir, deleteSession } from "@/lib/sessions"
+import { getSessionsByProjectDir, deleteSession, createSession } from "@/lib/sessions"
 import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { AlertTriangle, ArrowLeft, ArrowUpDown, Filter, MessageCircle, Plus, Search, Trash2, X } from "lucide-react-native"
@@ -149,7 +149,19 @@ export default function SessionsScreen() {
   const [showSortMenu, setShowSortMenu] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
+  const [creatingSession, setCreatingSession] = React.useState(false)
   const { removeSession } = useSessions()
+
+  const handleCreateSession = React.useCallback(async () => {
+    if (!connection?.url || !connection?.token || !project?.directory || creatingSession) return
+    setCreatingSession(true)
+    const newSession = await createSession(connection.url, connection.token, project.directory)
+    if (newSession) {
+      upsertSessions([newSession])
+      router.push(`/project/${project.id}/${newSession.id}`)
+    }
+    setCreatingSession(false)
+  }, [connection, project, creatingSession, upsertSessions, router])
 
   const fetchSessions = React.useCallback(async () => {
     if (!connection?.url || !connection?.token || !project) return
@@ -327,9 +339,15 @@ export default function SessionsScreen() {
               Start a new session to begin working with your project
             </Text>
           </View>
-          <Button size="sm" onPress={() => router.push(`/project/${project?.id}/new`)} className="mt-2 rounded-full">
-            <Plus size={16} color={THEME[theme].primaryForeground} />
-            <Text className="text-sm font-medium text-primary-foreground">New Session</Text>
+          <Button size="sm" onPress={handleCreateSession} disabled={creatingSession} className="mt-2 rounded-full">
+            {creatingSession ? (
+              <ActivityIndicator size="small" color={THEME[theme].primaryForeground} />
+            ) : (
+              <>
+                <Plus size={16} color={THEME[theme].primaryForeground} />
+                <Text className="text-sm font-medium text-primary-foreground">New Session</Text>
+              </>
+            )}
           </Button>
         </View>
       ) : (
@@ -380,8 +398,12 @@ export default function SessionsScreen() {
       {filteredSessions.length > 0 && (
         <View className="absolute" style={{ bottom: insets.bottom + 24, right: 24 }}>
           <Pressable
-            onPress={() => router.push(`/project/${project?.id}/new`)}
-            className="w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg active:opacity-80"
+            onPress={handleCreateSession}
+            disabled={creatingSession}
+            className={cn(
+              "w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg",
+              creatingSession ? "opacity-70" : "active:opacity-80"
+            )}
             style={{
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 4 },
@@ -390,7 +412,11 @@ export default function SessionsScreen() {
               elevation: 8,
             }}
           >
-            <Plus size={24} color={THEME[theme].primaryForeground} />
+            {creatingSession ? (
+              <ActivityIndicator size="small" color={THEME[theme].primaryForeground} />
+            ) : (
+              <Plus size={24} color={THEME[theme].primaryForeground} />
+            )}
           </Pressable>
         </View>
       )}

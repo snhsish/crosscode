@@ -1,0 +1,30 @@
+name: Preview Cleanup
+
+on:
+  pull_request:
+    types: [unlabeled, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    if: >
+      (github.event.action == 'unlabeled' && github.event.label.name == 'deploy-preview') ||
+      github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup preview containers
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker stop crosscode-web-preview || true
+            docker rm crosscode-web-preview || true
+            docker stop crosscode-tunnel-preview || true
+            docker rm crosscode-tunnel-preview || true
+            docker rmi ghcr.io/${{ github.repository }}/web:pr-${{ github.event.pull_request.number }} || true
+            docker rmi ghcr.io/${{ github.repository }}/tunnel-server:pr-${{ github.event.pull_request.number }} || true
+            docker image prune -f

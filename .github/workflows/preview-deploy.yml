@@ -1,0 +1,264 @@
+name: Preview Deploy
+
+on:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: preview-deploy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  changes:
+    if: github.event.label.name == 'deploy-preview'
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      tunnel: ${{ steps.filter.outputs.tunnel }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'Dockerfile'
+              - 'docker-compose.yml'
+              - 'pnpm-lock.yaml'
+            tunnel:
+              - 'packages/tunnel-server/**'
+              - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+            mobile:
+              - 'apps/mobile/**'
+              - 'pnpm-lock.yaml'
+
+  preview-web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push web preview image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/web:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_BETTER_AUTH_URL=https://crosscode.sish.work
+            BETTER_AUTH_URL=https://crosscode.sish.work
+
+      - name: Deploy web preview
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull ghcr.io/${{ github.repository }}/web:pr-${{ github.event.pull_request.number }}
+            docker stop crosscode-web-preview || true
+            docker rm crosscode-web-preview || true
+            docker run -d \
+              --name crosscode-web-preview \
+              --restart always \
+              -p 3001:3000 \
+              --env-file /home/deploy/crosscode/apps/web/.env \
+              ghcr.io/${{ github.repository }}/web:pr-${{ github.event.pull_request.number }}
+            docker image prune -f
+
+  preview-tunnel:
+    needs: changes
+    if: needs.changes.outputs.tunnel == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push tunnel preview image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/tunnel-server/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/tunnel-server:pr-${{ github.event.pull_request.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy tunnel preview
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            docker pull ghcr.io/${{ github.repository }}/tunnel-server:pr-${{ github.event.pull_request.number }}
+            docker stop crosscode-tunnel-preview || true
+            docker rm crosscode-tunnel-preview || true
+            docker run -d \
+              --name crosscode-tunnel-preview \
+              --restart always \
+              -p 3101:3100 \
+              --env-file /home/deploy/crosscode/packages/tunnel-server/.env \
+              ghcr.io/${{ github.repository }}/tunnel-server:pr-${{ github.event.pull_request.number }}
+            docker image prune -f
+
+  preview-mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build mobile preview APK
+        id: eas-build
+        run: |
+          eas build --profile preview --platform android --non-interactive --no-wait 2>&1 | tee eas-output.log
+          BUILD_URL=$(grep -oP 'https://expo.dev/accounts/[^/]+/projects/[^/]+/builds/[^ ]+' eas-output.log | head -1)
+          echo "build_url=$BUILD_URL" >> "$GITHUB_OUTPUT"
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Wait for EAS build and get APK URL
+        id: eas-wait
+        run: |
+          BUILD_URL="${{ steps.eas-build.outputs.build_url }}"
+          if [ -z "$BUILD_URL" ]; then
+            echo "Could not extract build URL"
+            exit 1
+          fi
+          echo "Waiting for build: $BUILD_URL"
+          BUILD_ID=$(echo "$BUILD_URL" | grep -oP '[a-f0-9-]{36}$')
+          while true; do
+            STATUS=$(eas build:view --json 2>/dev/null | jq -r ".[] | select(.id == \"$BUILD_ID\") | .status" 2>/dev/null || echo "UNKNOWN")
+            if [ "$STATUS" = "FINISHED" ]; then
+              ARTIFACT_URL=$(eas build:view --json 2>/dev/null | jq -r ".[] | select(.id == \"$BUILD_ID\") | .artifacts.buildUrl")
+              echo "apk_url=$ARTIFACT_URL" >> "$GITHUB_OUTPUT"
+              echo "build_page=$BUILD_URL" >> "$GITHUB_OUTPUT"
+              break
+            elif [ "$STATUS" = "ERRORED" ] || [ "$STATUS" = "CANCELED" ]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+            echo "Build status: $STATUS, waiting..."
+            sleep 30
+          done
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+  comment-preview:
+    needs: [changes, preview-web, preview-tunnel, preview-mobile]
+    if: always() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build preview comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const webResult = '${{ needs.preview-web.result }}';
+            const tunnelResult = '${{ needs.preview-tunnel.result }}';
+            const mobileResult = '${{ needs.preview-mobile.result }}';
+            const webChanged = '${{ needs.changes.outputs.web }}' === 'true';
+            const tunnelChanged = '${{ needs.changes.outputs.tunnel }}' === 'true';
+            const mobileChanged = '${{ needs.changes.outputs.mobile }}' === 'true';
+
+            let body = '## Preview Deployments\n\n';
+
+            if (webChanged) {
+              if (webResult === 'success') {
+                body += '- **Web**: Deployed on port 3001\n';
+              } else {
+                body += '- **Web**: Deploy failed\n';
+              }
+            }
+
+            if (tunnelChanged) {
+              if (tunnelResult === 'success') {
+                body += '- **Tunnel Server**: Deployed on port 3101\n';
+              } else {
+                body += '- **Tunnel Server**: Deploy failed\n';
+              }
+            }
+
+            if (mobileChanged) {
+              if (mobileResult === 'success') {
+                body += '- **Mobile**: APK built via EAS\n';
+              } else {
+                body += '- **Mobile**: Build failed\n';
+              }
+            }
+
+            body += '\nRemove the `deploy-preview` label to clean up preview deployments.\n';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existingComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## Preview Deployments')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }

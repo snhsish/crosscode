@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Modal, Pressable, View } from "react-native"
+import { ActivityIndicator, Modal, Pressable, View } from "react-native"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -80,9 +80,13 @@ function DialogFooter({
         onPress={onConfirm}
         disabled={loading}
       >
-        <Text className={cn("text-sm font-medium", variant === "destructive" ? "text-white" : "text-primary-foreground")}>
-          {confirmLabel}
-        </Text>
+        {loading ? (
+          <ActivityIndicator size="small" color={variant === "destructive" ? "#fff" : undefined} />
+        ) : (
+          <Text className={cn("text-sm font-medium", variant === "destructive" ? "text-white" : "text-primary-foreground")}>
+            {confirmLabel}
+          </Text>
+        )}
       </Button>
     </View>
   )

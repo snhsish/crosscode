@@ -30,6 +30,17 @@ const EMPTY_QUESTIONS: QuestionRequest[] = []
 
 const EMPTY_MESSAGES: Message[] = []
 
+const MESSAGES_PER_PAGE = 20
+
+const RETRY_DELAYS = [10, 30, 120, 300, 600]
+
+function formatRetryTime(seconds: number): string {
+    if (seconds < 60) return `${seconds}s`
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+}
+
 export default function SessionScreen() {
     const insets = useSafeAreaInsets()
     const { colorScheme } = useColorScheme()
@@ -79,7 +90,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [keyboardHeight, setKeyboardHeight] = useState(0)
 
     const scrollRef = useRef<FlatList<Message>>(null)
-    const MESSAGES_PER_PAGE = 20
 
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
@@ -153,8 +163,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+    const isRetrying = retryCountdown > 0
     useEffect(() => {
-        if (retryCountdown > 0) {
+        if (isRetrying) {
             retryTimerRef.current = setInterval(() => {
                 setRetryCountdown((prev) => {
                     if (prev <= 1) {
@@ -168,7 +179,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 if (retryTimerRef.current) clearInterval(retryTimerRef.current)
             }
         }
-    }, [retryCountdown > 0])
+    }, [isRetrying])
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
         if (!connection?.url || !connection?.token) return
@@ -223,15 +234,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         providerId?: string
         images?: ImageAttachment[]
     } | null>(null)
-
-    const RETRY_DELAYS = [10, 30, 120, 300, 600]
-
-    const formatRetryTime = (seconds: number): string => {
-        if (seconds < 60) return `${seconds}s`
-        const mins = Math.floor(seconds / 60)
-        const secs = seconds % 60
-        return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
-    }
 
     const attemptSendMessage = useCallback(async (
         connectionUrl: string,
@@ -550,11 +552,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     useEffect(() => {
         if (session) getAndSetMessages()
-    }, [session?.id])
+    }, [session?.id, getAndSetMessages])
 
     useEffect(() => {
         if (connection) fetchAgents(connection.url, connection.token)
-    }, [connection?.id])
+    }, [connection?.id, fetchAgents])
 
     useFocusEffect(
         useCallback(() => {
@@ -576,7 +578,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     useEffect(() => {
         if (connection) fetchAll(connection.url, connection.token)
-    }, [connection?.id])
+    }, [connection?.id, fetchAll])
 
     useEffect(() => {
         if (isAtBottom && messages.length > 0) {

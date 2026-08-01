@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router"
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useConnections } from "@/store/connection.store"
@@ -23,7 +23,7 @@ export default function Connect() {
 
     const theme = colorScheme ?? "light"
 
-    const testConnection = async () => {
+    const testConnection = useCallback(async () => {
         setTesting(true)
 
         try {
@@ -52,7 +52,7 @@ export default function Connect() {
         } finally {
             setTesting(false)
         }
-    }
+    }, [url, token])
 
     function save() {
         addConnection({
@@ -65,7 +65,7 @@ export default function Connect() {
 
     useEffect(() => {
         testConnection()
-    }, [url, token])
+    }, [testConnection])
 
     return (
         <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>

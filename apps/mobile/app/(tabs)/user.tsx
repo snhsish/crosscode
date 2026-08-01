@@ -42,7 +42,7 @@ export default function UserPage() {
     })
 
     return () => subscription.remove()
-  }, [clearLastRemoteUrlOnClose])
+  }, [clearLastRemoteUrlOnClose, setCurrent])
 
   const handleLogout = () => {
     Alert.alert(

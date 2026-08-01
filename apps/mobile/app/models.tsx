@@ -44,7 +44,7 @@ export default function ModelsPage() {
     const { colorScheme } = useColorScheme()
     const theme = colorScheme ?? "light"
     const { connections, current } = useConnections()
-    const connection = connections.find((c) => c.id === current) ?? null
+    const connection = useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
     const { models, providers, fetchAll } = useModels()
 
     const [search, setSearch] = useState("")
@@ -61,7 +61,7 @@ export default function ModelsPage() {
 
     useEffect(() => {
         if (connection) fetchAll(connection.url, connection.token)
-    }, [connection?.id])
+    }, [connection?.id, fetchAll])
 
     const filtered = useMemo(() => {
         let list = [...models]

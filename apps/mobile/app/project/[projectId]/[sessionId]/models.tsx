@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, FlatList, Pressable, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -61,6 +61,7 @@ export default function ModelsPage() {
     const [sort, setSort] = useState<SortMode>("name")
     const [selectedId, setSelectedId] = useState(currentModelId ?? "")
     const [selectedProviderId, setSelectedProviderId] = useState(currentProviderId ?? "")
+    const updatingRef = useRef<string | null>(null)
     const [updating, setUpdating] = useState<string | null>(null)
 
     const providerMap = useMemo(() => {
@@ -73,7 +74,7 @@ export default function ModelsPage() {
 
     useEffect(() => {
         if (connection) fetchAll(connection.url, connection.token)
-    }, [connection?.id])
+    }, [connection?.id, fetchAll])
 
     const filtered = useMemo(() => {
         let list = [...models]
@@ -116,7 +117,8 @@ export default function ModelsPage() {
 
     const handleSelect = useCallback(
         async (modelId: string, providerId: string) => {
-            if (!connection || updating) return
+            if (!connection || updatingRef.current) return
+            updatingRef.current = modelId
             setUpdating(modelId)
             try {
                 const selectedModel = models.find((m) => m.id === modelId && m.providerID === providerId)
@@ -135,18 +137,16 @@ export default function ModelsPage() {
                 router.back()
             } catch {
             } finally {
+                updatingRef.current = null
                 setUpdating(null)
             }
         },
-        [connection, sessionId, updating, setModel, setModelByAgent, router, models, agent]
+        [connection, sessionId, setModel, setModelByAgent, router, models, agent]
     )
-
-    const isSelected = (modelId: string, providerId: string) =>
-        selectedId === modelId && selectedProviderId === providerId
 
     const renderItem = useCallback(
         ({ item }: { item: (typeof models)[0] }) => {
-            const selected = isSelected(item.id, item.providerID)
+            const selected = selectedId === item.id && selectedProviderId === item.providerID
             const providerName = providerMap[item.providerID] ?? item.providerID
             const isDeprecated = item.status === "deprecated"
             return (

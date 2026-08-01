@@ -31,12 +31,14 @@ export default function DiffPage() {
     const { additions, deletions } = useMemo(() => countChanges(diffLines), [diffLines])
 
     const isDark = theme === "dark"
-    const addColor = isDark ? "#86efac" : "#166534"
-    const delColor = isDark ? "#fca5a5" : "#991b1b"
-    const addBg = isDark ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.08)"
-    const delBg = isDark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)"
-    const ctxColor = isDark ? "#a1a1aa" : "#52525b"
-    const lineNumColor = isDark ? "#3f3f46" : "#e4e4e7"
+    const colors = useMemo(() => ({
+        addColor: isDark ? "#86efac" : "#166534",
+        delColor: isDark ? "#fca5a5" : "#991b1b",
+        addBg: isDark ? "rgba(34,197,94,0.12)" : "rgba(34,197,94,0.08)",
+        delBg: isDark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)",
+        ctxColor: isDark ? "#a1a1aa" : "#52525b",
+        lineNumColor: isDark ? "#3f3f46" : "#e4e4e7",
+    }), [isDark])
 
     const renderLine = useCallback(({ item: line, index }: { item: DiffLine; index: number }) => {
         let oldNum: string | undefined
@@ -51,19 +53,19 @@ export default function DiffPage() {
             newNum = String(line.newLine ?? "")
         }
 
-        const bg = line.type === "add" ? addBg : line.type === "remove" ? delBg : "transparent"
-        const textColor = line.type === "add" ? addColor : line.type === "remove" ? delColor : ctxColor
+        const bg = line.type === "add" ? colors.addBg : line.type === "remove" ? colors.delBg : "transparent"
+        const textColor = line.type === "add" ? colors.addColor : line.type === "remove" ? colors.delColor : colors.ctxColor
         const prefix = line.type === "add" ? "+" : line.type === "remove" ? "-" : " "
 
         return (
             <View style={{ backgroundColor: bg }} className="flex-row">
                 <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
-                    <Text className="text-xs font-mono leading-5" style={{ color: lineNumColor }}>
+                    <Text className="text-xs font-mono leading-5" style={{ color: colors.lineNumColor }}>
                         {oldNum ?? ""}
                     </Text>
                 </View>
                 <View style={{ minWidth: 36, paddingHorizontal: 4 }} className="items-end border-r border-accent/30">
-                    <Text className="text-xs font-mono leading-5" style={{ color: lineNumColor }}>
+                    <Text className="text-xs font-mono leading-5" style={{ color: colors.lineNumColor }}>
                         {newNum ?? ""}
                     </Text>
                 </View>
@@ -79,9 +81,12 @@ export default function DiffPage() {
                 </View>
             </View>
         )
-    }, [addBg, delBg, addColor, delColor, ctxColor, lineNumColor])
+    }, [colors])
 
-    const keyExtractor = useCallback((_: DiffLine, index: number) => String(index), [])
+    const keyExtractor = useCallback((line: DiffLine, index: number) => {
+        const lineNum = line.type === "context" ? line.newLine : line.type === "add" ? line.newLine : line.oldLine
+        return `${line.type}-${lineNum}-${index}`
+    }, [])
 
     if (!currentDiff) {
         return (

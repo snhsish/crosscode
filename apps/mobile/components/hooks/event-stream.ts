@@ -37,6 +37,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         let connected = false
         let buffer = ""
         let reconnectAttempts = 0
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null
         const maxReconnectAttempts = 10
         const reconnectDelays = [3000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]
 
@@ -218,7 +219,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                 setConnectionStatus("connectivity-issues")
             }
 
-            setTimeout(() => {
+            reconnectTimer = setTimeout(() => {
                 if (!abort.signal.aborted) {
                     connect()
                 }
@@ -318,6 +319,10 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         connect()
 
         return () => {
+            if (reconnectTimer) clearTimeout(reconnectTimer)
+            if (pendingMessages !== null) {
+                useMessages.getState().setMessages(sid, pendingMessages)
+            }
             abort.abort()
             abortRef.current = null
             setConnectionStatus("disconnected")

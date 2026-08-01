@@ -1,5 +1,5 @@
 import { CameraView, useCameraPermissions } from "expo-camera"
-import { useRef } from "react"
+import { useRef, useEffect } from "react"
 import { Button } from "./ui/button"
 import { Text } from "./ui/text"
 import { View } from "react-native"
@@ -25,6 +25,12 @@ export default function QrScanner({
     const [perm, reqPerm] = useCameraPermissions()
     const lastScanned = useRef<string | null>(null)
     const cooldownTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (cooldownTimer.current) clearTimeout(cooldownTimer.current)
+        }
+    }, [])
 
     const handleQrCodeScanned = (data: string) => {
         if (!isActive) return

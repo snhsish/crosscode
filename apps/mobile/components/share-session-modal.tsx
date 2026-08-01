@@ -1,4 +1,4 @@
-import { memo, useState } from "react"
+import { memo, useState, useRef, useEffect } from "react"
 import { View, Pressable, ActivityIndicator, Share } from "react-native"
 import { XIcon, CopyIcon, CheckIcon, ShareIcon as ShareIconLucide } from "lucide-react-native"
 import { Dialog } from "@/components/ui/dialog"
@@ -16,17 +16,26 @@ interface ShareSessionModalProps {
 
 function ShareSessionModalInner({ open, onClose, shareUrl, loading, theme }: ShareSessionModalProps) {
     const [copied, setCopied] = useState(false)
+    const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        return () => {
+            if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+        }
+    }, [])
 
     const handleCopy = async () => {
         if (!shareUrl) return
         try {
             await Share.share({ message: shareUrl })
             setCopied(true)
-            setTimeout(() => setCopied(false), 2000)
+            if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
+            copyTimerRef.current = setTimeout(() => setCopied(false), 2000)
         } catch {}
     }
 
     const handleClose = () => {
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
         setCopied(false)
         onClose()
     }

@@ -1,8 +1,8 @@
 import * as React from "react"
 import { useFocusEffect, useRouter } from "expo-router"
-import { View, Alert } from "react-native"
+import { View, Alert, ActivityIndicator } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { decodeQrPayload, decodeLoginQrPayload, detectQrPayloadType } from "@crosscode/shared"
+import { decodeQrPayload, decodeLoginQrPayload, decodeDeviceLinkQrPayload, detectQrPayloadType } from "@crosscode/shared"
 import QrScanner from "@/components/qr-scanner"
 import { Text } from "@/components/ui/text"
 import { FlashlightIcon, FlashlightOffIcon } from "lucide-react-native"
@@ -17,6 +17,7 @@ export default function NewConnectionScreen() {
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "light"
   const [torch, setTorch] = React.useState<boolean>(false)
+  const [claiming, setClaiming] = React.useState(false)
   const navigated = React.useRef(false)
   const { login } = useAuth()
 
@@ -26,8 +27,8 @@ export default function NewConnectionScreen() {
     }, [])
   )
 
-  const handleScan = (data: string) => {
-    if (navigated.current) return
+  const handleScan = async (data: string) => {
+    if (navigated.current || claiming) return
     try {
       const payloadType = detectQrPayloadType(data)
 
@@ -46,6 +47,11 @@ export default function NewConnectionScreen() {
         Alert.alert("Logged in", `Welcome, ${payload.name}!`, [
           { text: "OK", onPress: () => router.replace("/(tabs)/user") },
         ])
+      } else if (payloadType === "device-link") {
+        const payload = decodeDeviceLinkQrPayload(data)
+        navigated.current = true
+        setClaiming(true)
+        await claimDevice(payload.token)
       } else {
         const payload = decodeQrPayload(data)
         navigated.current = true
@@ -53,6 +59,50 @@ export default function NewConnectionScreen() {
       }
     } catch {
       // Invalid QR code
+    }
+  }
+
+  const claimDevice = async (token: string) => {
+    try {
+      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
+      const res = await fetch(`${baseUrl}/api/auth/device-link/claim?token=${token}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceName: "Mobile Device" }),
+      })
+
+      if (!res.ok) {
+        const error = await res.json()
+        throw new Error(error.error || "Failed to claim device")
+      }
+
+      const data = await res.json()
+
+      const accountRes = await fetch(`${baseUrl}/api/account`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (accountRes.ok) {
+        const accountData = await accountRes.json()
+        login(
+          {
+            id: accountData.user.id,
+            email: accountData.user.email,
+            name: accountData.user.name,
+            tier: accountData.user.tier,
+          },
+          token
+        )
+        Alert.alert("Device Linked", "Your phone has been linked to your account!", [
+          { text: "OK", onPress: () => router.replace("/(tabs)/user") },
+        ])
+      } else {
+        throw new Error("Failed to fetch account")
+      }
+    } catch (error) {
+      Alert.alert("Error", error instanceof Error ? error.message : "Failed to link device")
+    } finally {
+      setClaiming(false)
     }
   }
 
@@ -96,7 +146,14 @@ export default function NewConnectionScreen() {
       </View>
 
       <View className="flex-1 items-center justify-center px-6">
-        <QrScanner onScan={handleScan} torch={torch} />
+        {claiming ? (
+          <View className="items-center gap-4">
+            <ActivityIndicator size="large" color={THEME[theme].primary} />
+            <Text className="text-sm text-muted-foreground">Linking device...</Text>
+          </View>
+        ) : (
+          <QrScanner onScan={handleScan} torch={torch} />
+        )}
       </View>
 
       <View className="items-center py-6">

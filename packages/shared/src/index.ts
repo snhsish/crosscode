@@ -20,6 +20,12 @@ export type ConnectionQrPayload = {
   v: number
 }
 
+export type DeviceLinkQrPayload = {
+  type: "device-link"
+  token: string
+  v: number
+}
+
 function toBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   let result = ''
@@ -93,12 +99,33 @@ export function decodeLoginQrPayload(encoded: string): LoginQrPayload {
   }
 }
 
-export function detectQrPayloadType(encoded: string): "login" | "connection" {
+export function detectQrPayloadType(encoded: string): "login" | "connection" | "device-link" {
   try {
     const parsed = JSON.parse(fromBase64(encoded))
     if (parsed.type === "login") return "login"
+    if (parsed.type === "device-link") return "device-link"
   } catch {}
   return "connection"
+}
+
+export function encodeDeviceLinkQrPayload(payload: DeviceLinkQrPayload): string {
+  return toBase64(JSON.stringify({
+    type: payload.type,
+    token: payload.token,
+    v: payload.v,
+  }))
+}
+
+export function decodeDeviceLinkQrPayload(encoded: string): DeviceLinkQrPayload {
+  const parsed = JSON.parse(fromBase64(encoded))
+  if (parsed.type !== "device-link" || typeof parsed.token !== "string" || parsed.v !== 1) {
+    throw new Error('Invalid device-link QR payload')
+  }
+  return {
+    type: parsed.type,
+    token: parsed.token,
+    v: parsed.v,
+  }
 }
 
 export type TunnelC2S =

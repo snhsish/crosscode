@@ -57,3 +57,16 @@ export const waitlist = pgTable("waitlist", {
   email: text("email").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 })
+
+export const deviceSession = pgTable("device_session", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  deviceName: text("device_name"),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})

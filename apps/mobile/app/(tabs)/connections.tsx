@@ -12,7 +12,8 @@ export default function ConnectionsScreen() {
   const insets = useSafeAreaInsets()
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "light"
-  const { connections, current } = useConnections()
+  const connections = useConnections((s) => s.connections)
+  const current = useConnections((s) => s.current)
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top + 10 }}>

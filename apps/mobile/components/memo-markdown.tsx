@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { type ReactNode } from "react"
 import Markdown from "react-native-marked"
 import { Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
@@ -63,10 +63,30 @@ const customRenderer = {
     },
 }
 
-function MarkdownRendererInner({ children }: { children: string }) {
+function MarkdownRendererInner({ children, streaming }: { children: string; streaming?: boolean }) {
+    const [parsed, setParsed] = useState(children)
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    useEffect(() => {
+        if (streaming) {
+            if (timerRef.current) clearTimeout(timerRef.current)
+            timerRef.current = setTimeout(() => {
+                setParsed(children)
+            }, 150)
+            return () => {
+                if (timerRef.current) clearTimeout(timerRef.current)
+            }
+        }
+        setParsed(children)
+    }, [children, streaming])
+
+    if (streaming && parsed !== children) {
+        return <Text className="text-sm text-foreground leading-relaxed">{children}</Text>
+    }
+
     return (
         <Markdown
-            value={children}
+            value={parsed}
             renderer={customRenderer}
             flatListProps={{
                 scrollEnabled: false,
@@ -78,6 +98,6 @@ function MarkdownRendererInner({ children }: { children: string }) {
     )
 }
 
-const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children)
+const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children && prev.streaming === next.streaming)
 
 export default MemoMarkdown

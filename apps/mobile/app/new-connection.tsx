@@ -19,7 +19,7 @@ export default function NewConnectionScreen() {
   const [torch, setTorch] = React.useState<boolean>(false)
   const [claiming, setClaiming] = React.useState(false)
   const navigated = React.useRef(false)
-  const { login } = useAuth()
+  const login = useAuth((s) => s.login)
 
   useFocusEffect(
     React.useCallback(() => {

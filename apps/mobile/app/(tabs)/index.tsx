@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native"
+import { FlatList, Image, Modal, Pressable, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Text } from "@/components/ui/text"
@@ -8,7 +8,7 @@ import { Dialog, DialogHeader, DialogFooter } from "@/components/ui/dialog"
 import { useFocusEffect, useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
-import { cn, formatDirectory } from "@/lib/utils"
+import { cn, formatDirectory, getAuthHeader } from "@/lib/utils"
 import { getCurrentProject } from "@/lib/projects"
 import { AlertTriangle, ArrowUpDown, Bell, Filter, Pencil, Plus, Search, Server, Trash2, User, Wifi, WifiOff, X } from "lucide-react-native"
 import { THEME } from "@/lib/theme"
@@ -205,8 +205,13 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { colorScheme } = useColorScheme()
-  const { connections, current, setConnectionHealth } = useConnections()
-  const { projects, setProjectForConnection } = useProjects()
+  const connections = useConnections((s) => s.connections)
+  const current = useConnections((s) => s.current)
+  const setConnectionHealth = useConnections((s) => s.setConnectionHealth)
+  const projects = useProjects((s) => s.projects)
+  const setProjectForConnection = useProjects((s) => s.setProjectForConnection)
+  const removeConnection = useConnections((s) => s.removeConnection)
+  const updateConnection = useConnections((s) => s.updateConnection)
 
   const theme = colorScheme ?? "light"
   const currentConnection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
@@ -217,14 +222,19 @@ export default function HomeScreen() {
   const [showFilterMenu, setShowFilterMenu] = React.useState(false)
   const [showSortMenu, setShowSortMenu] = React.useState(false)
 
+  const lastHealthCheckRef = React.useRef(0)
+
   const checkHealth = React.useCallback(async () => {
+    const now = Date.now()
+    if (now - lastHealthCheckRef.current < 30000) return
+    lastHealthCheckRef.current = now
     await Promise.all(connections.map(async (conn) => {
       if (!conn.url || !conn.token) return
       try {
         const res = await fetch(`${conn.url}/global/health`, {
           method: "GET",
           headers: {
-            "Authorization": `Basic ${btoa(`opencode:${conn.token}`)}`
+            "Authorization": getAuthHeader(conn.token)
           }
         })
         setConnectionHealth(conn.id, res.ok)
@@ -281,7 +291,13 @@ export default function HomeScreen() {
     return result
   }, [connections, searchQuery, filter, sortBy, current])
 
-  const { removeConnection, updateConnection } = useConnections()
+  const projectByConnectionId = React.useMemo(() => {
+    const map = new Map<string, { directory: string }>()
+    for (const p of projects) {
+      map.set(p.connectionId, p)
+    }
+    return map
+  }, [projects])
 
   const [renameDialogOpen, setRenameDialogOpen] = React.useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
@@ -424,8 +440,13 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <ScrollView className="flex-1 px-6" showsVerticalScrollIndicator={false}>
-        {filteredConnections.length === 0 ? (
+      <FlatList
+        className="flex-1 px-6"
+        showsVerticalScrollIndicator={false}
+        data={filteredConnections}
+        keyExtractor={(c) => c.id}
+        contentContainerStyle={filteredConnections.length === 0 ? undefined : { gap: 12, paddingBottom: 32 }}
+        ListEmptyComponent={
           <View className="items-center justify-center py-20 gap-4">
             <View className="w-16 h-16 rounded-2xl bg-muted items-center justify-center">
               <Server size={28} color={THEME[theme].mutedForeground} />
@@ -447,26 +468,26 @@ export default function HomeScreen() {
               <Text className="text-sm font-medium text-primary-foreground">New Connection</Text>
             </Button>
           </View>
-        ) : (
-          <View className="gap-3 pb-8">
-            {filteredConnections.map((c) => {
-              const isActive = c.id === current
-              const project = projects.find((p) => p.connectionId === c.id)
-              return (
-                <ConnectionItem
-                  key={c.id}
-                  connection={c}
-                  isActive={isActive}
-                  project={project}
-                  onNavigate={handleNavigate}
-                  onRename={handleRename}
-                  onDelete={handleDelete}
-                />
-              )
-            })}
-          </View>
-        )}
-      </ScrollView>
+        }
+        renderItem={({ item: c }) => {
+          const isActive = c.id === current
+          const project = projectByConnectionId.get(c.id)
+          return (
+            <ConnectionItem
+              connection={c}
+              isActive={isActive}
+              project={project}
+              onNavigate={handleNavigate}
+              onRename={handleRename}
+              onDelete={handleDelete}
+            />
+          )
+        }}
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={15}
+      />
 
       <Dialog open={renameDialogOpen} onClose={() => setRenameDialogOpen(false)}>
         <DialogHeader

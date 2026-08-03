@@ -7,7 +7,7 @@ import { Text } from "@/components/ui/text"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react-native"
-import { cn } from "@/lib/utils"
+import { cn, getAuthHeader } from "@/lib/utils"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 
@@ -30,7 +30,7 @@ export default function Connect() {
             const res = await fetch(`${url}/global/health`, {
                 method: "GET",
                 headers: {
-                    "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                    "Authorization": getAuthHeader(token)
                 }
             })
             if (res.ok) {

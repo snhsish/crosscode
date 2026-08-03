@@ -1,3 +1,5 @@
+import { getAuthHeader } from "@/lib/utils"
+
 export type TodoTask = {
     content: string
     status: string
@@ -9,7 +11,7 @@ export async function fetchSessionTodos(url: string, token: string, sessionId: s
         const res = await fetch(`${url}/session/${sessionId}/todo`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Authorization": getAuthHeader(token),
             },
         })
         if (!res.ok) return []

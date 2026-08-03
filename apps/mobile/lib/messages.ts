@@ -1,4 +1,5 @@
 import { Message } from "@/store/messages.store"
+import { getAuthHeader } from "@/lib/utils"
 
 export const getMessages = async (url: string, token: string, sessionId: string, limit?: number, offset?: number) => {
     try {
@@ -10,7 +11,7 @@ export const getMessages = async (url: string, token: string, sessionId: string,
         const res = await fetch(`${url}/session/${sessionId}/message${queryString ? `?${queryString}` : ""}`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) return

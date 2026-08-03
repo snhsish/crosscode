@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { Agent } from "../lib/opencode"
+import { getAuthHeader } from "@/lib/utils"
 
 export type AgentStore = {
     agents: Agent[]
@@ -20,7 +21,7 @@ export const useAgents = create<AgentStore>()(
                     const res = await fetch(`${url}/agent`, {
                         method: "GET",
                         headers: {
-                            "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                            "Authorization": getAuthHeader(token)
                         }
                     })
                     if (!res.ok) return

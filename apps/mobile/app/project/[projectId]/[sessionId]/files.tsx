@@ -18,7 +18,8 @@ export default function FilesPage() {
     const theme = (colorScheme ?? "light") as "light" | "dark"
     const { projectId, sessionId } = useLocalSearchParams<{ projectId: string; sessionId: string }>()
     const setDiff = useDiffStore((s) => s.setDiff)
-    const { connections, current } = useConnections()
+    const connections = useConnections((s) => s.connections)
+    const current = useConnections((s) => s.current)
     const connection = connections.find((c) => c.id === current) ?? null
 
     const [files, setFiles] = useState<FileDiff[]>([])
@@ -155,6 +156,9 @@ export default function FilesPage() {
                     keyExtractor={(item) => item.file}
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+                    removeClippedSubviews
+                    maxToRenderPerBatch={10}
+                    windowSize={7}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

@@ -1,9 +1,10 @@
 import { Project } from "@/store/projects.store"
+import { getAuthHeader } from "@/lib/utils"
 
 export const getCurrentProject = async (url: string, token: string) => {
     try {
         const headers = {
-            "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+            "Authorization": getAuthHeader(token)
         }
 
         const [projectRes, pathRes] = await Promise.all([

@@ -76,9 +76,14 @@ export const EditBlock = memo(function EditBlock({ filePath, oldString, newStrin
                 {expanded && (
                     <View className="rounded-b-lg border-t border-accent/50">
                         <View className="px-2 py-1.5 max-h-[200px]">
-                            {diffLines.map((line, i) => (
+                            {diffLines.slice(0, 50).map((line, i) => (
                                 <DiffLineView key={i} line={line} theme={theme} />
                             ))}
+                            {diffLines.length > 50 && (
+                                <Text className="text-xs text-muted-foreground text-center py-1">
+                                    +{diffLines.length - 50} more lines
+                                </Text>
+                            )}
                         </View>
                         <Pressable
                             onPress={openDiff}

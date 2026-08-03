@@ -2,6 +2,7 @@ import "fast-text-encoding"
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
+import { getAuthHeader } from "@/lib/utils"
 
 type SSEEvent = {
     type: string
@@ -26,7 +27,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
         const setStreaming = useChatStore.getState().setStreaming
         const setActiveMessageId = useChatStore.getState().setActiveMessageId
 
-        const authHeader = `Basic ${btoa(`opencode:${tok}`)}`
+        const authHeader = getAuthHeader(tok)
         const eventUrl = `${baseUrl}/mobile-event`
 
         setConnectionStatus("connecting")

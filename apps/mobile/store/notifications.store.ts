@@ -16,7 +16,6 @@ export type Notification = {
 
 type NotificationStore = {
     notifications: Notification[]
-    unreadCount: number
     addNotification: (notification: Omit<Notification, "id" | "timestamp" | "read">) => void
     markAsRead: (id: string) => void
     markAllAsRead: () => void
@@ -29,7 +28,6 @@ export const useNotifications = create<NotificationStore>()(
     persist(
         (set, get) => ({
             notifications: [],
-            unreadCount: 0,
 
             addNotification: (notification) =>
                 set((state) => ({
@@ -42,7 +40,6 @@ export const useNotifications = create<NotificationStore>()(
                         },
                         ...state.notifications,
                     ],
-                    unreadCount: state.unreadCount + 1,
                 })),
 
             markAsRead: (id) =>
@@ -53,28 +50,22 @@ export const useNotifications = create<NotificationStore>()(
                         notifications: state.notifications.map((n) =>
                             n.id === id ? { ...n, read: true } : n
                         ),
-                        unreadCount: state.unreadCount - 1,
                     }
                 }),
 
             markAllAsRead: () =>
                 set((state) => ({
                     notifications: state.notifications.map((n) => ({ ...n, read: true })),
-                    unreadCount: 0,
                 })),
 
             removeNotification: (id) =>
-                set((state) => {
-                    const notification = state.notifications.find((n) => n.id === id)
-                    return {
-                        notifications: state.notifications.filter((n) => n.id !== id),
-                        unreadCount: notification && !notification.read ? state.unreadCount - 1 : state.unreadCount,
-                    }
-                }),
+                set((state) => ({
+                    notifications: state.notifications.filter((n) => n.id !== id),
+                })),
 
-            clearAll: () => set({ notifications: [], unreadCount: 0 }),
+            clearAll: () => set({ notifications: [] }),
 
-            getUnreadCount: () => get().unreadCount,
+            getUnreadCount: () => get().notifications.filter((n) => !n.read).length,
         }),
         {
             name: "crosscode-notifications",

@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useCallback } from "react"
-import { Image, View, Pressable, Modal, Share } from "react-native"
+import { View, Pressable, Modal, Share } from "react-native"
+import { Image } from "expo-image"
 import { TriangleAlertIcon, RotateCcwIcon, CopyIcon, GitBranchIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Message, Part } from "@/store/messages.store"
@@ -73,10 +74,10 @@ function getErrorHint(name?: string): string | undefined {
     }
 }
 
-function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void }) {
+function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, streaming }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; streaming?: boolean }) {
     switch (part.type) {
         case "text":
-            return <MemoMarkdown key={part.id ?? index}>{part.text}</MemoMarkdown>
+            return <MemoMarkdown key={part.id ?? index} streaming={streaming}>{part.text}</MemoMarkdown>
         case "reasoning":
             return null
         case "tool-invocation":
@@ -278,7 +279,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions)
+const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.streaming === next.streaming)
 
 function getPlainText(message: Message): string {
     if (!message.parts) return ""
@@ -288,7 +289,7 @@ function getPlainText(message: Message): string {
         .join("\n")
 }
 
-function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject }: MessageItemProps) {
+function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, streaming }: MessageItemProps & { streaming?: boolean }) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -374,7 +375,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                         />
                     )
                 }
-                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} />
+                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} streaming={streaming} />
             })}
 
             <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
@@ -416,5 +417,5 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 }
 
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
-    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions
+    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.streaming === next.streaming
 })

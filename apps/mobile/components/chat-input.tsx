@@ -1,5 +1,6 @@
 import { memo, useCallback, useMemo } from "react"
-import { Image, Keyboard, Platform, Pressable, View } from "react-native"
+import { Keyboard, Platform, Pressable, View } from "react-native"
+import { Image } from "expo-image"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"

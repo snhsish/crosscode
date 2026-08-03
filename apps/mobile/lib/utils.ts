@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const authCache = new Map<string, string>()
+
+export function getAuthHeader(token: string): string {
+    let cached = authCache.get(token)
+    if (!cached) {
+        cached = `Basic ${btoa(`opencode:${token}`)}`
+        authCache.set(token, cached)
+    }
+    return cached
+}
+
 export function formatDirectory(path: string | undefined | null): string {
     if (!path) return ""
     const cleaned = path.replace(/\/+$/, '')

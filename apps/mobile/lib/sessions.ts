@@ -1,11 +1,12 @@
 import { Session } from "@/store/sessions.store"
+import { getAuthHeader } from "@/lib/utils"
 
 export const createSession = async (url: string, token: string, directory: string): Promise<Session | null> => {
     try {
         const res = await fetch(`${url}/session`, {
             method: "POST",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Authorization": getAuthHeader(token),
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({ directory }),
@@ -22,7 +23,7 @@ export const getSessionsByProjectDir = async (url: string, token: string, dir: s
         const res = await fetch(`${url}/session?directory=${dir}`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) return
@@ -38,7 +39,7 @@ export const deleteSession = async (url: string, token: string, sessionId: strin
         const res = await fetch(`${url}/session/${sessionId}`, {
             method: "DELETE",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
 
@@ -53,7 +54,7 @@ export const shareSession = async (url: string, token: string, sessionId: string
         const res = await fetch(`${url}/session/${sessionId}/share`, {
             method: "POST",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Authorization": getAuthHeader(token),
                 "Content-Type": "application/json",
             },
         })

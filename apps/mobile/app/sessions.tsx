@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ActivityIndicator, Modal, Pressable, RefreshControl, ScrollView, TextInput, View } from "react-native"
+import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "nativewind"
@@ -157,9 +157,11 @@ export default function SessionsScreen() {
   const insets = useSafeAreaInsets()
   const router = useRouter()
   const { colorScheme } = useColorScheme()
-  const { connections, current } = useConnections()
-  const { projects } = useProjects()
-  const { sessions, upsertSessions } = useSessions()
+  const connections = useConnections((s) => s.connections)
+  const current = useConnections((s) => s.current)
+  const projects = useProjects((s) => s.projects)
+  const sessions = useSessions((s) => s.sessions)
+  const upsertSessions = useSessions((s) => s.upsertSessions)
 
   const theme = colorScheme ?? "light"
 
@@ -177,7 +179,7 @@ export default function SessionsScreen() {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
   const [creatingSession, setCreatingSession] = React.useState(false)
   const [now, setNow] = React.useState(Date.now())
-  const { removeSession } = useSessions()
+  const removeSession = useSessions((s) => s.removeSession)
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 60000)
@@ -385,9 +387,14 @@ export default function SessionsScreen() {
           </Button>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           className="flex-1"
-          showsVerticalScrollIndicator={false}
+          data={filteredSessions}
+          keyExtractor={(session) => session.id}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={15}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -395,20 +402,17 @@ export default function SessionsScreen() {
               tintColor={THEME[theme].primary}
             />
           }
-        >
-          <View className="pb-8">
-            {filteredSessions.map((session, index) => (
-              <SessionItem
-                key={session.id}
-                session={session}
-                isLast={index === filteredSessions.length - 1}
-                onNavigate={handleNavigate}
-                onDelete={handleDelete}
-                now={now}
-              />
-            ))}
-          </View>
-        </ScrollView>
+          renderItem={({ item: session, index }) => (
+            <SessionItem
+              session={session}
+              isLast={index === filteredSessions.length - 1}
+              onNavigate={handleNavigate}
+              onDelete={handleDelete}
+              now={now}
+            />
+          )}
+          contentContainerStyle={{ paddingBottom: 32 }}
+        />
       )}
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>

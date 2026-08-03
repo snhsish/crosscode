@@ -1,3 +1,5 @@
+import { getAuthHeader } from "@/lib/utils"
+
 type ModelEndpoint = {
     type: string
     url?: string | null
@@ -65,7 +67,7 @@ export async function fetchModels(url: string, token: string): Promise<Model[]> 
         const res = await fetch(`${url}/api/model`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) {
@@ -95,7 +97,7 @@ export async function fetchProviders(url: string, token: string): Promise<Provid
         const res = await fetch(`${url}/api/provider`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) return []
@@ -116,7 +118,7 @@ export async function updateSessionModel(url: string, token: string, sessionId: 
         await fetch(`${url}/session/${sessionId}`, {
             method: "PATCH",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Authorization": getAuthHeader(token),
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({ model })

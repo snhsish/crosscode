@@ -30,7 +30,8 @@ export default function TasksPage() {
     const { colorScheme } = useColorScheme()
     const theme = (colorScheme ?? "light") as "light" | "dark"
     const { projectId, sessionId } = useLocalSearchParams<{ projectId: string; sessionId: string }>()
-    const { connections, current } = useConnections()
+    const connections = useConnections((s) => s.connections)
+    const current = useConnections((s) => s.current)
     const connection = connections.find((c) => c.id === current) ?? null
 
     const [todos, setTodos] = useState<TodoTask[]>([])
@@ -175,6 +176,9 @@ export default function TasksPage() {
                     keyExtractor={(item, index) => `${item.content}-${index}`}
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
+                    removeClippedSubviews
+                    maxToRenderPerBatch={10}
+                    windowSize={7}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}

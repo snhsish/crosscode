@@ -1,11 +1,12 @@
 import { OpenCodeProject } from "@/store/recents.store"
+import { getAuthHeader } from "@/lib/utils"
 
 export const getRecents = async (url: string, token: string) => {
     try {
         const res = await fetch(`${url}/project`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`
+                "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) return
@@ -13,8 +14,8 @@ export const getRecents = async (url: string, token: string) => {
         if (!data) return
 
         return data
-            .sort((a, b) => a.time.updated - b.time.updated)
-            .filter((_, i) => i < 2)
+            .sort((a, b) => b.time.updated - a.time.updated)
+            .slice(0, 2)
     } catch {
         return
     }

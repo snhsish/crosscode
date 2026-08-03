@@ -1,4 +1,5 @@
 import { QuestionRequest } from "@/store/questions.store"
+import { getAuthHeader } from "@/lib/utils"
 
 export const getPendingQuestions = async (
     url: string,
@@ -8,7 +9,7 @@ export const getPendingQuestions = async (
         const res = await fetch(`${url}/question`, {
             method: "GET",
             headers: {
-                Authorization: `Basic ${btoa(`opencode:${token}`)}`,
+                Authorization: getAuthHeader(token),
             },
         })
         if (!res.ok) return []
@@ -29,7 +30,7 @@ export const replyToQuestion = async (
         const res = await fetch(`${url}/question/${requestId}/reply`, {
             method: "POST",
             headers: {
-                Authorization: `Basic ${btoa(`opencode:${token}`)}`,
+                Authorization: getAuthHeader(token),
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({ answers }),
@@ -49,7 +50,7 @@ export const rejectQuestion = async (
         const res = await fetch(`${url}/question/${requestId}/reject`, {
             method: "POST",
             headers: {
-                Authorization: `Basic ${btoa(`opencode:${token}`)}`,
+                Authorization: getAuthHeader(token),
             },
         })
         return res.ok

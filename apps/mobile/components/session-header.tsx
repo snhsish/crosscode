@@ -36,7 +36,8 @@ function SessionHeaderInner({
     const [showShareModal, setShowShareModal] = useState(false)
     const [shareUrl, setShareUrl] = useState<string | null>(null)
     const [shareLoading, setShareLoading] = useState(false)
-    const { connections, current } = useConnections()
+    const connections = useConnections((s) => s.connections)
+    const current = useConnections((s) => s.current)
     const connection = connections.find((c) => c.id === current) ?? null
     const upsertSession = useSessions((s) => s.upsertSession)
 

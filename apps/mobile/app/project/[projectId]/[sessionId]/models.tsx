@@ -52,9 +52,12 @@ export default function ModelsPage() {
         currentProviderId?: string
         agent?: string
     }>()
-    const { connections, current } = useConnections()
+    const connections = useConnections((s) => s.connections)
+    const current = useConnections((s) => s.current)
     const connection = connections.find((c) => c.id === current) ?? null
-    const { models, providers, fetchAll } = useModels()
+    const models = useModels((s) => s.models)
+    const providers = useModels((s) => s.providers)
+    const fetchAll = useModels((s) => s.fetchAll)
 
     const [search, setSearch] = useState("")
     const [statusFilter, setStatusFilter] = useState("all")
@@ -327,6 +330,10 @@ export default function ModelsPage() {
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
                     keyboardShouldPersistTaps="handled"
+                    removeClippedSubviews
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    initialNumToRender={15}
                     ListEmptyComponent={
                         <View className="items-center pt-10">
                             <Text className="text-sm text-muted-foreground">

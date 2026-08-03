@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, FlatList, Keyboard, Platform, View } from "react-native"
+import { ActivityIndicator, AppState, FlatList, Keyboard, Platform, View } from "react-native"
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { useProjects } from "@/store/projects.store"
 import { useSessions } from "@/store/sessions.store"
@@ -25,6 +25,7 @@ import { TypingDots } from "@/components/typing-animation"
 import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
 import { QuestionRequest } from "@/store/questions.store"
+import { getAuthHeader } from "@/lib/utils"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
 
@@ -121,14 +122,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     )
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
-    const modelByAgent = useChatStore((s) => s.modelByAgent)
+    const currentAgentModel = useChatStore(
+        useCallback((s) => s.modelByAgent[selectedAgent], [selectedAgent])
+    )
     const setModelByAgent = useChatStore((s) => s.setModelByAgent)
     const setModel = useChatStore((s) => s.setModel)
     const storedModel = useChatStore(
         useCallback((s) => s.modelBySession[sessionId!], [sessionId])
     )
 
-    const { models, fetchAll } = useModels()
+    const models = useModels((s) => s.models)
+    const fetchAll = useModels((s) => s.fetchAll)
 
     const pendingQuestions = useQuestions(
         useCallback((s) => s.questionsBySession[sessionId!] ?? EMPTY_QUESTIONS, [sessionId])
@@ -137,9 +141,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const removeQuestion = useQuestions((s) => s.removeQuestion)
 
     const questionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const appStateRef = useRef(AppState.currentState)
 
     const pollQuestions = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
+        if (appStateRef.current !== "active") {
+            questionPollRef.current = setTimeout(pollQuestions, 5000)
+            return
+        }
         try {
             const qs = await getPendingQuestions(connection.url, connection.token)
             const sessionQs = qs.filter((q) => q.sessionID === sessionId)
@@ -156,8 +165,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     useEffect(() => {
         pollQuestions()
+        const sub = AppState.addEventListener("change", (nextState) => {
+            appStateRef.current = nextState
+        })
         return () => {
             if (questionPollRef.current) clearTimeout(questionPollRef.current)
+            sub.remove()
         }
     }, [pollQuestions])
 
@@ -266,7 +279,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             const res = await fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
                 method: "POST",
                 headers: {
-                    "Authorization": `Basic ${btoa(`opencode:${connectionToken}`)}`,
+                    "Authorization": getAuthHeader(connectionToken),
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify(body),
@@ -616,6 +629,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     (p.type === "tool-invocation" && p.toolInvocation.toolName === "question") ||
                     (p.type === "tool" && p.tool === "question")
             )
+            const isStreamingMsg = isStreaming && item.role === "assistant" && !item.time?.completed
             return (
                 <MessageItem
                     message={item}
@@ -625,13 +639,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     pendingQuestions={hasQuestionTool ? pendingQuestions : EMPTY_QUESTIONS}
                     onQuestionReply={handleQuestionReply}
                     onQuestionReject={handleQuestionReject}
+                    streaming={isStreamingMsg}
                 />
             )
         },
-        [theme, projectId, sessionId, pendingQuestions, handleQuestionReply, handleQuestionReject]
+        [theme, projectId, sessionId, pendingQuestions, handleQuestionReply, handleQuestionReject, isStreaming]
     )
-
-    const reversedMessages = useMemo(() => [...messages].reverse(), [messages])
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
 
@@ -728,7 +741,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             {messages.length > 0 ? (
                 <FlatList
                     ref={scrollRef}
-                    data={reversedMessages}
+                    data={messages}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
                     onContentSizeChange={scrollToBottomOnLoad}
@@ -818,7 +831,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 connectionUrl={connection?.url}
                 connectionToken={connection?.token}
                 theme={theme}
-                modelByAgent={modelByAgent}
+                modelByAgent={currentAgentModel ? { [selectedAgent]: currentAgentModel } : {}}
                 onModelSelect={handleModelSelect}
                 onVariantSelect={handleVariantSelect}
                 onSessionModelUpdate={handleSessionModelUpdate}

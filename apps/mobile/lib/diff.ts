@@ -1,3 +1,5 @@
+import { getAuthHeader } from "@/lib/utils"
+
 export type FileDiff = {
     file: string
     before: string
@@ -11,7 +13,7 @@ export async function fetchSessionDiffs(url: string, token: string, sessionId: s
         const res = await fetch(`${url}/session/${sessionId}/diff`, {
             method: "GET",
             headers: {
-                "Authorization": `Basic ${btoa(`opencode:${token}`)}`,
+                "Authorization": getAuthHeader(token),
             },
         })
         if (!res.ok) return []
@@ -30,7 +32,52 @@ export type DiffLine =
 export function computeLineDiff(oldText: string, newText: string): DiffLine[] {
     const oldLines = oldText.split("\n")
     const newLines = newText.split("\n")
+
+    if (oldLines.length * newLines.length > 250000) {
+        return computeLineDiffDeferred(oldLines, newLines)
+    }
+
     const lcs = buildLCS(oldLines, newLines)
+    return buildDiffResult(oldLines, newLines, lcs)
+}
+
+function computeLineDiffDeferred(oldLines: string[], newLines: string[]): DiffLine[] {
+    const result: DiffLine[] = []
+    const oldSet = new Set(oldLines)
+    const newSet = new Set(newLines)
+
+    let oi = 0
+    let ni = 0
+    while (oi < oldLines.length && ni < newLines.length) {
+        if (oldLines[oi] === newLines[ni]) {
+            result.push({ type: "context", content: oldLines[oi], oldLine: oi + 1, newLine: ni + 1 })
+            oi++
+            ni++
+        } else if (!newSet.has(oldLines[oi])) {
+            result.push({ type: "remove", content: oldLines[oi], oldLine: oi + 1 })
+            oi++
+        } else if (!oldSet.has(newLines[ni])) {
+            result.push({ type: "add", content: newLines[ni], newLine: ni + 1 })
+            ni++
+        } else {
+            result.push({ type: "remove", content: oldLines[oi], oldLine: oi + 1 })
+            result.push({ type: "add", content: newLines[ni], newLine: ni + 1 })
+            oi++
+            ni++
+        }
+    }
+    while (oi < oldLines.length) {
+        result.push({ type: "remove", content: oldLines[oi], oldLine: oi + 1 })
+        oi++
+    }
+    while (ni < newLines.length) {
+        result.push({ type: "add", content: newLines[ni], newLine: ni + 1 })
+        ni++
+    }
+    return result
+}
+
+function buildDiffResult(oldLines: string[], newLines: string[], lcs: LCSEntry[]): DiffLine[] {
     const result: DiffLine[] = []
     let oi = 0
     let ni = 0

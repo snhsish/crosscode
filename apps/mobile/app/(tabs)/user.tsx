@@ -21,7 +21,10 @@ export default function UserPage() {
   const { colorScheme, toggleColorScheme } = useColorScheme()
   const theme = colorScheme ?? "dark"
 
-  const { user, sessionToken, logout, isLoggedIn } = useAuth()
+  const user = useAuth((s) => s.user)
+  const sessionToken = useAuth((s) => s.sessionToken)
+  const logout = useAuth((s) => s.logout)
+  const isLoggedIn = useAuth((s) => s.isLoggedIn)
 
   const clearLastRemoteUrlOnClose = useSettings((s) => s.clearLastRemoteUrlOnClose)
   const setClearLastRemoteUrlOnClose = useSettings((s) => s.setClearLastRemoteUrlOnClose)

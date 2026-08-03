@@ -1,5 +1,5 @@
 import { Pressable, View } from "react-native"
-import { memo, useState } from "react"
+import { memo, useMemo, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { Text } from "./ui/text"
 import { Checkbox } from "./ui/checkbox"
@@ -16,7 +16,7 @@ interface TodoBlockProps {
 
 export const TodoBlock = memo(function TodoBlock({ items }: TodoBlockProps) {
   const [expanded, setExpanded] = useState(true)
-  const completed = items.filter((i) => i.status === "completed").length
+  const completed = useMemo(() => items.filter((i) => i.status === "completed").length, [items])
   const progress = useSharedValue(1)
 
   const animatedStyle = useAnimatedStyle(() => ({

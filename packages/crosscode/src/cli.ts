@@ -374,10 +374,15 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                     "Access-Control-Allow-Origin": "*",
                 })
 
+                let sseAuth = authHeader || ""
+                if (sseAuth && !sseAuth.startsWith("Basic ")) {
+                    sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                }
+
                 const sseReq = http.get(`http://127.0.0.1:${port}/event`, {
                     headers: {
                         "Accept": "text/event-stream",
-                        "Authorization": authHeader || "",
+                        "Authorization": sseAuth,
                     },
                 }, (sseRes) => {
                     sseRes.on("data", (chunk) => {
@@ -405,6 +410,12 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
             }
             forwardHeaders["host"] = `127.0.0.1:${port}`
+            
+            if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
+                const token = req.headers["authorization"]
+                forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+            }
+            
             logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
 
             const proxyReq = http.request(targetUrl, {
@@ -618,10 +629,15 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                     "Access-Control-Allow-Origin": "*",
                 })
 
+                let sseAuth = authHeader || ""
+                if (sseAuth && !sseAuth.startsWith("Basic ")) {
+                    sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                }
+
                 const sseReq = http.get(`http://127.0.0.1:${port}/event`, {
                     headers: {
                         "Accept": "text/event-stream",
-                        "Authorization": authHeader || "",
+                        "Authorization": sseAuth,
                     },
                 }, (sseRes) => {
                     sseRes.on("data", (chunk) => {
@@ -650,6 +666,12 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
             }
             forwardHeaders["host"] = `127.0.0.1:${port}`
+            
+            if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
+                const token = req.headers["authorization"]
+                forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+            }
+            
             logCrosscode(`cf-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
 
             const proxyReq = http.request(targetUrl, {

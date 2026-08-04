@@ -355,6 +355,17 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             const targetUrl = `http://127.0.0.1:${port}${req.url}`
             const authHeader = req.headers["authorization"]
 
+            if (req.method === "OPTIONS") {
+                res.writeHead(204, {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                    "Access-Control-Max-Age": "86400",
+                })
+                res.end()
+                return
+            }
+
             if (req.url === "/mobile-event" && req.method === "POST") {
                 res.writeHead(200, {
                     "Content-Type": "text/event-stream",
@@ -388,22 +399,16 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 return
             }
 
-            if (req.url === "/mobile-event" && req.method === "OPTIONS") {
-                res.writeHead(204, {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                })
-                res.end()
-                return
+            const forwardHeaders: Record<string, string | string[]> = {}
+            const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
+            for (const [key, value] of Object.entries(req.headers)) {
+                if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
             }
+            forwardHeaders["host"] = `127.0.0.1:${port}`
 
             const proxyReq = http.request(targetUrl, {
                 method: req.method,
-                headers: {
-                    ...req.headers,
-                    host: `127.0.0.1:${port}`,
-                },
+                headers: forwardHeaders,
             }, (proxyRes) => {
                 res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
                 proxyRes.pipe(res)
@@ -591,6 +596,17 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             const targetUrl = `http://127.0.0.1:${port}${req.url}`
             const authHeader = req.headers["authorization"]
 
+            if (req.method === "OPTIONS") {
+                res.writeHead(204, {
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                    "Access-Control-Max-Age": "86400",
+                })
+                res.end()
+                return
+            }
+
             // SSE streaming endpoint - pipes events from opencode
             if (req.url === "/mobile-event" && req.method === "POST") {
                 res.writeHead(200, {
@@ -625,24 +641,17 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 return
             }
 
-            // CORS preflight
-            if (req.url === "/mobile-event" && req.method === "OPTIONS") {
-                res.writeHead(204, {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "POST, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                })
-                res.end()
-                return
-            }
-
             // Proxy all other requests to opencode
+            const forwardHeaders: Record<string, string | string[]> = {}
+            const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
+            for (const [key, value] of Object.entries(req.headers)) {
+                if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
+            }
+            forwardHeaders["host"] = `127.0.0.1:${port}`
+
             const proxyReq = http.request(targetUrl, {
                 method: req.method,
-                headers: {
-                    ...req.headers,
-                    host: `127.0.0.1:${port}`,
-                },
+                headers: forwardHeaders,
             }, (proxyRes) => {
                 res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
                 proxyRes.pipe(res)

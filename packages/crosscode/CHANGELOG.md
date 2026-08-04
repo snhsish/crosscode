@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.2
+
+### Patch Changes
+
+- ab4d4b9: chore: add debug logging to trace Authorization header flow
+
 ## 0.3.1
 
 ### Patch Changes

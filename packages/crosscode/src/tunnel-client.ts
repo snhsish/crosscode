@@ -80,6 +80,8 @@ export function connectTunnel(
 
   function handleRequest(reqId: string, method: string, path: string, headers: Record<string, string>, body?: string) {
     const bodyBuf = body ? Buffer.from(body, "base64") : null
+    const hasAuth = !!headers["authorization"] || !!headers["Authorization"]
+    console.log(`[tunnel-client] request ${method} ${path} hasAuth=${hasAuth}`)
 
     const reqHeaders: http.OutgoingHttpHeaders = {}
     for (const [key, value] of Object.entries(headers)) {

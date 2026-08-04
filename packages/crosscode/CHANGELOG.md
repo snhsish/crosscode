@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.4
+
+### Patch Changes
+
+- efd7fbf: chore: add enhanced logging to debug Authorization header flow
+
 ## 0.3.3
 
 ### Patch Changes

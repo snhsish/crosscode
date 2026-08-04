@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.3
+
+### Patch Changes
+
+- 5272927: fix: convert Authorization header to Basic Auth format for opencode
+
 ## 0.3.2
 
 ### Patch Changes

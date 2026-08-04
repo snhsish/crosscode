@@ -36,8 +36,9 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId })
 
   const headers: Record<string, string> = {}
+  const hopByHopHeaders = ["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"]
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value && key.toLowerCase() !== "host" && key.toLowerCase() !== "connection") {
+    if (value && !hopByHopHeaders.includes(key.toLowerCase())) {
       headers[key] = Array.isArray(value) ? value.join(", ") : value
     }
   }

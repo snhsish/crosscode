@@ -411,12 +411,17 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             }
             forwardHeaders["host"] = `127.0.0.1:${port}`
             
-            if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
-                const token = req.headers["authorization"]
-                forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+            const authVal = req.headers["authorization"]
+            if (authVal) {
+                logCrosscode(`tunnel-proxy auth header: ${authVal.substring(0, 20)}... (len=${authVal.length})`)
+                if (!authVal.startsWith("Basic ")) {
+                    const token = authVal
+                    forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+                    logCrosscode(`tunnel-proxy converted to Basic Auth`)
+                }
             }
             
-            logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
+            logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!authVal}`)
 
             const proxyReq = http.request(targetUrl, {
                 method: req.method,

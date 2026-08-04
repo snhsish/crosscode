@@ -33,7 +33,8 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   }
 
   const reqId = generateReqId()
-  logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId })
+  const hasAuth = !!req.headers["authorization"]
+  logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId, hasAuth })
 
   const headers: Record<string, string> = {}
   const hopByHopHeaders = ["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"]

@@ -405,11 +405,13 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
             }
             forwardHeaders["host"] = `127.0.0.1:${port}`
+            logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
 
             const proxyReq = http.request(targetUrl, {
                 method: req.method,
                 headers: forwardHeaders,
             }, (proxyRes) => {
+                logCrosscode(`tunnel-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
                 res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
                 proxyRes.pipe(res)
             })
@@ -648,11 +650,13 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
             }
             forwardHeaders["host"] = `127.0.0.1:${port}`
+            logCrosscode(`cf-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
 
             const proxyReq = http.request(targetUrl, {
                 method: req.method,
                 headers: forwardHeaders,
             }, (proxyRes) => {
+                logCrosscode(`cf-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
                 res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
                 proxyRes.pipe(res)
             })

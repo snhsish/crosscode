@@ -328,7 +328,8 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
         const sessionToken = crypto.randomBytes(32).toString("hex")
-        logCrosscode("Session token generated")
+        logCrosscode(`Session token generated: ${sessionToken}`)
+        console.log(chalk.dim(`Session token: ${sessionToken}`))
 
         const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
             cwd: process.cwd(),
@@ -414,6 +415,14 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             const authVal = req.headers["authorization"]
             if (authVal) {
                 logCrosscode(`tunnel-proxy auth header: ${authVal.substring(0, 20)}... (len=${authVal.length})`)
+                if (authVal.startsWith("Basic ")) {
+                    try {
+                        const decoded = Buffer.from(authVal.substring(6), "base64").toString()
+                        logCrosscode(`tunnel-proxy decoded Basic Auth: ${decoded.substring(0, 30)}...`)
+                    } catch (e) {
+                        logCrosscode(`tunnel-proxy failed to decode Basic Auth: ${e}`)
+                    }
+                }
                 if (!authVal.startsWith("Basic ")) {
                     const token = authVal
                     forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`

@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.5
+
+### Patch Changes
+
+- 2ee5f00: chore: add session token logging to debug auth mismatch
+
 ## 0.3.4
 
 ### Patch Changes

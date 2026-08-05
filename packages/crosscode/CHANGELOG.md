@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.10
+
+### Patch Changes
+
+- 4d0c012: feat: display opencode port above QR when not default 4096
+
 ## 0.3.9
 
 ### Patch Changes

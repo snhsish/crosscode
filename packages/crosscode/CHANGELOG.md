@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.7
+
+### Patch Changes
+
+- 2edfb99: Add direct test to opencode and 401 response logging
+
 ## 0.3.6
 
 ### Patch Changes

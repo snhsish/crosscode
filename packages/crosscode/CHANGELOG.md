@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.8
+
+### Patch Changes
+
+- be6374a: fix: pass --port to opencode serve to ensure correct port binding
+
 ## 0.3.7
 
 ### Patch Changes

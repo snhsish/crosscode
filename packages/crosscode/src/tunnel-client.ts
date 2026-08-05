@@ -90,6 +90,11 @@ export function connectTunnel(
     }
     if (bodyBuf) reqHeaders["content-length"] = bodyBuf.length
 
+    console.log(`[tunnel-client] sending to proxy: ${JSON.stringify(Object.keys(reqHeaders))}`)
+    if (reqHeaders["authorization"]) {
+      console.log(`[tunnel-client] sending auth to proxy: ${String(reqHeaders["authorization"]).substring(0, 30)}...`)
+    }
+
     const req = http.request(
       {
         hostname: "127.0.0.1",
@@ -99,6 +104,7 @@ export function connectTunnel(
         headers: reqHeaders,
       },
       (res) => {
+        console.log(`[tunnel-client] proxy responded: ${res.statusCode}`)
         const respHeaders: Record<string, string> = {}
         for (const [key, value] of Object.entries(res.headers)) {
           if (value !== undefined) {

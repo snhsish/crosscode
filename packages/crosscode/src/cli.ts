@@ -431,6 +431,10 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             }
             
             logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!authVal}`)
+            logCrosscode(`tunnel-proxy sending headers to opencode: ${JSON.stringify(Object.keys(forwardHeaders))}`)
+            if (forwardHeaders["authorization"]) {
+                logCrosscode(`tunnel-proxy forwarding auth: ${String(forwardHeaders["authorization"]).substring(0, 20)}...`)
+            }
 
             const proxyReq = http.request(targetUrl, {
                 method: req.method,

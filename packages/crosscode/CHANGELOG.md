@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.9
+
+### Patch Changes
+
+- c0a578e: fix: detect actual opencode port from logs for VPS compatibility
+
 ## 0.3.8
 
 ### Patch Changes

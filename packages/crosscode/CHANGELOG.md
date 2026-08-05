@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.3.6
+
+### Patch Changes
+
+- cf9d379: Add detailed header forwarding logs for debugging
+
 ## 0.3.5
 
 ### Patch Changes

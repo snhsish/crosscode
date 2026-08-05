@@ -6,9 +6,26 @@ import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 const TUNNEL_WS_URL = process.env.CROSSCODE_TUNNEL_WS_URL || "wss://tunnel.sish.work/ws"
 const INITIAL_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 30_000
+const DEBUG = process.env.CROSSCODE_DEBUG === "1"
 
 interface InFlightRequest {
   req: http.ClientRequest
+}
+
+function debug(msg: string, meta?: Record<string, unknown>) {
+  if (DEBUG) {
+    const ts = new Date().toISOString()
+    const extra = meta ? ` ${JSON.stringify(meta)}` : ""
+    console.log(`[${ts}] [tunnel-client] ${msg}${extra}`)
+  }
+}
+
+function censorAuth(val: string | undefined): string {
+  if (!val) return "<none>"
+  if (val.startsWith("Basic ")) {
+    return `Basic ${val.substring(6, 14)}...`
+  }
+  return `${val.substring(0, 8)}...`
 }
 
 export function connectTunnel(
@@ -27,10 +44,12 @@ export function connectTunnel(
   function connect() {
     if (shuttingDown) return
 
+    debug("connecting", { url: TUNNEL_WS_URL })
     ws = new WebSocket(TUNNEL_WS_URL)
 
     ws.on("open", () => {
       backoff = INITIAL_BACKOFF_MS
+      debug("connected, sending auth", { projectId })
       const authMsg: TunnelC2S = { type: "auth", apiKey, projectId }
       ws!.send(JSON.stringify(authMsg))
     })
@@ -40,21 +59,25 @@ export function connectTunnel(
       try {
         msg = JSON.parse(raw.toString())
       } catch {
+        debug("received invalid JSON")
         return
       }
 
       switch (msg.type) {
         case "auth.ok":
+          debug("auth succeeded", { tunnelUrl: msg.tunnelUrl })
           onTunnelUrl(msg.tunnelUrl)
           break
 
         case "auth.fail":
+          debug("auth failed", { reason: msg.reason })
           onError(new Error(msg.reason))
           shuttingDown = true
           ws?.close()
           break
 
         case "ping":
+          debug("received ping, sending pong")
           if (ws?.readyState === WebSocket.OPEN) {
             const pong: TunnelC2S = { type: "pong" }
             ws.send(JSON.stringify(pong))
@@ -62,17 +85,20 @@ export function connectTunnel(
           break
 
         case "request":
+          debug("received request", { reqId: msg.reqId, method: msg.method, path: msg.path })
           handleRequest(msg.reqId, msg.method, msg.path, msg.headers, msg.body)
           break
       }
     })
 
-    ws.on("close", () => {
+    ws.on("close", (code, reason) => {
+      debug("connection closed", { code, reason: reason.toString() })
       abortAllInFlight()
       if (!shuttingDown) scheduleReconnect()
     })
 
-    ws.on("error", () => {
+    ws.on("error", (err) => {
+      debug("connection error", { error: err.message })
       abortAllInFlight()
       if (!shuttingDown) scheduleReconnect()
     })
@@ -81,19 +107,22 @@ export function connectTunnel(
   function handleRequest(reqId: string, method: string, path: string, headers: Record<string, string>, body?: string) {
     const bodyBuf = body ? Buffer.from(body, "base64") : null
     const authHeader = headers["authorization"] || headers["Authorization"]
-    console.log(`[tunnel-client] request ${method} ${path} hasAuth=${!!authHeader} authValue=${authHeader ? authHeader.substring(0, 30) + "..." : "none"}`)
-    console.log(`[tunnel-client] all headers: ${JSON.stringify(Object.keys(headers))}`)
+
+    debug("forwarding request to proxy", {
+      reqId,
+      method,
+      path,
+      hasAuth: !!authHeader,
+      auth: censorAuth(authHeader),
+      headerKeys: Object.keys(headers),
+      bodySize: bodyBuf?.length ?? 0,
+    })
 
     const reqHeaders: http.OutgoingHttpHeaders = {}
     for (const [key, value] of Object.entries(headers)) {
       reqHeaders[key] = value
     }
     if (bodyBuf) reqHeaders["content-length"] = bodyBuf.length
-
-    console.log(`[tunnel-client] sending to proxy: ${JSON.stringify(Object.keys(reqHeaders))}`)
-    if (reqHeaders["authorization"]) {
-      console.log(`[tunnel-client] sending auth to proxy: ${String(reqHeaders["authorization"]).substring(0, 30)}...`)
-    }
 
     const req = http.request(
       {
@@ -104,7 +133,7 @@ export function connectTunnel(
         headers: reqHeaders,
       },
       (res) => {
-        console.log(`[tunnel-client] proxy responded: ${res.statusCode}`)
+        debug("proxy responded", { reqId, status: res.statusCode })
         const respHeaders: Record<string, string> = {}
         for (const [key, value] of Object.entries(res.headers)) {
           if (value !== undefined) {
@@ -125,6 +154,7 @@ export function connectTunnel(
 
         res.on("error", (err) => {
           inFlight.delete(reqId)
+          debug("response error", { reqId, error: err.message })
           sendToWs({ type: "response.error", reqId, message: err.message })
         })
       },
@@ -134,6 +164,7 @@ export function connectTunnel(
 
     req.on("error", (err) => {
       inFlight.delete(reqId)
+      debug("request error", { reqId, error: err.message })
       sendToWs({ type: "response.error", reqId, message: err.message })
     })
 
@@ -144,10 +175,14 @@ export function connectTunnel(
   function sendToWs(msg: TunnelC2S) {
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(msg))
+    } else {
+      debug("cannot send, WS not open", { readyState: ws?.readyState, type: msg.type })
     }
   }
 
   function abortAllInFlight() {
+    const count = inFlight.size
+    if (count > 0) debug("aborting in-flight requests", { count })
     for (const [reqId, { req }] of inFlight) {
       req.destroy()
       sendToWs({ type: "response.error", reqId, message: "Client reconnecting" })
@@ -157,6 +192,7 @@ export function connectTunnel(
 
   function scheduleReconnect() {
     if (shuttingDown) return
+    debug("scheduling reconnect", { backoffMs: backoff })
     reconnectTimer = setTimeout(() => {
       backoff = Math.min(backoff * 2, MAX_BACKOFF_MS)
       connect()

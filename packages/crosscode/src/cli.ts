@@ -339,188 +339,223 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         children.push(opencode)
 
+        let opencodePort = port
+        let portDetected = false
+        const portPromise = new Promise<number>((resolve) => {
+            const timeout = setTimeout(() => {
+                if (!portDetected) {
+                    logCrosscode(`Port detection timeout, using default port ${port}`)
+                    resolve(port)
+                }
+            }, 10000)
+
+            const checkPort = (data: Buffer) => {
+                opencodeLogStream.write(data)
+                const text = data.toString()
+                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
+                if (match && !portDetected) {
+                    portDetected = true
+                    opencodePort = parseInt(match[1], 10)
+                    clearTimeout(timeout)
+                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
+                    resolve(opencodePort)
+                }
+            }
+
+            opencode.stdout?.on("data", checkPort)
+            opencode.stderr?.on("data", checkPort)
+        })
+
         opencode.on("spawn", () => {
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting SSE proxy...")
+            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
             logCrosscode("opencode serve started (PID: " + opencode.pid + ")")
         })
         opencode.on("error", (err) => {
             spinner.fail(chalk.red.italic("Failed to start opencode serve"))
             logCrosscode("opencode serve error: " + err.message)
         })
-        opencode.stdout?.on("data", d => opencodeLogStream.write(d))
-        opencode.stderr?.on("data", d => opencodeLogStream.write(d))
 
         const proxyPort = port + 1
 
-        const proxy = http.createServer((req, res) => {
-            const targetUrl = `http://127.0.0.1:${port}${req.url}`
-            const authHeader = req.headers["authorization"]
-
-            if (req.method === "OPTIONS") {
-                res.writeHead(204, {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                    "Access-Control-Max-Age": "86400",
-                })
-                res.end()
-                return
-            }
-
-            if (req.url === "/mobile-event" && req.method === "POST") {
-                res.writeHead(200, {
-                    "Content-Type": "text/event-stream",
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "Access-Control-Allow-Origin": "*",
-                })
-
-                let sseAuth = authHeader || ""
-                if (sseAuth && !sseAuth.startsWith("Basic ")) {
-                    sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
-                }
-
-                const sseReq = http.get(`http://127.0.0.1:${port}/event`, {
-                    headers: {
-                        "Accept": "text/event-stream",
-                        "Authorization": sseAuth,
-                    },
-                }, (sseRes) => {
-                    sseRes.on("data", (chunk) => {
-                        res.write(chunk)
-                    })
-                    sseRes.on("end", () => {
-                        res.end()
-                    })
-                })
-
-                sseReq.on("error", () => {
-                    res.end()
-                })
-
-                req.on("close", () => {
-                    sseReq.destroy()
-                })
-
-                return
-            }
-
-            const forwardHeaders: Record<string, string | string[]> = {}
-            const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
-            for (const [key, value] of Object.entries(req.headers)) {
-                if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
-            }
-            forwardHeaders["host"] = `127.0.0.1:${port}`
-            
-            const authVal = req.headers["authorization"]
-            if (authVal) {
-                logCrosscode(`tunnel-proxy auth header: ${authVal.substring(0, 20)}... (len=${authVal.length})`)
-                if (authVal.startsWith("Basic ")) {
-                    try {
-                        const decoded = Buffer.from(authVal.substring(6), "base64").toString()
-                        logCrosscode(`tunnel-proxy decoded Basic Auth: ${decoded.substring(0, 30)}...`)
-                    } catch (e) {
-                        logCrosscode(`tunnel-proxy failed to decode Basic Auth: ${e}`)
-                    }
-                }
-                if (!authVal.startsWith("Basic ")) {
-                    const token = authVal
-                    forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
-                    logCrosscode(`tunnel-proxy converted to Basic Auth`)
-                }
-            }
-            
-            logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!authVal}`)
-            logCrosscode(`tunnel-proxy target URL: ${targetUrl}`)
-            logCrosscode(`tunnel-proxy sending headers to opencode: ${JSON.stringify(Object.keys(forwardHeaders))}`)
-            if (forwardHeaders["authorization"]) {
-                logCrosscode(`tunnel-proxy forwarding auth: ${String(forwardHeaders["authorization"]).substring(0, 20)}...`)
-            }
-
-            const proxyReq = http.request(targetUrl, {
-                method: req.method,
-                headers: forwardHeaders,
-            }, (proxyRes) => {
-                logCrosscode(`tunnel-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
-                if (proxyRes.statusCode === 401) {
-                    logCrosscode(`tunnel-proxy 401 response headers: ${JSON.stringify(proxyRes.headers)}`)
-                }
-                res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
-                proxyRes.pipe(res)
-            })
-
-            proxyReq.on("error", () => {
-                res.writeHead(502)
-                res.end("Bad Gateway")
-            })
-
-            req.pipe(proxyReq)
+        portPromise.then((detectedPort) => {
+            opencodePort = detectedPort
+            startProxy(detectedPort, proxyPort, sessionToken, port, spinner)
         })
 
-        proxy.listen(proxyPort, "127.0.0.1", () => {
-            logCrosscode(`SSE proxy started on port ${proxyPort}`)
-            
-            // Test direct connection to opencode
-            const testReq = http.request(`http://127.0.0.1:${port}/global/health`, {
-                method: "GET",
-                headers: {
-                    "Authorization": `Basic ${Buffer.from(`opencode:${sessionToken}`).toString("base64")}`
+        function startProxy(targetPort: number, proxyPort: number, sessionToken: string, requestedPort: number, spinner: any) {
+            if (targetPort !== requestedPort) {
+                logCrosscode(`Using detected port ${targetPort} instead of requested port ${requestedPort}`)
+            }
+
+            const proxy = http.createServer((req, res) => {
+                const targetUrl = `http://127.0.0.1:${targetPort}${req.url}`
+                const authHeader = req.headers["authorization"]
+
+                if (req.method === "OPTIONS") {
+                    res.writeHead(204, {
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                        "Access-Control-Max-Age": "86400",
+                    })
+                    res.end()
+                    return
                 }
-            }, (testRes) => {
-                logCrosscode(`Direct test to opencode: ${testRes.statusCode}`)
-            })
-            testReq.on("error", (e) => {
-                logCrosscode(`Direct test to opencode failed: ${e.message}`)
-            })
-            testReq.end()
-            
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
-            const projectId = deriveProjectId()
-            logCrosscode(`Project ID: ${projectId}`)
-
-            const tunnelTimeout = setTimeout(() => {
-                spinner.fail(chalk.red.italic("Tunnel connection timed out"))
-                logCrosscode("Tunnel connection timed out, falling back to cloudflared")
-                console.log(chalk.yellow("\n Falling back to Cloudflare tunnel...\n"))
-                children.forEach(c => c.kill())
-                children.length = 0
-                tunnelFailed = true
-            }, 15_000)
-
-            const disconnectTunnel = connectTunnel(
-                config.auth!.sessionToken!,
-                projectId,
-                proxyPort,
-                (url) => {
-                    clearTimeout(tunnelTimeout)
-                    tunnelUrl = url
-                    spinner.succeed(chalk.green("Tunnel ready"))
-                    logCrosscode("Tunnel ready: " + tunnelUrl)
-
-                    const payload = encodeQrPayload({
-                        url: tunnelUrl,
-                        token: sessionToken,
-                        v: 1
+                if (req.url === "/mobile-event" && req.method === "POST") {
+                    res.writeHead(200, {
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "Access-Control-Allow-Origin": "*",
                     })
 
-                    console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-                    qrcode.generate(payload, { small: true })
-                    console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                    console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
-                },
-                (err) => {
-                    clearTimeout(tunnelTimeout)
-                    spinner.fail(chalk.red.italic(`Tunnel error: ${err.message}`))
-                    logCrosscode(`Tunnel error: ${err.message}, falling back to cloudflared`)
+                    let sseAuth = authHeader || ""
+                    if (sseAuth && !sseAuth.startsWith("Basic ")) {
+                        sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                    }
+
+                    const sseReq = http.get(`http://127.0.0.1:${targetPort}/event`, {
+                        headers: {
+                            "Accept": "text/event-stream",
+                            "Authorization": sseAuth,
+                        },
+                    }, (sseRes) => {
+                        sseRes.on("data", (chunk) => {
+                            res.write(chunk)
+                        })
+                        sseRes.on("end", () => {
+                            res.end()
+                        })
+                    })
+
+                    sseReq.on("error", () => {
+                        res.end()
+                    })
+
+                    req.on("close", () => {
+                        sseReq.destroy()
+                    })
+
+                    return
+                }
+
+                const forwardHeaders: Record<string, string | string[]> = {}
+                const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
+                for (const [key, value] of Object.entries(req.headers)) {
+                    if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
+                }
+                forwardHeaders["host"] = `127.0.0.1:${targetPort}`
+                
+                const authVal = req.headers["authorization"]
+                if (authVal) {
+                    logCrosscode(`tunnel-proxy auth header: ${authVal.substring(0, 20)}... (len=${authVal.length})`)
+                    if (authVal.startsWith("Basic ")) {
+                        try {
+                            const decoded = Buffer.from(authVal.substring(6), "base64").toString()
+                            logCrosscode(`tunnel-proxy decoded Basic Auth: ${decoded.substring(0, 30)}...`)
+                        } catch (e) {
+                            logCrosscode(`tunnel-proxy failed to decode Basic Auth: ${e}`)
+                        }
+                    }
+                    if (!authVal.startsWith("Basic ")) {
+                        const token = authVal
+                        forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+                        logCrosscode(`tunnel-proxy converted to Basic Auth`)
+                    }
+                }
+                
+                logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!authVal}`)
+                logCrosscode(`tunnel-proxy target URL: ${targetUrl}`)
+                logCrosscode(`tunnel-proxy sending headers to opencode: ${JSON.stringify(Object.keys(forwardHeaders))}`)
+                if (forwardHeaders["authorization"]) {
+                    logCrosscode(`tunnel-proxy forwarding auth: ${String(forwardHeaders["authorization"]).substring(0, 20)}...`)
+                }
+
+                const proxyReq = http.request(targetUrl, {
+                    method: req.method,
+                    headers: forwardHeaders,
+                }, (proxyRes) => {
+                    logCrosscode(`tunnel-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
+                    if (proxyRes.statusCode === 401) {
+                        logCrosscode(`tunnel-proxy 401 response headers: ${JSON.stringify(proxyRes.headers)}`)
+                    }
+                    res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+                    proxyRes.pipe(res)
+                })
+
+                proxyReq.on("error", () => {
+                    res.writeHead(502)
+                    res.end("Bad Gateway")
+                })
+
+                req.pipe(proxyReq)
+            })
+
+            proxy.listen(proxyPort, "127.0.0.1", () => {
+                logCrosscode(`SSE proxy started on port ${proxyPort}`)
+                
+                const testReq = http.request(`http://127.0.0.1:${targetPort}/global/health`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Basic ${Buffer.from(`opencode:${sessionToken}`).toString("base64")}`
+                    }
+                }, (testRes) => {
+                    logCrosscode(`Direct test to opencode: ${testRes.statusCode}`)
+                })
+                testReq.on("error", (e) => {
+                    logCrosscode(`Direct test to opencode failed: ${e.message}`)
+                })
+                testReq.end()
+                
+                spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
+
+                const projectId = deriveProjectId()
+                logCrosscode(`Project ID: ${projectId}`)
+
+                const tunnelTimeout = setTimeout(() => {
+                    spinner.fail(chalk.red.italic("Tunnel connection timed out"))
+                    logCrosscode("Tunnel connection timed out, falling back to cloudflared")
                     console.log(chalk.yellow("\n Falling back to Cloudflare tunnel...\n"))
                     children.forEach(c => c.kill())
                     children.length = 0
-                    disconnectTunnel()
                     tunnelFailed = true
-                }
-            )
-        })
+                }, 15_000)
+
+                const disconnectTunnel = connectTunnel(
+                    config.auth!.sessionToken!,
+                    projectId,
+                    proxyPort,
+                    (url) => {
+                        clearTimeout(tunnelTimeout)
+                        tunnelUrl = url
+                        spinner.succeed(chalk.green("Tunnel ready"))
+                        logCrosscode("Tunnel ready: " + tunnelUrl)
+
+                        const payload = encodeQrPayload({
+                            url: tunnelUrl,
+                            token: sessionToken,
+                            v: 1
+                        })
+
+                        console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+                        qrcode.generate(payload, { small: true })
+                        console.log(chalk.grey(`URL: ${tunnelUrl}`))
+                        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                    },
+                    (err) => {
+                        clearTimeout(tunnelTimeout)
+                        spinner.fail(chalk.red.italic(`Tunnel error: ${err.message}`))
+                        logCrosscode(`Tunnel error: ${err.message}, falling back to cloudflared`)
+                        console.log(chalk.yellow("\n Falling back to Cloudflare tunnel...\n"))
+                        children.forEach(c => c.kill())
+                        children.length = 0
+                        disconnectTunnel()
+                        tunnelFailed = true
+                    }
+                )
+            })
+        }
     }
 
     if (tunnelProvider === "ngrok") {
@@ -546,66 +581,101 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         children.push(opencode)
 
+        let opencodePort = port
+        let portDetected = false
+        const portPromise = new Promise<number>((resolve) => {
+            const timeout = setTimeout(() => {
+                if (!portDetected) {
+                    logCrosscode(`Port detection timeout, using default port ${port}`)
+                    resolve(port)
+                }
+            }, 10000)
+
+            const checkPort = (data: Buffer) => {
+                opencodeLogStream.write(data)
+                const text = data.toString()
+                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
+                if (match && !portDetected) {
+                    portDetected = true
+                    opencodePort = parseInt(match[1], 10)
+                    clearTimeout(timeout)
+                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
+                    resolve(opencodePort)
+                }
+            }
+
+            opencode.stdout?.on("data", checkPort)
+            opencode.stderr?.on("data", checkPort)
+        })
+
         opencode.on("spawn", () => {
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting ngrok tunnel...")
+            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
             logCrosscode("opencode serve started (PID: " + opencode.pid + ")")
         })
         opencode.on("error", (err) => {
             spinner.fail(chalk.red.italic("Failed to start opencode serve"))
             logCrosscode("opencode serve error: " + err.message)
         })
-        opencode.stdout?.on("data", d => opencodeLogStream.write(d))
-        opencode.stderr?.on("data", d => opencodeLogStream.write(d))
 
-        const ngrok = spawn("ngrok", ["http", `--authtoken=${ngrokToken}`, `${port}`], {
-            stdio: ["ignore", "pipe", "pipe"]
-        })
+        portPromise.then((detectedPort) => {
+            opencodePort = detectedPort
+            if (detectedPort !== port) {
+                logCrosscode(`Using detected port ${detectedPort} instead of requested port ${port}`)
+            }
 
-        children.push(ngrok)
+            const ngrok = spawn("ngrok", ["http", `--authtoken=${ngrokToken}`, `${detectedPort}`], {
+                stdio: ["ignore", "pipe", "pipe"]
+            })
 
-        ngrok.on("spawn", () => logCrosscode("ngrok started (PID: " + ngrok.pid + ")"))
-        ngrok.on("error", (err) => logCrosscode("ngrok error: " + err.message))
-        ngrok.stdout?.on("data", d => { ngrokLogStream.write(d); cloudflaredLogStream.write(d) })
-        ngrok.stderr?.on("data", d => { ngrokLogStream.write(d); cloudflaredLogStream.write(d) })
+            children.push(ngrok)
 
-        const pollNgrokApi = () => {
-            logCrosscode("Polling ngrok API at http://127.0.0.1:4040/api/tunnels")
-            const req = http.get("http://127.0.0.1:4040/api/tunnels", (res) => {
-                let data = ""
-                res.on("data", chunk => data += chunk)
-                res.on("end", () => {
-                    logCrosscode("ngrok API response: " + data.substring(0, 100))
-                    try {
-                        const json = JSON.parse(data)
-                        if (json.tunnels && json.tunnels.length > 0 && !tunnelUrl) {
-                            tunnelUrl = json.tunnels[0].public_url
-                            spinner.succeed(chalk.green("Tunnel ready"))
-                            logCrosscode("ngrok tunnel ready: " + tunnelUrl)
+            ngrok.on("spawn", () => {
+                logCrosscode("ngrok started (PID: " + ngrok.pid + ")")
+                spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting ngrok tunnel...")
+            })
+            ngrok.on("error", (err) => logCrosscode("ngrok error: " + err.message))
+            ngrok.stdout?.on("data", d => { ngrokLogStream.write(d); cloudflaredLogStream.write(d) })
+            ngrok.stderr?.on("data", d => { ngrokLogStream.write(d); cloudflaredLogStream.write(d) })
 
-                            const payload = encodeQrPayload({
-                                url: tunnelUrl,
-                                token: sessionToken,
-                                v: 1
-                            })
+            const pollNgrokApi = () => {
+                logCrosscode("Polling ngrok API at http://127.0.0.1:4040/api/tunnels")
+                const req = http.get("http://127.0.0.1:4040/api/tunnels", (res) => {
+                    let data = ""
+                    res.on("data", chunk => data += chunk)
+                    res.on("end", () => {
+                        logCrosscode("ngrok API response: " + data.substring(0, 100))
+                        try {
+                            const json = JSON.parse(data)
+                            if (json.tunnels && json.tunnels.length > 0 && !tunnelUrl) {
+                                tunnelUrl = json.tunnels[0].public_url
+                                spinner.succeed(chalk.green("Tunnel ready"))
+                                logCrosscode("ngrok tunnel ready: " + tunnelUrl)
 
-                            console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-                            qrcode.generate(payload, { small: true })
-                            console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                            console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                                const payload = encodeQrPayload({
+                                    url: tunnelUrl,
+                                    token: sessionToken,
+                                    v: 1
+                                })
+
+                                console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+                                qrcode.generate(payload, { small: true })
+                                console.log(chalk.grey(`URL: ${tunnelUrl}`))
+                                console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                            }
+                        } catch (e) {
+                            logCrosscode("ngrok API parse error: " + e.message)
+                            setTimeout(pollNgrokApi, 500)
                         }
-                    } catch (e) {
-                        logCrosscode("ngrok API parse error: " + e.message)
-                        setTimeout(pollNgrokApi, 500)
-                    }
+                    })
                 })
-            })
-            req.on("error", (e) => {
-                logCrosscode("ngrok API request error: " + e.message)
-                setTimeout(pollNgrokApi, 500)
-            })
-        }
+                req.on("error", (e) => {
+                    logCrosscode("ngrok API request error: " + e.message)
+                    setTimeout(pollNgrokApi, 500)
+                })
+            }
 
-        setTimeout(pollNgrokApi, 1000)
+            setTimeout(pollNgrokApi, 1000)
+        })
     } else if (tunnelProvider === "cloudflared" || tunnelFailed) {
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
@@ -620,159 +690,191 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         children.push(opencode)
 
+        let opencodePort = port
+        let portDetected = false
+        const portPromise = new Promise<number>((resolve) => {
+            const timeout = setTimeout(() => {
+                if (!portDetected) {
+                    logCrosscode(`Port detection timeout, using default port ${port}`)
+                    resolve(port)
+                }
+            }, 10000)
+
+            const checkPort = (data: Buffer) => {
+                opencodeLogStream.write(data)
+                const text = data.toString()
+                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
+                if (match && !portDetected) {
+                    portDetected = true
+                    opencodePort = parseInt(match[1], 10)
+                    clearTimeout(timeout)
+                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
+                    resolve(opencodePort)
+                }
+            }
+
+            opencode.stdout?.on("data", checkPort)
+            opencode.stderr?.on("data", checkPort)
+        })
+
         opencode.on("spawn", () => {
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting SSE proxy...")
+            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
             logCrosscode("opencode serve started (PID: " + opencode.pid + ")")
         })
         opencode.on("error", (err) => {
             spinner.fail(chalk.red.italic("Failed to start opencode serve"))
             logCrosscode("opencode serve error: " + err.message)
         })
-        opencode.stdout?.on("data", d => opencodeLogStream.write(d))
-        opencode.stderr?.on("data", d => opencodeLogStream.write(d))
 
         const proxyPort = port + 1
 
-        /**
-         * SSE Proxy Server
-         * 
-         * Cloudflare tunnels buffer GET requests, which breaks SSE streaming.
-         * POST requests flush in real-time, so we proxy the SSE stream through
-         * a POST endpoint.
-         * 
-         * Flow: Mobile → POST /mobile-event → CLI Proxy → GET /event → opencode
-         */
-        const proxy = http.createServer((req, res) => {
-            const targetUrl = `http://127.0.0.1:${port}${req.url}`
-            const authHeader = req.headers["authorization"]
-
-            if (req.method === "OPTIONS") {
-                res.writeHead(204, {
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                    "Access-Control-Max-Age": "86400",
-                })
-                res.end()
-                return
+        portPromise.then((detectedPort) => {
+            opencodePort = detectedPort
+            if (detectedPort !== port) {
+                logCrosscode(`Using detected port ${detectedPort} instead of requested port ${port}`)
             }
 
-            // SSE streaming endpoint - pipes events from opencode
-            if (req.url === "/mobile-event" && req.method === "POST") {
-                res.writeHead(200, {
-                    "Content-Type": "text/event-stream",
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "Access-Control-Allow-Origin": "*",
-                })
+            /**
+             * SSE Proxy Server
+             * 
+             * Cloudflare tunnels buffer GET requests, which breaks SSE streaming.
+             * POST requests flush in real-time, so we proxy the SSE stream through
+             * a POST endpoint.
+             * 
+             * Flow: Mobile → POST /mobile-event → CLI Proxy → GET /event → opencode
+             */
+            const proxy = http.createServer((req, res) => {
+                const targetUrl = `http://127.0.0.1:${detectedPort}${req.url}`
+                const authHeader = req.headers["authorization"]
 
-                let sseAuth = authHeader || ""
-                if (sseAuth && !sseAuth.startsWith("Basic ")) {
-                    sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                if (req.method === "OPTIONS") {
+                    res.writeHead(204, {
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                        "Access-Control-Max-Age": "86400",
+                    })
+                    res.end()
+                    return
                 }
 
-                const sseReq = http.get(`http://127.0.0.1:${port}/event`, {
-                    headers: {
-                        "Accept": "text/event-stream",
-                        "Authorization": sseAuth,
-                    },
-                }, (sseRes) => {
-                    sseRes.on("data", (chunk) => {
-                        res.write(chunk)
+                // SSE streaming endpoint - pipes events from opencode
+                if (req.url === "/mobile-event" && req.method === "POST") {
+                    res.writeHead(200, {
+                        "Content-Type": "text/event-stream",
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive",
+                        "Access-Control-Allow-Origin": "*",
                     })
-                    sseRes.on("end", () => {
+
+                    let sseAuth = authHeader || ""
+                    if (sseAuth && !sseAuth.startsWith("Basic ")) {
+                        sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                    }
+
+                    const sseReq = http.get(`http://127.0.0.1:${detectedPort}/event`, {
+                        headers: {
+                            "Accept": "text/event-stream",
+                            "Authorization": sseAuth,
+                        },
+                    }, (sseRes) => {
+                        sseRes.on("data", (chunk) => {
+                            res.write(chunk)
+                        })
+                        sseRes.on("end", () => {
+                            res.end()
+                        })
+                    })
+
+                    sseReq.on("error", () => {
                         res.end()
                     })
-                })
 
-                sseReq.on("error", () => {
-                    res.end()
-                })
-
-                req.on("close", () => {
-                    sseReq.destroy()
-                })
-
-                return
-            }
-
-            // Proxy all other requests to opencode
-            const forwardHeaders: Record<string, string | string[]> = {}
-            const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
-            for (const [key, value] of Object.entries(req.headers)) {
-                if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
-            }
-            forwardHeaders["host"] = `127.0.0.1:${port}`
-            
-            if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
-                const token = req.headers["authorization"]
-                forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
-            }
-            
-            logCrosscode(`cf-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
-
-            const proxyReq = http.request(targetUrl, {
-                method: req.method,
-                headers: forwardHeaders,
-            }, (proxyRes) => {
-                logCrosscode(`cf-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
-                res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
-                proxyRes.pipe(res)
-            })
-
-            proxyReq.on("error", () => {
-                res.writeHead(502)
-                res.end("Bad Gateway")
-            })
-
-            req.pipe(proxyReq)
-        })
-
-        proxy.listen(proxyPort, "127.0.0.1", () => {
-            logCrosscode(`SSE proxy started on port ${proxyPort}`)
-            spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
-
-            const cf = spawn("cloudflared", [
-                "tunnel",
-                "--no-autoupdate",
-                "--config", "/dev/null",
-                "--url", `http://127.0.0.1:${proxyPort}`
-            ], {
-                stdio: ["ignore", "pipe", "pipe"]
-            })
-
-            children.push(cf)
-
-            cf.on("spawn", () => logCrosscode("cloudflared started (PID: " + cf.pid + ")"))
-            cf.on("error", (err) => logCrosscode("cloudflared error: " + err.message))
-
-            cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
-
-            cf.stderr?.on("data", (data: Buffer) => {
-                const text = data.toString()
-
-                const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/)
-
-                if (m && !tunnelUrl) {
-                    tunnelUrl = m[0]
-                    spinner.succeed(chalk.green("Tunnel ready"))
-                    logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
-
-                    const payload = encodeQrPayload({
-                        url: tunnelUrl,
-                        token: sessionToken,
-                        v: 1
+                    req.on("close", () => {
+                        sseReq.destroy()
                     })
 
-                    console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-
-                    qrcode.generate(payload, { small: true })
-
-                    console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                    console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                    return
                 }
 
-                cloudflaredLogStream.write(data)
+                // Proxy all other requests to opencode
+                const forwardHeaders: Record<string, string | string[]> = {}
+                const hopByHop = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
+                for (const [key, value] of Object.entries(req.headers)) {
+                    if (!hopByHop.has(key.toLowerCase())) forwardHeaders[key] = value
+                }
+                forwardHeaders["host"] = `127.0.0.1:${detectedPort}`
+                
+                if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
+                    const token = req.headers["authorization"]
+                    forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
+                }
+                
+                logCrosscode(`cf-proxy ${req.method} ${req.url} hasAuth=${!!req.headers["authorization"]}`)
+
+                const proxyReq = http.request(targetUrl, {
+                    method: req.method,
+                    headers: forwardHeaders,
+                }, (proxyRes) => {
+                    logCrosscode(`cf-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
+                    res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+                    proxyRes.pipe(res)
+                })
+
+                proxyReq.on("error", () => {
+                    res.writeHead(502)
+                    res.end("Bad Gateway")
+                })
+
+                req.pipe(proxyReq)
+            })
+
+            proxy.listen(proxyPort, "127.0.0.1", () => {
+                logCrosscode(`SSE proxy started on port ${proxyPort}`)
+                spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
+
+                const cf = spawn("cloudflared", [
+                    "tunnel",
+                    "--no-autoupdate",
+                    "--config", "/dev/null",
+                    "--url", `http://127.0.0.1:${proxyPort}`
+                ], {
+                    stdio: ["ignore", "pipe", "pipe"]
+                })
+
+                children.push(cf)
+
+                cf.on("spawn", () => logCrosscode("cloudflared started (PID: " + cf.pid + ")"))
+                cf.on("error", (err) => logCrosscode("cloudflared error: " + err.message))
+
+                cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
+
+                cf.stderr?.on("data", (data: Buffer) => {
+                    const text = data.toString()
+
+                    const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/)
+
+                    if (m && !tunnelUrl) {
+                        tunnelUrl = m[0]
+                        spinner.succeed(chalk.green("Tunnel ready"))
+                        logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
+
+                        const payload = encodeQrPayload({
+                            url: tunnelUrl,
+                            token: sessionToken,
+                            v: 1
+                        })
+
+                        console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+
+                        qrcode.generate(payload, { small: true })
+
+                        console.log(chalk.grey(`URL: ${tunnelUrl}`))
+                        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                    }
+
+                    cloudflaredLogStream.write(data)
+                })
             })
         })
     }

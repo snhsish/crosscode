@@ -105,7 +105,7 @@ export default function UserPage() {
                 <Text className="text-sm text-muted-foreground text-center">
                   Scan a QR code from the terminal to login
                 </Text>
-                <Button onPress={() => router.push("/new-connection")}>
+                <Button onPress={() => router.push("/login-scanner")}>
                   <Text>Scan QR to Login</Text>
                 </Button>
               </View>

@@ -331,7 +331,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         logCrosscode(`Session token generated: ${sessionToken}`)
         console.log(chalk.dim(`Session token: ${sessionToken}`))
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
@@ -538,7 +538,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         const sessionToken = crypto.randomBytes(32).toString("hex")
         logCrosscode("Session token generated")
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
@@ -612,7 +612,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         const sessionToken = crypto.randomBytes(32).toString("hex")
         logCrosscode("Session token generated")
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG"], {
+        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]

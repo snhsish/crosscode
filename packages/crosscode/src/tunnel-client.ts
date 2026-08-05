@@ -80,14 +80,20 @@ export function connectTunnel(
 
   function handleRequest(reqId: string, method: string, path: string, headers: Record<string, string>, body?: string) {
     const bodyBuf = body ? Buffer.from(body, "base64") : null
-    const hasAuth = !!headers["authorization"] || !!headers["Authorization"]
-    console.log(`[tunnel-client] request ${method} ${path} hasAuth=${hasAuth}`)
+    const authHeader = headers["authorization"] || headers["Authorization"]
+    console.log(`[tunnel-client] request ${method} ${path} hasAuth=${!!authHeader} authValue=${authHeader ? authHeader.substring(0, 30) + "..." : "none"}`)
+    console.log(`[tunnel-client] all headers: ${JSON.stringify(Object.keys(headers))}`)
 
     const reqHeaders: http.OutgoingHttpHeaders = {}
     for (const [key, value] of Object.entries(headers)) {
       reqHeaders[key] = value
     }
     if (bodyBuf) reqHeaders["content-length"] = bodyBuf.length
+
+    console.log(`[tunnel-client] sending to proxy: ${JSON.stringify(Object.keys(reqHeaders))}`)
+    if (reqHeaders["authorization"]) {
+      console.log(`[tunnel-client] sending auth to proxy: ${String(reqHeaders["authorization"]).substring(0, 30)}...`)
+    }
 
     const req = http.request(
       {
@@ -98,6 +104,7 @@ export function connectTunnel(
         headers: reqHeaders,
       },
       (res) => {
+        console.log(`[tunnel-client] proxy responded: ${res.statusCode}`)
         const respHeaders: Record<string, string> = {}
         for (const [key, value] of Object.entries(res.headers)) {
           if (value !== undefined) {

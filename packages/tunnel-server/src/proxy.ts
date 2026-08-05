@@ -34,7 +34,8 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
 
   const reqId = generateReqId()
   const hasAuth = !!req.headers["authorization"]
-  logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId, hasAuth })
+  const authValue = req.headers["authorization"]
+  logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId, hasAuth, authValue: authValue ? authValue.substring(0, 30) + "..." : "none" })
 
   const headers: Record<string, string> = {}
   const hopByHopHeaders = ["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"]
@@ -43,6 +44,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
       headers[key] = Array.isArray(value) ? value.join(", ") : value
     }
   }
+  logger.info("Headers forwarded to tunnel client", { projectId, reqId, headerKeys: Object.keys(headers) })
 
   const bodyChunks: Buffer[] = []
   req.on("data", (chunk) => bodyChunks.push(chunk))

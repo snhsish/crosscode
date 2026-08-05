@@ -1,5 +1,47 @@
 # crosscode
 
+## 0.3.8
+
+### Patch Changes
+
+- be6374a: fix: pass --port to opencode serve to ensure correct port binding
+
+## 0.3.7
+
+### Patch Changes
+
+- 2edfb99: Add direct test to opencode and 401 response logging
+
+## 0.3.6
+
+### Patch Changes
+
+- cf9d379: Add detailed header forwarding logs for debugging
+
+## 0.3.5
+
+### Patch Changes
+
+- 2ee5f00: chore: add session token logging to debug auth mismatch
+
+## 0.3.4
+
+### Patch Changes
+
+- efd7fbf: chore: add enhanced logging to debug Authorization header flow
+
+## 0.3.3
+
+### Patch Changes
+
+- 5272927: fix: convert Authorization header to Basic Auth format for opencode
+
+## 0.3.2
+
+### Patch Changes
+
+- ab4d4b9: chore: add debug logging to trace Authorization header flow
+
 ## 0.3.1
 
 ### Patch Changes

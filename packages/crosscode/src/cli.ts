@@ -538,6 +538,9 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                             v: 1
                         })
 
+                        if (opencodePort !== 4096) {
+                            console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
+                        }
                         console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
                         qrcode.generate(payload, { small: true })
                         console.log(chalk.grey(`URL: ${tunnelUrl}`))
@@ -657,6 +660,9 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                                     v: 1
                                 })
 
+                                if (opencodePort !== 4096) {
+                                    console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
+                                }
                                 console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
                                 qrcode.generate(payload, { small: true })
                                 console.log(chalk.grey(`URL: ${tunnelUrl}`))
@@ -865,6 +871,9 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                             v: 1
                         })
 
+                        if (opencodePort !== 4096) {
+                            console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
+                        }
                         console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
 
                         qrcode.generate(payload, { small: true })

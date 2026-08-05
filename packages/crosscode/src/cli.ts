@@ -431,6 +431,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             }
             
             logCrosscode(`tunnel-proxy ${req.method} ${req.url} hasAuth=${!!authVal}`)
+            logCrosscode(`tunnel-proxy target URL: ${targetUrl}`)
             logCrosscode(`tunnel-proxy sending headers to opencode: ${JSON.stringify(Object.keys(forwardHeaders))}`)
             if (forwardHeaders["authorization"]) {
                 logCrosscode(`tunnel-proxy forwarding auth: ${String(forwardHeaders["authorization"]).substring(0, 20)}...`)
@@ -441,6 +442,9 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 headers: forwardHeaders,
             }, (proxyRes) => {
                 logCrosscode(`tunnel-proxy response ${proxyRes.statusCode} for ${req.method} ${req.url}`)
+                if (proxyRes.statusCode === 401) {
+                    logCrosscode(`tunnel-proxy 401 response headers: ${JSON.stringify(proxyRes.headers)}`)
+                }
                 res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
                 proxyRes.pipe(res)
             })
@@ -455,6 +459,21 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         proxy.listen(proxyPort, "127.0.0.1", () => {
             logCrosscode(`SSE proxy started on port ${proxyPort}`)
+            
+            // Test direct connection to opencode
+            const testReq = http.request(`http://127.0.0.1:${port}/global/health`, {
+                method: "GET",
+                headers: {
+                    "Authorization": `Basic ${Buffer.from(`opencode:${sessionToken}`).toString("base64")}`
+                }
+            }, (testRes) => {
+                logCrosscode(`Direct test to opencode: ${testRes.statusCode}`)
+            })
+            testReq.on("error", (e) => {
+                logCrosscode(`Direct test to opencode failed: ${e.message}`)
+            })
+            testReq.end()
+            
             spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
             const projectId = deriveProjectId()

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useFocusEffect, useRouter } from "expo-router"
+import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router"
 import { View, Alert, ActivityIndicator } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { decodeQrPayload, decodeLoginQrPayload, decodeDeviceLinkQrPayload, detectQrPayloadType } from "@crosscode/shared"
@@ -13,6 +13,8 @@ import { useAuth } from "@/store/auth.store"
 
 export default function NewConnectionScreen() {
   const router = useRouter()
+  const params = useLocalSearchParams<{ mode?: string }>()
+  const isLoginMode = params.mode === "login"
   const insets = useSafeAreaInsets()
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "light"
@@ -109,38 +111,84 @@ export default function NewConnectionScreen() {
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="px-6 pt-8 pb-4">
-        <Text className="text-3xl font-semibold tracking-tight">New Connection</Text>
+        <Text className="text-3xl font-semibold tracking-tight">
+          {isLoginMode ? "Login" : "New Connection"}
+        </Text>
         <Text className="text-muted-foreground text-sm mt-1">
-          Scan a QR code to connect to a remote server
+          {isLoginMode
+            ? "Scan a QR code to login to your account"
+            : "Scan a QR code to connect to a remote server"}
         </Text>
       </View>
 
       <View className="px-6 pb-6">
         <View className="bg-muted/50 rounded-2xl p-5 border border-border/50">
-          <Text className="text-sm font-medium mb-4">How to connect</Text>
+          <Text className="text-sm font-medium mb-4">
+            {isLoginMode ? "How to login" : "How to connect"}
+          </Text>
           <View className="gap-4">
-            <View className="flex-row items-start gap-3">
-              <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
-                <Text className="text-xs font-bold text-primary">1</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium leading-5">Start the server</Text>
-                <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
-                  Run <Text className="bg-muted text-foreground font-mono text-xs">npx crosscode</Text> in your project directory
-                </Text>
-              </View>
-            </View>
-            <View className="flex-row items-start gap-3">
-              <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
-                <Text className="text-xs font-bold text-primary">2</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-sm font-medium leading-5">Scan the QR code</Text>
-                <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
-                  Point your camera at the QR code displayed in your terminal
-                </Text>
-              </View>
-            </View>
+            {isLoginMode ? (
+              <>
+                <View className="flex-row items-start gap-3">
+                  <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                    <Text className="text-xs font-bold text-primary">1</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium leading-5">Visit the dashboard</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Go to <Text className="text-primary">crosscode.site/dashboard</Text> in your browser
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row items-start gap-3">
+                  <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                    <Text className="text-xs font-bold text-primary">2</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium leading-5">Click "Login with Mobile"</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Find and click the login button on the dashboard page
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row items-start gap-3">
+                  <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                    <Text className="text-xs font-bold text-primary">3</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium leading-5">Scan the QR code</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Point your camera at the QR code displayed on the website
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                <View className="flex-row items-start gap-3">
+                  <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                    <Text className="text-xs font-bold text-primary">1</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium leading-5">Start the server</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Run <Text className="bg-muted text-foreground font-mono text-xs">npx crosscode</Text> in your project directory
+                    </Text>
+                  </View>
+                </View>
+                <View className="flex-row items-start gap-3">
+                  <View className="w-6 h-6 rounded-full bg-primary/10 items-center justify-center">
+                    <Text className="text-xs font-bold text-primary">2</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-medium leading-5">Scan the QR code</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Point your camera at the QR code displayed in your terminal
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </View>

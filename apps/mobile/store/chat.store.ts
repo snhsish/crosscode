@@ -122,6 +122,7 @@ export const useChatStore = create<ChatStore>()(
             storage: createJSONStorage(() => AsyncStorage),
             partialize: (state) => ({
                 modelByAgent: state.modelByAgent,
+                draftBySession: state.draftBySession,
             }),
         }
     )

@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.4.0
+
+### Minor Changes
+
+- e528a93: Add configurable tunnel WS URL via config.json
+
 ## 0.3.8
 
 ### Patch Changes

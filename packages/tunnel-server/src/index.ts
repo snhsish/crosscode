@@ -8,7 +8,7 @@ import { getRegistryStats } from "./registry.js"
 const PORT = parseInt(process.env.PORT || "3100", 10)
 const VERSION = "0.2.0"
 
-logger.info("Starting tunnel-server", { version: VERSION, port: PORT, nodeEnv: process.env.NODE_ENV, tunnelDomain: process.env.TUNNEL_DOMAIN || "tunnel.sish.work" })
+logger.info("Starting tunnel-server", { version: VERSION, port: PORT, nodeEnv: process.env.NODE_ENV, tunnelDomain: process.env.TUNNEL_DOMAIN || "connect.crosscode.site" })
 
 const server = http.createServer((req, res) => {
   if (req.url === "/health" && req.method === "GET") {

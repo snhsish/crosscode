@@ -83,6 +83,14 @@ export function getAllPendingRequests(projectId: string): Map<string, PendingReq
   return entry.pendingRequests
 }
 
+export function countByUserId(userId: string): number {
+  let count = 0
+  for (const entry of registry.values()) {
+    if (entry.userId === userId) count++
+  }
+  return count
+}
+
 export function getRegistryStats(): { totalClients: number; totalPendingRequests: number; clients: Array<{ projectId: string; userId: string; pendingRequests: number; connectedAt: string }> } {
   const clients: Array<{ projectId: string; userId: string; pendingRequests: number; connectedAt: string }> = []
   let totalPendingRequests = 0

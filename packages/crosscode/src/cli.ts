@@ -328,7 +328,7 @@ ${chalk.yellow.bold("TUNNEL PROVIDERS:")}
   ${chalk.blue("Paid tier")}       CrossCode tunnel (default when logged in)
   ${chalk.blue("ngrok")}           Alternative tunnel (requires ngrok auth token)
 
-${chalk.dim("Default behavior: uses tunnel.sish.work when logged in with a paid tier.")}
+${chalk.dim("Default behavior: uses connect.crosscode.site when logged in with a paid tier.")}
 ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 `)
         process.exit(0)

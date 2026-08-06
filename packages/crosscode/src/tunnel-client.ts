@@ -3,7 +3,7 @@ import http from "http"
 import crypto from "crypto"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 
-const TUNNEL_WS_URL = process.env.CROSSCODE_TUNNEL_WS_URL || "wss://tunnel.sish.work/ws"
+const TUNNEL_WS_URL = process.env.CROSSCODE_TUNNEL_WS_URL || "wss://connect.crosscode.site/ws"
 const INITIAL_BACKOFF_MS = 1_000
 const MAX_BACKOFF_MS = 30_000
 const DEBUG = process.env.CROSSCODE_DEBUG === "1"

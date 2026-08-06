@@ -1,6 +1,6 @@
 import { WebSocket } from "ws"
 import { validateApiKey } from "./db.js"
-import { register, deregister, get, removePendingRequest } from "./registry.js"
+import { register, deregister, get, removePendingRequest, countByUserId } from "./registry.js"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 import crypto from "crypto"
 import { logger } from "./logger.js"
@@ -9,7 +9,7 @@ const AUTH_TIMEOUT_MS = 10_000
 const PING_INTERVAL_MS = 15_000
 const MAX_MISSED_PONGS = 3
 
-const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || "tunnel.sish.work"
+const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || "connect.crosscode.site"
 
 export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessage): void {
   const remoteAddr = req.socket.remoteAddress || "unknown"
@@ -134,6 +134,14 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         logger.warn("Auth failed: invalid API key", { projectId: projId, remoteAddr })
         send(ws, { type: "auth.fail", reason: "Invalid API key" })
         ws.close(4001, "Invalid API key")
+        return
+      }
+
+      const activeTunnels = countByUserId(result.userId)
+      if (result.tier === "free" && activeTunnels >= 1) {
+        logger.warn("Auth failed: free tier tunnel limit reached", { projectId: projId, userId: result.userId, activeTunnels })
+        send(ws, { type: "auth.fail", reason: "Free plan allows only 1 active custom tunnel. Upgrade for more." })
+        ws.close(4003, "Tunnel limit reached")
         return
       }
 

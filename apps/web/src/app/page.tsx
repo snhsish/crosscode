@@ -3,6 +3,7 @@ import { Hero } from "@/components/landing/hero";
 import { Features } from "@/components/landing/features";
 import { BringYourOwn } from "@/components/landing/bring-your-own";
 import { HowItWorks } from "@/components/landing/how-it-works";
+import { PricingSection } from "@/components/landing/pricing-section";
 import { CTA } from "@/components/landing/cta";
 import { Footer } from "@/components/landing/footer";
 
@@ -15,6 +16,7 @@ export default function Home() {
         <BringYourOwn />
         <Features />
         <HowItWorks />
+        <PricingSection />
         <CTA />
       </main>
       <Footer />

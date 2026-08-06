@@ -5,31 +5,25 @@ import type { TunnelS2C } from "@crosscode/shared"
 import type { WebSocket } from "ws"
 import { logger } from "./logger.js"
 
-export function handleProxy(req: IncomingMessage, res: ServerResponse, subdomainProjectId?: string): void {
-  const url = req.url || ""
+export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
+  const url = req.url || "/"
   const method = req.method || "GET"
   const startTime = Date.now()
 
-  logger.debug("Incoming proxy request", { method, url, subdomainProjectId })
+  logger.debug("Incoming proxy request", { method, url, host: req.headers.host })
 
-  let projectId: string
-  let path: string
+  const host = req.headers.host || ""
+  const match = host.match(/^([a-f0-9]+)\./)
 
-  if (subdomainProjectId) {
-    projectId = subdomainProjectId
-    path = url || "/"
-  } else {
-    const match = url.match(/^\/t\/([a-f0-9]+)(\/.*)?$/)
-    if (!match) {
-      logger.warn("Invalid tunnel URL format", { url })
-      res.writeHead(404, { "Content-Type": "application/json" })
-      res.end(JSON.stringify({ error: "Not found" }))
-      return
-    }
-    projectId = match[1]
-    path = match[2] || "/"
+  if (!match) {
+    logger.warn("Invalid tunnel subdomain format", { host })
+    res.writeHead(404, { "Content-Type": "application/json" })
+    res.end(JSON.stringify({ error: "Not found" }))
+    return
   }
 
+  const projectId = match[1]
+  const path = url
   const entry = get(projectId)
   if (!entry) {
     logger.warn("Tunnel not active for project", { projectId, path, method })

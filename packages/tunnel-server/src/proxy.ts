@@ -6,23 +6,24 @@ import type { WebSocket } from "ws"
 import { logger } from "./logger.js"
 
 export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
-  const url = req.url || ""
+  const url = req.url || "/"
   const method = req.method || "GET"
   const startTime = Date.now()
 
-  logger.debug("Incoming proxy request", { method, url })
+  logger.debug("Incoming proxy request", { method, url, host: req.headers.host })
 
-  const match = url.match(/^\/t\/([a-f0-9]+)(\/.*)?$/)
+  const host = req.headers.host || ""
+  const match = host.match(/^([a-f0-9]+)\./)
 
   if (!match) {
-    logger.warn("Invalid tunnel URL format", { url })
+    logger.warn("Invalid tunnel subdomain format", { host })
     res.writeHead(404, { "Content-Type": "application/json" })
     res.end(JSON.stringify({ error: "Not found" }))
     return
   }
 
   const projectId = match[1]
-  const path = match[2] || "/"
+  const path = url
 
   const entry = get(projectId)
   if (!entry) {

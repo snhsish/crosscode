@@ -141,7 +141,7 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
       projectId = projId
       register(projectId, result.userId, ws)
 
-      const tunnelUrl = `https://${TUNNEL_DOMAIN}/t/${projectId}`
+      const tunnelUrl = `https://${projectId}.${TUNNEL_DOMAIN}`
       send(ws, { type: "auth.ok", tunnelUrl })
       logger.info("Auth successful", { projectId, userId: result.userId, tunnelUrl })
 

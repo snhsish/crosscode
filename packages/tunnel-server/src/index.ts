@@ -10,6 +10,8 @@ const VERSION = "0.2.0"
 
 logger.info("Starting tunnel-server", { version: VERSION, port: PORT, nodeEnv: process.env.NODE_ENV, tunnelDomain: process.env.TUNNEL_DOMAIN || "tunnel.sish.work" })
 
+const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || "connect.crosscode.site"
+
 const server = http.createServer((req, res) => {
   if (req.url === "/health" && req.method === "GET") {
     const stats = getRegistryStats()
@@ -18,12 +20,20 @@ const server = http.createServer((req, res) => {
     return
   }
 
+  const host = req.headers.host || ""
+  const isSubdomainTunnel = new RegExp(`^[a-f0-9]+\\.${TUNNEL_DOMAIN.replace(/\./g, "\\.")}$`).test(host)
+
+  if (isSubdomainTunnel) {
+    handleProxy(req, res)
+    return
+  }
+
   if (req.url?.startsWith("/t/")) {
     handleProxy(req, res)
     return
   }
 
-  logger.debug("404 Not found", { url: req.url, method: req.method })
+  logger.debug("404 Not found", { url: req.url, method: req.method, host })
   res.writeHead(404, { "Content-Type": "application/json" })
   res.end(JSON.stringify({ error: "Not found" }))
 })

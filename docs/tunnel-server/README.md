@@ -12,16 +12,16 @@ The tunnel service enables paid users to connect their PC to the CrossCode mobil
 Mobile App ──HTTPS/SSE──▶ Caddy (443)
                               │
                          ┌────┴────┐
-                         │  /t/*   │──▶ tunnel-server (3100) ──▶ PostgreSQL
-                         │  /ws    │                                    │
-                         └─────────┘                              WebSocket
-                                                                       │
-                                                                 tunnel-client (PC)
-                                                                       │
-                                                                 http://127.0.0.1:4097
-                                                                 (local proxy)
-                                                                       │
-                                                                 opencode serve :4096
+                         │ *.domain │──▶ tunnel-server (3100) ──▶ PostgreSQL
+                         │  /ws     │                                    │
+                         └──────────┘                              WebSocket
+                                                                        │
+                                                                  tunnel-client (PC)
+                                                                        │
+                                                                  http://127.0.0.1:4097
+                                                                  (local proxy)
+                                                                        │
+                                                                  opencode serve :4096
 ```
 
 ### Key Features
@@ -63,7 +63,7 @@ git remote get-url origin  →  "git@github.com:user/repo.git"
 sha256("git@github.com:user/repo.git")  →  first 8 hex chars  →  "a1b2c3d4"
 ```
 
-Tunnel URL: `https://tunnel.sish.work/t/a1b2c3d4`
+Tunnel URL: `https://a1b2c3d4.connect.crosscode.site`
 
 Same repo on any machine = same tunnel URL. If no git remote, the current working directory is hashed instead.
 
@@ -72,7 +72,7 @@ Same repo on any machine = same tunnel URL. If no git remote, the current workin
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string (same DB as web app) |
-| `TUNNEL_DOMAIN` | No | `tunnel.sish.work` | Domain for tunnel URLs |
+| `TUNNEL_DOMAIN` | No | `connect.crosscode.site` | Domain for tunnel URLs (subdomain-based) |
 | `PORT` | No | `3100` | Port to listen on |
 | `NODE_ENV` | No | — | Set to `production` |
 
@@ -127,7 +127,7 @@ DATABASE_URL=postgresql://... PORT=3100 node dist/index.js
 ## Troubleshooting
 
 **SSE not streaming / buffering**
-- Verify Caddy has `flush_interval -1` on the `/t/*` handler
+- Verify Caddy has `flush_interval -1` on the wildcard subdomain handler
 
 **WebSocket disconnects**
 - Caddy handles WebSocket automatically; check tunnel-server logs

@@ -14,13 +14,16 @@ Complete VPS setup guide for the CrossCode tunnel server.
 
 ## 1. DNS Setup
 
-Add an A record in your DNS provider:
+Add DNS records in your DNS provider:
 
 ```
-tunnel.sish.work  →  <VPS_IP>
+connect.crosscode.site        AAAA  <VPS_IPV6>
+*.connect.crosscode.site      AAAA  <VPS_IPV6>
 ```
 
-**Note**: No wildcard DNS needed — all traffic goes through one origin with path-based routing.
+**Note**: Wildcard DNS is required for subdomain-based tunnel routing (e.g., `a1b2c3d4.connect.crosscode.site`).
+
+If using Cloudflare proxy, you can also add A records (IPv4) — Cloudflare handles IPv4↔IPv6 translation automatically.
 
 ---
 
@@ -59,7 +62,7 @@ Create `~/crosscode/packages/tunnel-server/.env`:
 
 ```env
 DATABASE_URL=postgresql://user:password@host:5432/crosscode
-TUNNEL_DOMAIN=tunnel.sish.work
+TUNNEL_DOMAIN=connect.crosscode.site
 PORT=3100
 NODE_ENV=production
 ```
@@ -73,26 +76,45 @@ NODE_ENV=production
 Add this block to your existing Caddyfile (typically at `/etc/caddy/Caddyfile`):
 
 ```caddyfile
-tunnel.sish.work {
-    # WebSocket endpoint (PC tunnel-client → VPS)
-    handle /ws {
-        reverse_proxy localhost:3100
+# Wildcard subdomain for tunnel proxy
+*.connect.crosscode.site {
+    tls {
+        dns cloudflare <CLOUDFLARE_API_TOKEN>
     }
 
-    # Public proxy endpoint (Mobile → VPS → PC)
+    # Health check on base domain only
+    @baseDomain header Host "connect.crosscode.site"
+    handle @baseDomain {
+        handle /ws {
+            reverse_proxy localhost:3100
+        }
+        handle /health {
+            reverse_proxy localhost:3100
+        }
+        respond 404
+    }
+
+    # Tunnel proxy — all other subdomains
     # flush_interval -1 disables buffering for SSE streaming
-    handle /t/* {
+    handle {
         reverse_proxy localhost:3100 {
             flush_interval -1
         }
     }
+}
 
-    # Health check
+# Base domain for WebSocket and health
+connect.crosscode.site {
+    handle /ws {
+        reverse_proxy localhost:3100
+    }
     handle /health {
         reverse_proxy localhost:3100
     }
 }
 ```
+
+**Note**: The `dns cloudflare` directive requires the `caddy-dns` plugin and a Cloudflare API token with DNS edit permissions. This enables Let's Encrypt to issue a wildcard certificate via DNS-01 challenge.
 
 Reload Caddy:
 
@@ -101,7 +123,7 @@ sudo systemctl reload caddy
 ```
 
 Caddy will automatically:
-- Obtain a TLS certificate from Let's Encrypt
+- Obtain a wildcard TLS certificate from Let's Encrypt (via DNS-01 challenge)
 - Configure HTTP→HTTPS redirect
 - Handle WebSocket upgrades automatically
 
@@ -178,7 +200,7 @@ crosscode login
 crosscode
 ```
 
-2. **Verify tunnel URL**: Should be `https://tunnel.sish.work/t/<projectId>`
+2. **Verify tunnel URL**: Should be `https://<projectId>.connect.crosscode.site`
 
 3. **Test from mobile**: Scan QR, verify SSE streaming works in real-time
 
@@ -189,7 +211,7 @@ crosscode
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string (same DB as web app) |
-| `TUNNEL_DOMAIN` | No | `tunnel.sish.work` | Domain for tunnel URLs |
+| `TUNNEL_DOMAIN` | No | `connect.crosscode.site` | Domain for tunnel URLs (subdomain-based) |
 | `PORT` | No | `3100` | Port to listen on |
 | `NODE_ENV` | No | — | Set to `production` |
 
@@ -419,7 +441,7 @@ tunnel.sish.work {
 
 ## Production Checklist
 
-- [ ] DNS A record pointing to VPS IP
+- [ ] DNS AAAA records (wildcard) pointing to VPS IPv6
 - [ ] Docker installed and running
 - [ ] Caddy installed and configured
 - [ ] TLS certificate obtained automatically by Caddy

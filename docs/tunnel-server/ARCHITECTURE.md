@@ -49,7 +49,7 @@ PC (tunnel-client)                    VPS (tunnel-server)
 ```
 Mobile App              VPS (tunnel-server)           PC (tunnel-client)        opencode serve
     │                           │                              │                      │
-    │── POST /t/a1b2c3d4/... ──▶│                              │                      │
+    │── POST a1b2c3d4.domain/...▶│                              │                      │
     │                           │── { type: "request",         │                      │
     │                           │     reqId: "uuid",           │                      │
     │                           │     method: "POST",          │                      │
@@ -88,23 +88,24 @@ PC (tunnel-client)                    VPS (tunnel-server)
 
 ### Request Lifecycle
 
-1. **Mobile App** sends HTTP request to `https://tunnel.sish.work/t/{projectId}/...`
+1. **Mobile App** sends HTTP request to `https://{projectId}.connect.crosscode.site/...`
 2. **Caddy** forwards to `tunnel-server` on port 3100 with `flush_interval -1` (no buffering)
-3. **tunnel-server** looks up `projectId` in registry
-4. **tunnel-server** generates `reqId` (UUID), sends `request` message over WS
-5. **tunnel-client** receives message, makes HTTP request to `http://127.0.0.1:4097{path}`
-6. **tunnel-client** streams response back:
+3. **tunnel-server** extracts `projectId` from Host header subdomain
+4. **tunnel-server** looks up `projectId` in registry
+5. **tunnel-server** generates `reqId` (UUID), sends `request` message over WS
+6. **tunnel-client** receives message, makes HTTP request to `http://127.0.0.1:4097{path}`
+7. **tunnel-client** streams response back:
    - `response.head` with status + headers
    - `response.chunk` for each data chunk (base64 encoded)
    - `response.end` when complete
-7. **tunnel-server** writes each chunk immediately to HTTP response (zero buffering)
-8. **Mobile App** receives streamed response in real-time
+8. **tunnel-server** writes each chunk immediately to HTTP response (zero buffering)
+9. **Mobile App** receives streamed response in real-time
 
 ### SSE Streaming
 
 For SSE endpoints (e.g., `GET /event`):
 
-1. Mobile requests `POST /t/{projectId}/mobile-event` (existing workaround)
+1. Mobile requests `POST {projectId}.connect.crosscode.site/mobile-event` (existing workaround)
 2. tunnel-server forwards to PC's local proxy
 3. Local proxy opens `GET /event` to opencode
 4. opencode streams SSE events
@@ -112,7 +113,7 @@ For SSE endpoints (e.g., `GET /event`):
 6. tunnel-server writes each chunk immediately to HTTP response
 7. Mobile receives SSE events in real-time
 
-**Future optimization**: Mobile can use direct `GET /t/{projectId}/event` for native SSE (no POST workaround needed).
+**Future optimization**: Mobile can use direct `GET {projectId}.connect.crosscode.site/event` for native SSE (no POST workaround needed).
 
 ## Registry
 
@@ -225,7 +226,7 @@ On reconnect:
 ### Health Check
 
 ```bash
-curl https://tunnel.sish.work/health
+curl https://connect.crosscode.site/health
 # Response: { "status": "ok" }
 ```
 

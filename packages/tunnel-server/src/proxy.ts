@@ -24,7 +24,6 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
 
   const projectId = match[1]
   const path = url
-
   const entry = get(projectId)
   if (!entry) {
     logger.warn("Tunnel not active for project", { projectId, path, method })

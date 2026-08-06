@@ -19,6 +19,12 @@ const navItems = [
       { title: "App", href: "/docs/app" },
     ],
   },
+  {
+    title: "Other",
+    items: [
+      { title: "Pricing", href: "/pricing" },
+    ],
+  },
 ];
 
 export function DocsSidebar() {

@@ -32,6 +32,7 @@ export function connectTunnel(
   apiKey: string,
   projectId: string,
   localPort: number,
+  tunnelWsUrl: string | undefined,
   onTunnelUrl: (url: string) => void,
   onError: (err: Error) => void,
 ): () => void {
@@ -40,12 +41,13 @@ export function connectTunnel(
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let shuttingDown = false
   const inFlight = new Map<string, InFlightRequest>()
+  const wsUrl = tunnelWsUrl || TUNNEL_WS_URL
 
   function connect() {
     if (shuttingDown) return
 
-    debug("connecting", { url: TUNNEL_WS_URL })
-    ws = new WebSocket(TUNNEL_WS_URL)
+    debug("connecting", { url: wsUrl })
+    ws = new WebSocket(wsUrl)
 
     ws.on("open", () => {
       backoff = INITIAL_BACKOFF_MS

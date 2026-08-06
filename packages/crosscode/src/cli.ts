@@ -97,6 +97,7 @@ function checkDep(name: string): boolean {
 type Config = {
     ngrokToken?: string
     port?: number
+    tunnelWsUrl?: string
     auth?: {
         email?: string
         sessionToken?: string
@@ -627,6 +628,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                     config.auth!.sessionToken!,
                     projectId,
                     proxyPort,
+                    config.tunnelWsUrl,
                     (url) => {
                         clearTimeout(tunnelTimeout)
                         tunnelUrl = url

@@ -8,7 +8,17 @@
     "clean": "turbo clean",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "mobile-start": "pnpm --filter @crosscode/mobile start",
+    "mobile-android": "pnpm --filter @crosscode/mobile android",
+    "mobile-ios": "pnpm --filter @crosscode/mobile ios",
+    "mobile-web": "pnpm --filter @crosscode/mobile web",
+    "web-dev": "pnpm --filter @crosscode/web dev",
+    "web-build": "pnpm --filter @crosscode/web build",
+    "web-start": "pnpm --filter @crosscode/web start",
+    "tunnel-server-dev": "pnpm --filter @crosscode/tunnel-server dev",
+    "tunnel-server-build": "pnpm --filter @crosscode/tunnel-server build",
+    "tunnel-server-start": "pnpm --filter @crosscode/tunnel-server start"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

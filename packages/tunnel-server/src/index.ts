@@ -10,6 +10,8 @@ const VERSION = "0.2.0"
 
 logger.info("Starting tunnel-server", { version: VERSION, port: PORT, nodeEnv: process.env.NODE_ENV, tunnelDomain: process.env.TUNNEL_DOMAIN || "tunnel.sish.work" })
 
+const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || "tunnel.sish.work"
+
 const server = http.createServer((req, res) => {
   if (req.url === "/health" && req.method === "GET") {
     const stats = getRegistryStats()
@@ -20,6 +22,14 @@ const server = http.createServer((req, res) => {
 
   if (req.url?.startsWith("/t/")) {
     handleProxy(req, res)
+    return
+  }
+
+  const host = req.headers.host || ""
+  const subdomainMatch = host.match(/^([a-f0-9]+)\.(.+)$/i)
+  if (subdomainMatch && subdomainMatch[2] === TUNNEL_DOMAIN) {
+    const projectId = subdomainMatch[1]
+    handleProxy(req, res, projectId)
     return
   }
 

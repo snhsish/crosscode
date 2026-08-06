@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Bug, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft } from "lucide-react-native"
+import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -191,29 +191,6 @@ export default function UserPage() {
                 trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
                 thumbColor={THEME[theme].foreground}
               />
-            </View>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Debug</CardTitle>
-            <CardDescription>Development and troubleshooting tools</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <View className="flex-row items-center justify-between py-2">
-              <View className="flex-1 flex-row items-center gap-2">
-                <Bug size={18} color={THEME[theme].foreground} />
-                <View>
-                  <Text className="text-sm">Debug logs</Text>
-                  <Text className="text-xs text-muted-foreground mt-1">
-                    View app logs and diagnostics
-                  </Text>
-                </View>
-              </View>
-              <Button variant="ghost" size="sm" onPress={() => router.push("/debug-logs")}>
-                <ExternalLink size={16} color={THEME[theme].mutedForeground} />
-              </Button>
             </View>
           </CardContent>
         </Card>

@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect } from "react"
 import { View, Pressable, ActivityIndicator, Share } from "react-native"
+import * as Clipboard from "expo-clipboard"
 import { XIcon, CopyIcon, CheckIcon, ShareIcon as ShareIconLucide } from "lucide-react-native"
 import { Dialog } from "@/components/ui/dialog"
 import { Text } from "@/components/ui/text"
@@ -27,7 +28,7 @@ function ShareSessionModalInner({ open, onClose, shareUrl, loading, theme }: Sha
     const handleCopy = async () => {
         if (!shareUrl) return
         try {
-            await Share.share({ message: shareUrl })
+            await Clipboard.setStringAsync(shareUrl)
             setCopied(true)
             if (copyTimerRef.current) clearTimeout(copyTimerRef.current)
             copyTimerRef.current = setTimeout(() => setCopied(false), 2000)

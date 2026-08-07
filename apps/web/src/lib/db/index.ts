@@ -3,8 +3,12 @@ import postgres from "postgres"
 import * as schema from "./schema"
 import { logger } from "../logger"
 
-const connectionString = process.env.DATABASE_URL!
-logger.info("DB", `Connecting to ${connectionString.replace(/\/\/.*@/, "//***@")}`)
+const connectionString = process.env.DATABASE_URL || ""
+if (connectionString) {
+  logger.info("DB", `Connecting to ${connectionString.replace(/\/\/.*@/, "//***@")}`)
+} else {
+  logger.warn("DB", "DATABASE_URL not set at build time (expected - available at runtime)")
+}
 
 export const client = postgres(connectionString, {
   max: 10,

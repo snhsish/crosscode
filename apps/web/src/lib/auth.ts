@@ -4,22 +4,24 @@ import { emailOTP } from "better-auth/plugins"
 import { db, client } from "./db"
 import * as schema from "./db/schema"
 import { sendOTPEmail } from "./email"
+import { logger } from "./logger"
 
-console.log("[Auth] Module loaded, DATABASE_URL:", process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@"))
+logger.info("Auth", `Module loaded - DATABASE_URL=${process.env.DATABASE_URL?.replace(/\/\/.*@/, "//***@")}`)
+logger.info("Auth", `BETTER_AUTH_URL=${process.env.BETTER_AUTH_URL || "(not set)"}, NEXT_PUBLIC_BETTER_AUTH_URL=${process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "(not set)"}`)
 
 async function checkDatabase() {
   try {
     await client`SELECT 1`
-    console.log("[Auth] Database connection OK")
-    
+    logger.info("Auth", "Database connection OK")
+
     const tables = await client`
-      SELECT table_name 
-      FROM information_schema.tables 
+      SELECT table_name
+      FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'verification'
     `
-    
+
     if (tables.length === 0) {
-      console.log("[Auth] Creating verification table...")
+      logger.info("Auth", "Creating verification table...")
       await client`
         CREATE TABLE IF NOT EXISTS verification (
           id TEXT PRIMARY KEY,
@@ -30,12 +32,13 @@ async function checkDatabase() {
           updated_at TIMESTAMP NOT NULL DEFAULT NOW()
         )
       `
-      console.log("[Auth] Verification table created")
+      logger.info("Auth", "Verification table created")
     } else {
-      console.log("[Auth] Verification table exists")
+      logger.info("Auth", "Verification table exists")
     }
-  } catch (err: any) {
-    console.error("[Auth] Database check failed:", err.message)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error("Auth", `Database check failed: ${msg}`)
   }
 }
 
@@ -59,14 +62,30 @@ export const auth = betterAuth({
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, token }: { user: { email: string }; url: string; token: string }) => {
-      await sendOTPEmail(user.email, token, "Verify your email")
+      logger.info("Auth", `Sending verification email to ${user.email}`)
+      try {
+        await sendOTPEmail(user.email, token, "Verify your email")
+        logger.info("Auth", `Verification email sent to ${user.email}`)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        logger.error("Auth", `Failed to send verification email to ${user.email}: ${msg}`)
+        throw err
+      }
     },
   },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp, type }) {
-        console.log(`[Auth] Sending OTP: email=${email}, type=${type}`)
-        await sendOTPEmail(email, otp, type === "sign-in" ? "Your sign-in code" : "Your OTP code")
+        logger.info("Auth", `Sending OTP - email=${email}, type=${type}`)
+        try {
+          const subject = type === "sign-in" ? "Your sign-in code" : "Your OTP code"
+          await sendOTPEmail(email, otp, subject)
+          logger.info("Auth", `OTP sent successfully to ${email}`)
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          logger.error("Auth", `Failed to send OTP to ${email}: ${msg}`)
+          throw err
+        }
       },
     }),
   ],

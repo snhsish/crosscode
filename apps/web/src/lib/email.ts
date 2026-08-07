@@ -1,22 +1,52 @@
 import nodemailer from "nodemailer"
+import { logger } from "./logger"
+
+const SMTP_HOST = process.env.SMTP_HOST
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || "587")
+const SMTP_SECURE = process.env.SMTP_SECURE === "true"
+const SMTP_USER = process.env.SMTP_USER
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD
+const SMTP_FROM = process.env.SMTP_FROM || "noreply@crosscode.app"
+
+logger.info("Email", `Module loaded - SMTP_HOST=${SMTP_HOST}, SMTP_PORT=${SMTP_PORT}, SMTP_SECURE=${SMTP_SECURE}, SMTP_USER=${SMTP_USER ? SMTP_USER.replace(/^(.)(.*)(.@.*)$/, "$1***$3") : "(not set)"}, SMTP_FROM=${SMTP_FROM}`)
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD,
-  },
+  host: SMTP_HOST,
+  port: SMTP_PORT,
+  secure: SMTP_SECURE,
+  auth: SMTP_USER && SMTP_PASSWORD
+    ? { user: SMTP_USER, pass: SMTP_PASSWORD }
+    : undefined,
 })
 
+let smtpVerified = false
+
+async function verifySmtpConnection() {
+  if (smtpVerified) return true
+  try {
+    await transporter.verify()
+    smtpVerified = true
+    logger.info("Email", "SMTP connection verified successfully")
+    return true
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    logger.error("Email", `SMTP connection verification failed: ${msg}`)
+    return false
+  }
+}
+
 export async function sendOTPEmail(email: string, otp: string, subject: string) {
-  console.log(`[Email] Sending to ${email} with subject "${subject}"`)
-  console.log(`[Email] SMTP config: host=${process.env.SMTP_HOST}, port=${process.env.SMTP_PORT}, user=${process.env.SMTP_USER}`)
-  
+  logger.info("Email", `Sending OTP email to ${email} - subject="${subject}"`)
+
+  const connected = await verifySmtpConnection()
+  if (!connected) {
+    logger.error("Email", `Aborting send to ${email} - SMTP not reachable`)
+    throw new Error("SMTP connection failed - check SMTP_HOST, SMTP_PORT, and credentials")
+  }
+
   try {
     const info = await transporter.sendMail({
-      from: process.env.SMTP_FROM || "noreply@crosscode.app",
+      from: SMTP_FROM,
       to: email,
       subject: `${subject} - CrossCode`,
       html: `
@@ -33,9 +63,11 @@ export async function sendOTPEmail(email: string, otp: string, subject: string) 
         </div>
       `,
     })
-    console.log(`[Email] Successfully sent to ${email}, messageId: ${info.messageId}`)
-  } catch (error) {
-    console.error(`[Email] Failed to send to ${email}:`, error)
-    throw error
+    logger.info("Email", `Successfully sent to ${email} - messageId=${info.messageId}`)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    const code = (err as { code?: string })?.code || "UNKNOWN"
+    logger.error("Email", `Failed to send to ${email} - code=${code}, message=${msg}`)
+    throw err
   }
 }

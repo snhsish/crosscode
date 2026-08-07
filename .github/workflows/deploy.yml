@@ -70,4 +70,5 @@ jobs:
               -p 3000:3000 \
               --env-file /home/deploy/crosscode/apps/web/.env \
               ghcr.io/${{ github.repository }}/web:latest
-            docker image prune -f
+            docker image prune -f || true
+            exit 0

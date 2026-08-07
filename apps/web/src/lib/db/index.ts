@@ -17,10 +17,6 @@ export const client = postgres(connectionString, {
   onnotice: () => {},
 })
 
-client.connect().then(() => {
-  logger.info("DB", "Connection pool established")
-}).catch((err: Error) => {
-  logger.error("DB", `Connection pool failed: ${err.message}`)
-})
+logger.info("DB", "Connection pool configured (lazy connect)")
 
 export const db = drizzle(client, { schema })

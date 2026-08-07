@@ -47,8 +47,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            NEXT_PUBLIC_BETTER_AUTH_URL=https://crosscode.sish.work
-            BETTER_AUTH_URL=https://crosscode.sish.work
+            NEXT_PUBLIC_BETTER_AUTH_URL=https://crosscode.site
+            BETTER_AUTH_URL=https://crosscode.site
 
   deploy:
     needs: build-and-push

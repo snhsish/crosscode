@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import * as schema from "./schema"
-import { logger } from "./logger"
+import { logger } from "../logger"
 
 const connectionString = process.env.DATABASE_URL!
 logger.info("DB", `Connecting to ${connectionString.replace(/\/\/.*@/, "//***@")}`)

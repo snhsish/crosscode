@@ -8,6 +8,7 @@ on:
       - 'packages/tunnel-server/**'
       - 'packages/shared/**'
       - 'pnpm-lock.yaml'
+  workflow_dispatch:
 
 concurrency:
   group: deploy-tunnel

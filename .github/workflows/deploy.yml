@@ -11,6 +11,7 @@ on:
       - 'docker-compose.yml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/deploy.yml'
+  workflow_dispatch:
 
 concurrency:
   group: deploy-web

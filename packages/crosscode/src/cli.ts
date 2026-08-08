@@ -1091,10 +1091,10 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         }
     }
 
-    const shutdown = () => {
+    const shutdown = (source?: string) => {
         console.log(chalk.yellow("\nShutting down..."))
-        logCrosscode("Shutting down...")
-        debug("shutdown initiated")
+        logCrosscode(`Shutting down... (source: ${source || "unknown"})`)
+        debug("shutdown initiated", { source: source || "unknown" })
         crosscodeLogStream.end()
         cloudflaredLogStream.end()
         ngrokLogStream.end()
@@ -1105,14 +1105,25 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         process.exit(0)
     }
 
-    process.on("SIGINT", shutdown)
-    process.on("SIGTERM", shutdown)
+    process.on("SIGINT", () => shutdown("SIGINT"))
+    process.on("SIGTERM", () => shutdown("SIGTERM"))
+    process.on("exit", (code) => {
+        logCrosscode(`Process exit event (code: ${code})`)
+    })
+    process.stdin.on("end", () => {
+        logCrosscode("stdin end event")
+        debug("stdin end event")
+    })
+    process.stdin.on("close", () => {
+        logCrosscode("stdin close event")
+        debug("stdin close event")
+    })
 
     onKeypress((key: string) => {
         if (key === "l")
             toggleLogs()
         else if (key === "ctrl-c")
-            shutdown()
+            shutdown("ctrl-c keypress")
     })
 }
 

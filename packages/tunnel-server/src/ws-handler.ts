@@ -10,6 +10,7 @@ const PING_INTERVAL_MS = 15_000
 const MAX_MISSED_PONGS = 3
 
 const TUNNEL_DOMAIN = process.env.TUNNEL_DOMAIN || "connect.crosscode.site"
+const TUNNEL_URL_MODE = process.env.TUNNEL_URL_MODE || "path"
 
 export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessage): void {
   const remoteAddr = req.socket.remoteAddress || "unknown"
@@ -149,7 +150,9 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
       projectId = projId
       register(projectId, result.userId, ws)
 
-      const tunnelUrl = `https://${projectId}.${TUNNEL_DOMAIN}`
+      const tunnelUrl = TUNNEL_URL_MODE === "subdomain"
+        ? `https://${projectId}.${TUNNEL_DOMAIN}`
+        : `https://${TUNNEL_DOMAIN}/t/${projectId}`
       send(ws, { type: "auth.ok", tunnelUrl })
       logger.info("Auth successful", { projectId, userId: result.userId, tunnelUrl })
 

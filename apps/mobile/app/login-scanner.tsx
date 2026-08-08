@@ -37,7 +37,7 @@ export default function LoginScannerScreen() {
         const payload = decodeDeviceLinkQrPayload(data)
         navigated.current = true
         setClaiming(true)
-        await claimDevice(payload.token)
+        await claimDevice(payload.token, payload.url)
       } else {
         Alert.alert("Invalid QR", "Please scan a login QR code from the web dashboard.")
       }
@@ -46,10 +46,9 @@ export default function LoginScannerScreen() {
     }
   }
 
-  const claimDevice = async (token: string) => {
+  const claimDevice = async (token: string, serverUrl: string) => {
     try {
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
-      const res = await fetch(`${baseUrl}/api/auth/device-link/claim?token=${token}`, {
+      const res = await fetch(`${serverUrl}/api/auth/device-link/claim?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceName: "Mobile Device" }),
@@ -60,7 +59,7 @@ export default function LoginScannerScreen() {
         throw new Error(error.error || "Failed to claim device")
       }
 
-      const accountRes = await fetch(`${baseUrl}/api/account`, {
+      const accountRes = await fetch(`${serverUrl}/api/account`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 

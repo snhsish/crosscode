@@ -53,7 +53,7 @@ export default function NewConnectionScreen() {
         const payload = decodeDeviceLinkQrPayload(data)
         navigated.current = true
         setClaiming(true)
-        await claimDevice(payload.token)
+        await claimDevice(payload.token, payload.url)
       } else {
         const payload = decodeQrPayload(data)
         navigated.current = true
@@ -64,10 +64,9 @@ export default function NewConnectionScreen() {
     }
   }
 
-  const claimDevice = async (token: string) => {
+  const claimDevice = async (token: string, serverUrl: string) => {
     try {
-      const baseUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000"
-      const res = await fetch(`${baseUrl}/api/auth/device-link/claim?token=${token}`, {
+      const res = await fetch(`${serverUrl}/api/auth/device-link/claim?token=${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceName: "Mobile Device" }),
@@ -80,7 +79,7 @@ export default function NewConnectionScreen() {
 
       const data = await res.json()
 
-      const accountRes = await fetch(`${baseUrl}/api/account`, {
+      const accountRes = await fetch(`${serverUrl}/api/account`, {
         headers: { Authorization: `Bearer ${token}` },
       })
 

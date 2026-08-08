@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import QRCode from "qrcode"
 import { Button } from "@/components/ui/button"
+import { LoaderCircle } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { authClient } from "@/lib/auth-client"
@@ -17,6 +18,7 @@ export default function DashboardPage() {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [qrToken, setQrToken] = useState<string | null>(null)
   const [qrStatus, setQrStatus] = useState<"idle" | "pending" | "claimed" | "expired">("idle")
+  const [qrGenerating, setQrGenerating] = useState(false)
   const [deviceName, setDeviceName] = useState<string | null>(null)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -59,6 +61,7 @@ export default function DashboardPage() {
   }
 
   const generateLoginQR = async () => {
+    setQrGenerating(true)
     try {
       const res = await fetch("/api/auth/device-link/generate", { method: "POST" })
       const data = await res.json()
@@ -71,6 +74,8 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("Failed to generate QR:", err)
+    } finally {
+      setQrGenerating(false)
     }
   }
 
@@ -192,7 +197,10 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             {qrStatus === "idle" && (
               <div className="text-center py-4">
-                <Button onClick={generateLoginQR}>Generate Login QR</Button>
+                <Button onClick={generateLoginQR} disabled={qrGenerating}>
+                  {qrGenerating && <LoaderCircle className="animate-spin" size={16} />}
+                  {qrGenerating ? "Generating..." : "Generate Login QR"}
+                </Button>
               </div>
             )}
             {qrStatus === "pending" && qrDataUrl && (
@@ -222,7 +230,10 @@ export default function DashboardPage() {
             {qrStatus === "expired" && (
               <div className="text-center py-4 space-y-3">
                 <p className="text-orange-600 dark:text-orange-400">QR code expired</p>
-                <Button onClick={generateLoginQR}>Generate New QR</Button>
+                <Button onClick={generateLoginQR} disabled={qrGenerating}>
+                  {qrGenerating && <LoaderCircle className="animate-spin" size={16} />}
+                  {qrGenerating ? "Generating..." : "Generate New QR"}
+                </Button>
               </div>
             )}
           </CardContent>

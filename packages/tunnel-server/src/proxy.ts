@@ -13,17 +13,25 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   logger.debug("Incoming proxy request", { method, url, host: req.headers.host })
 
   const host = req.headers.host || ""
-  const match = host.match(/^([a-f0-9]+)\./)
 
-  if (!match) {
-    logger.warn("Invalid tunnel subdomain format", { host })
+  let projectId: string
+  let path: string
+
+  const subdomainMatch = host.match(/^([a-f0-9]+)\./)
+  const pathMatch = url.match(/^\/t\/([a-f0-9]+)(\/.*)?$/)
+
+  if (subdomainMatch) {
+    projectId = subdomainMatch[1]
+    path = url
+  } else if (pathMatch) {
+    projectId = pathMatch[1]
+    path = pathMatch[2] || "/"
+  } else {
+    logger.warn("Invalid tunnel subdomain or path format", { host, url })
     res.writeHead(404, { "Content-Type": "application/json" })
     res.end(JSON.stringify({ error: "Not found" }))
     return
   }
-
-  const projectId = match[1]
-  const path = url
   const entry = get(projectId)
   if (!entry) {
     logger.warn("Tunnel not active for project", { projectId, path, method })

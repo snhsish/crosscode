@@ -1,17 +1,22 @@
 import { memo, useEffect, useRef, useState } from "react"
-import { type ReactNode } from "react"
+import { type ReactNode, Fragment } from "react"
 import Markdown from "react-native-marked"
 import { Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
 
+function keyedChildren(children: ReactNode[]): ReactNode {
+    if (!Array.isArray(children)) return children
+    return children.map((child, i) => <Fragment key={i}>{child}</Fragment>)
+}
+
 const customRenderer = {
     paragraph(children: ReactNode[], styles?: ViewStyle) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{keyedChildren(children)}</Text>
     },
     blockquote(children: ReactNode[], styles?: ViewStyle) {
-        return <View style={styles}><Text selectable={false}>{children}</Text></View>
+        return <View style={styles}><Text selectable={false}>{keyedChildren(children)}</Text></View>
     },
     heading(text: string | ReactNode[], styles?: TextStyle, depth?: number) {
-        return <Text selectable={false} style={styles}>{text}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(text) ? keyedChildren(text) : text}</Text>
     },
     code(text: string, language?: string, containerStyle?: ViewStyle, textStyle?: TextStyle) {
         return <View style={containerStyle}><Text selectable={false} style={textStyle}>{text}</Text></View>
@@ -20,7 +25,7 @@ const customRenderer = {
         return <View style={styles} />
     },
     listItem(children: ReactNode[], styles?: ViewStyle) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{keyedChildren(children)}</Text>
     },
     list(ordered: boolean, li: ReactNode[], listStyle?: ViewStyle, textStyle?: TextStyle, startIndex?: number) {
         return <View style={listStyle}>{li.map((item, i) => <Text key={i} selectable={false} style={textStyle}>{item}</Text>)}</View>
@@ -29,13 +34,13 @@ const customRenderer = {
         return <Text selectable={false} style={styles}>{text}</Text>
     },
     text(text: string | ReactNode[], styles?: TextStyle) {
-        return <Text selectable={false} style={styles}>{text}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(text) ? keyedChildren(text) : text}</Text>
     },
     strong(children: string | ReactNode[], styles?: TextStyle) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
     },
     em(children: string | ReactNode[], styles?: TextStyle) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
     },
     codespan(text: string, styles?: TextStyle) {
         return <Text selectable={false} style={styles}>{text}</Text>
@@ -44,16 +49,16 @@ const customRenderer = {
         return <Text selectable={false}>{"\n"}</Text>
     },
     del(children: string | ReactNode[], styles?: TextStyle) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
     },
     link(children: string | ReactNode[], href: string, styles?: TextStyle, title?: string) {
-        return <Text selectable={false} style={styles}>{children}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
     },
     image(uri: string, alt?: string, style?: ImageStyle, title?: string) {
         return null
     },
     html(text: string | ReactNode[], styles?: TextStyle) {
-        return <Text selectable={false} style={styles}>{text}</Text>
+        return <Text selectable={false} style={styles}>{Array.isArray(text) ? keyedChildren(text) : text}</Text>
     },
     linkImage(href: string, imageUrl: string, alt?: string, style?: ImageStyle, title?: string | null) {
         return null

@@ -215,7 +215,7 @@ export default function SessionsScreen() {
   }, [connection?.id, project?.id, fetchSessions])
 
   const filteredSessions = React.useMemo(() => {
-    let result = sessions.filter((s) => s.projectID === project?.id)
+    let result = sessions.filter((s) => s.directory === project?.directory)
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -264,7 +264,7 @@ export default function SessionsScreen() {
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="px-6 pt-4 pb-3 gap-4">
         <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+          <Pressable onPress={() => router.push("/")} className="p-2 -ml-2">
             <ArrowLeft size={22} color={THEME[theme].foreground} />
           </Pressable>
           <View className="flex-1">

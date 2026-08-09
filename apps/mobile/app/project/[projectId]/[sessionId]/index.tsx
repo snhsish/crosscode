@@ -69,7 +69,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const sessions = useSessions((s) => s.sessions)
     const upsertSession = useSessions((s) => s.upsertSession)
     const messages = useMessages(
-        useCallback((s) => s.messagesBySession[sessionId!] ?? EMPTY_MESSAGES, [sessionId])
+        useCallback((s) => [...(s.messagesBySession[sessionId!] ?? EMPTY_MESSAGES)].reverse(), [sessionId])
     )
     const upsertMessages = useMessages((s) => s.upsertMessages)
     const setMessages = useMessages((s) => s.setMessages)
@@ -510,7 +510,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         if (!connection?.url || !connection?.token) return
         setRefreshing(true)
 
-        // Load only the most recent messages initially
         const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE)
         if (raw) {
             const data =
@@ -519,8 +518,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     : raw
 
             setMessages(sessionId!, data)
-            
-            // If we got fewer messages than requested, there are no more to load
+
             if (data.length < MESSAGES_PER_PAGE) {
                 setHasMoreMessages(false)
             }
@@ -551,7 +549,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 }
                 setMessages(sessionId!, Array.from(map.values()))
                 
-                // If we got fewer messages than requested, there are no more to load
                 if (data.length < MESSAGES_PER_PAGE) {
                     setHasMoreMessages(false)
                 }

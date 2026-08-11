@@ -6,11 +6,6 @@
     "version": "1.0.0-beta.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "backgroundColor": "#000000",
-      "resizeMode": "contain"
-    },
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -48,7 +43,14 @@
           "barcodeScannerEnabled": true
         }
       ],
-      "expo-splash-screen"
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "backgroundColor": "#000000",
+          "resizeMode": "contain"
+        }
+      ]
     ]
   }
 }

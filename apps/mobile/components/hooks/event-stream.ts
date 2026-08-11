@@ -87,17 +87,10 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     }
 
                     if (info.role === "user") {
-                        const serverText = info.parts?.find((p: Part) => p.type === "text")
-                        const serverTextContent = serverText && serverText.type === "text" ? serverText.text : ""
-                        for (let i = existing.length - 1; i >= 0; i--) {
-                            const m = existing[i]
-                            if (m.id.startsWith("local-") && m.role === "user") {
-                                const localText = m.parts?.find((p) => p.type === "text")
-                                const localTextContent = localText && localText.type === "text" ? localText.text : ""
-                                if (localTextContent === serverTextContent) {
-                                    existing.splice(i, 1)
-                                    break
-                                }
+                        for (let i = 0; i < existing.length; i++) {
+                            if (existing[i].id.startsWith("local-") && existing[i].role === "user") {
+                                existing.splice(i, 1)
+                                break
                             }
                         }
                     }

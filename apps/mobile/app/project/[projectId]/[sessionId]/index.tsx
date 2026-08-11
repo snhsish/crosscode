@@ -77,7 +77,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const fetchAgents = useAgents((s) => s.fetchAgents)
 
     const [selectedAgent, setSelectedAgent] = useState("build")
-    const [selectedModel, setSelectedModel] = useState<{ id: string; providerID: string; variant?: string } | null>(null)
     const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
@@ -129,6 +128,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const storedModel = useChatStore(
         useCallback((s) => s.modelBySession[sessionId!], [sessionId])
     )
+
+    const selectedModel = currentAgentModel ?? storedModel ?? session?.model ?? null
 
     const models = useModels((s) => s.models)
     const fetchAll = useModels((s) => s.fetchAll)
@@ -570,17 +571,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     useFocusEffect(
         useCallback(() => {
             const currentModelByAgent = useChatStore.getState().modelByAgent
+            const existingAgentModel = currentModelByAgent[selectedAgent]
+            if (existingAgentModel) return
             if (session?.model) {
-                setSelectedModel({ id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
                 setModelByAgent(selectedAgent, { id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
             } else if (storedModel) {
-                setSelectedModel({ id: storedModel.id, providerID: storedModel.providerID, variant: storedModel.variant })
                 setModelByAgent(selectedAgent, storedModel)
-            } else {
-                const agentModel = currentModelByAgent[selectedAgent]
-                if (agentModel) {
-                    setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID, variant: agentModel.variant })
-                }
             }
         }, [selectedAgent, session?.model?.id, session?.model?.providerID, session?.model?.variant, storedModel])
     )
@@ -681,15 +677,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setSelectedAgent(agent)
     }, [])
 
-    const handleModelSelect = useCallback((model: { id: string; providerID: string; variant?: string }) => {
-        setSelectedModel(model)
-    }, [])
+    const handleModelSelect = useCallback((_model: { id: string; providerID: string; variant?: string }) => {}, [])
 
     const handleVariantSelect = useCallback((variant: string) => {
-        setSelectedModel((prev) =>
-            prev ? { ...prev, variant } : prev
-        )
-    }, [])
+        if (sessionId && selectedModel) {
+            setModel(sessionId, { ...selectedModel, variant })
+        }
+    }, [sessionId, selectedModel, setModel])
 
     const handleSessionModelUpdate = useCallback(
         (model: { id: string; providerID: string; variant: string }) => {

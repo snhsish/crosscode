@@ -18,6 +18,7 @@ import { QuestionRequest } from "@/store/questions.store"
 import { revertMessage, forkSession } from "@/lib/sessions"
 import { useConnections } from "@/store/connection.store"
 import { useSessions } from "@/store/sessions.store"
+import { useModels } from "@/store/models.store"
 
 function extractTodos(result: unknown): TodoItem[] | null {
     if (!result || typeof result !== "object") return null
@@ -289,6 +290,42 @@ function getPlainText(message: Message): string {
         .join("\n")
 }
 
+function formatTokens(n: number): string {
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
+    return String(n)
+}
+
+function MessageMetadata({ message }: { message: Message }) {
+    const models = useModels((s) => s.models)
+    const providers = useModels((s) => s.providers)
+
+    if (message.role !== "assistant") return null
+    if (!message.time.completed) return null
+
+    const model = models.find((m) => m.id === message.modelID && m.providerID === message.providerID)
+    const provider = providers.find((p) => p.id === message.providerID)
+    const modelName = model?.name ?? message.modelID
+    const providerName = provider?.name ?? message.providerID
+
+    const totalTokens = message.tokens.input + message.tokens.output + message.tokens.reasoning + message.tokens.cache.read + message.tokens.cache.write
+    const costStr = message.cost.toFixed(4)
+
+    return (
+        <View className="flex-row flex-wrap items-center gap-x-2 gap-y-0.5 mt-2 pt-1.5 border-t border-border/30">
+            <Text className="text-[10px] text-muted-foreground/70">
+                {providerName} / {modelName}
+            </Text>
+            <Text className="text-[10px] text-muted-foreground/70">
+                {formatTokens(totalTokens)} tokens
+            </Text>
+            <Text className="text-[10px] text-muted-foreground/70">
+                ${costStr}
+            </Text>
+        </View>
+    )
+}
+
 function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, streaming }: MessageItemProps & { streaming?: boolean }) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
@@ -377,6 +414,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                 }
                 return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} streaming={streaming} />
             })}
+            <MessageMetadata message={message} />
 
             <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
                 <Pressable className="flex-1" onPress={closeMenu}>

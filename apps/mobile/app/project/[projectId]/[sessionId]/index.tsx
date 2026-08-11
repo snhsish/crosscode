@@ -7,7 +7,7 @@ import { useConnections } from "@/store/connection.store"
 import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { ArrowDownIcon, MessageCircleIcon, TriangleAlertIcon, XIcon } from "lucide-react-native"
+import { ArrowDownIcon, MessageCircleIcon, RefreshCwIcon, TriangleAlertIcon, XIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
@@ -37,15 +37,6 @@ const EMPTY_PERMISSIONS: PermissionRequest[] = []
 const EMPTY_MESSAGES: Message[] = []
 
 const MESSAGES_PER_PAGE = 20
-
-const RETRY_DELAYS = [10, 30, 120, 300, 600]
-
-function formatRetryTime(seconds: number): string {
-    if (seconds < 60) return `${seconds}s`
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
-}
 
 export default function SessionScreen() {
     const insets = useSafeAreaInsets()
@@ -86,8 +77,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
     const [sending, setSending] = useState(false)
-    const [sendError, setSendError] = useState<{ title: string; hint?: string } | null>(null)
-    const [retryCountdown, setRetryCountdown] = useState(0)
+    const [sendError, setSendError] = useState<{ title: string; hint?: string; retryable?: boolean } | null>(null)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
     const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([])
@@ -118,8 +108,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
     )
     const connectionStatus = useChatStore((s) => s.connectionStatus)
-    const sendRetry = useChatStore((s) => s.sendRetry)
-    const setSendRetry = useChatStore((s) => s.setSendRetry)
     const draft = useChatStore(
         useCallback((s) => s.draftBySession[sessionId!] ?? "", [sessionId])
     )
@@ -213,25 +201,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
     }, [pollPermissions])
 
-    const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-    const isRetrying = retryCountdown > 0
-    useEffect(() => {
-        if (isRetrying) {
-            retryTimerRef.current = setInterval(() => {
-                setRetryCountdown((prev) => {
-                    if (prev <= 1) {
-                        if (retryTimerRef.current) clearInterval(retryTimerRef.current)
-                        return 0
-                    }
-                    return prev - 1
-                })
-            }, 1000)
-            return () => {
-                if (retryTimerRef.current) clearInterval(retryTimerRef.current)
-            }
-        }
-    }, [isRetrying])
+    const failedSendRef = useRef<{
+        text: string
+        targetSessionId: string
+        localId: string
+        modelId?: string
+        providerId?: string
+        images?: ImageAttachment[]
+    } | null>(null)
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
         if (!connection?.url || !connection?.token) return
@@ -283,17 +260,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const onScrollToIndexFailed = useCallback(() => {}, [])
 
     useEventStream(connection?.url, sessionId, connection?.token)
-
-    const retryAttemptRef = useRef(0)
-    const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const retryDataRef = useRef<{
-        text: string
-        targetSessionId: string
-        localId: string
-        modelId?: string
-        providerId?: string
-        images?: ImageAttachment[]
-    } | null>(null)
 
     const attemptSendMessage = useCallback(async (
         connectionUrl: string,
@@ -412,70 +378,43 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             title = "Connection Failed"
             hint = "Check your internet connection and try again"
         }
-        setSendError({ title, hint })
+        setSendError({ title, hint, retryable: true })
     }, [getMessagesBySession, setMessages, setDraft, upsertMessages, selectedAgent])
 
-    const scheduleRetry = useCallback((attempt: number) => {
-        const data = retryDataRef.current
+    const handleRetry = useCallback(async () => {
+        const data = failedSendRef.current
         if (!data || !connection?.url || !connection?.token) return
-        if (attempt >= RETRY_DELAYS.length) {
-            finalizeSendError(
-                data.targetSessionId, data.localId, data.text,
-                "NetworkError", "Failed after multiple retry attempts",
-                undefined, data.modelId, data.providerId,
-            )
+
+        setSendError(null)
+        setSending(true)
+
+        const result = await attemptSendMessage(
+            connection.url, connection.token, data.targetSessionId,
+            data.text, selectedAgent, data.modelId, data.providerId, data.images,
+        )
+
+        if (result.ok) {
             setSending(false)
-            setSendRetry(null)
-            retryDataRef.current = null
-            retryAttemptRef.current = 0
+            failedSendRef.current = null
             return
         }
 
-        const delaySec = RETRY_DELAYS[attempt]
-        setRetryCountdown(delaySec)
-        setSendRetry({
-            attempt: attempt + 1,
-            delaySeconds: delaySec,
-            message: data.text,
-            targetSessionId: data.targetSessionId,
-            selectedAgent,
-            selectedModel: data.modelId && data.providerId
-                ? { id: data.modelId, providerID: data.providerId }
-                : undefined,
-        })
-
-        retryTimeoutRef.current = setTimeout(async () => {
-            if (!connection?.url || !connection?.token) return
-            const result = await attemptSendMessage(
-                connection.url, connection.token, data.targetSessionId,
-                data.text, selectedAgent, data.modelId, data.providerId, data.images,
+        if (result.retryable) {
+            setSending(false)
+            setSendError({
+                title: "Failed to send message",
+                hint: result.errorText,
+                retryable: true,
+            })
+        } else {
+            finalizeSendError(
+                data.targetSessionId, data.localId, data.text,
+                result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
+                result.status, data.modelId, data.providerId,
             )
-
-            if (result.ok) {
-                setSending(false)
-                setSendRetry(null)
-                setRetryCountdown(0)
-                retryDataRef.current = null
-                retryAttemptRef.current = 0
-                return
-            }
-
-            if (result.retryable) {
-                scheduleRetry(attempt + 1)
-            } else {
-                finalizeSendError(
-                    data.targetSessionId, data.localId, data.text,
-                    result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
-                    result.status, data.modelId, data.providerId,
-                )
-                setSending(false)
-                setSendRetry(null)
-                setRetryCountdown(0)
-                retryDataRef.current = null
-                retryAttemptRef.current = 0
-            }
-        }, delaySec * 1000)
-    }, [connection, selectedAgent, attemptSendMessage, finalizeSendError, setSendRetry])
+            setSending(false)
+        }
+    }, [connection, selectedAgent, attemptSendMessage, finalizeSendError])
 
     const sendMessage = useCallback(async () => {
         if (!connection?.url || sending) return
@@ -493,7 +432,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         clearDraft(targetSessionId)
         setSending(true)
         setSendError(null)
-        setRetryCountdown(0)
 
         const localId = `local-${now}`
 
@@ -533,9 +471,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
 
         if (result.retryable) {
-            retryDataRef.current = { text, targetSessionId, localId, modelId, providerId, images: selectedImages }
-            retryAttemptRef.current = 0
-            scheduleRetry(0)
+            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: selectedImages }
+            setSending(false)
+            setSendError({
+                title: "Failed to send message",
+                hint: result.errorText,
+                retryable: true,
+            })
         } else {
             finalizeSendError(
                 targetSessionId, localId, text,
@@ -545,13 +487,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             setSending(false)
         }
         setSelectedImages([])
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, scheduleRetry, selectedImages])
-
-    useEffect(() => {
-        return () => {
-            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current)
-        }
-    }, [])
+    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages])
 
     const getAndSetMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
@@ -837,17 +773,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </View>
             )}
 
-            {retryCountdown > 0 && (
-                <View className="px-4 pb-2">
-                    <View className="flex-row items-center gap-2 p-3 rounded-xl bg-accent/50 border border-accent">
-                        <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
-                        <Text className="text-xs text-muted-foreground">
-                            Retrying in {formatRetryTime(retryCountdown)}...
-                        </Text>
-                    </View>
-                </View>
-            )}
-
             {sendError && (
                 <View className="px-4 pb-2">
                     <View className="flex-row items-start gap-2 p-3 rounded-xl bg-destructive/15 border border-destructive/30">
@@ -862,9 +787,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                                 </Text>
                             )}
                         </View>
-                        <Pressable onPress={() => setSendError(null)} hitSlop={8}>
-                            <XIcon size={12} color={THEME[theme].mutedForeground} />
-                        </Pressable>
+                        <View className="flex-row gap-2">
+                            {sendError.retryable && (
+                                <Button variant="secondary" size="xs" onPress={handleRetry}>
+                                    <RefreshCwIcon size={12} color={THEME[theme].foreground} />
+                                    <Text className="text-xs ml-1">Retry</Text>
+                                </Button>
+                            )}
+                            <Pressable onPress={() => setSendError(null)} hitSlop={8}>
+                                <XIcon size={12} color={THEME[theme].mutedForeground} />
+                            </Pressable>
+                        </View>
                     </View>
                 </View>
             )}

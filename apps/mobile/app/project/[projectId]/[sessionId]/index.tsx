@@ -564,7 +564,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
                     : raw
 
-            setMessages(sessionId!, data)
+            const existing = getMessagesBySession(sessionId!)
+            const localMessages = existing.filter(m => m.id.startsWith("local-"))
+            const map = new Map<string, Message>()
+            for (const m of data) map.set(m.id, m)
+            for (const m of localMessages) map.set(m.id, m)
+            setMessages(sessionId!, Array.from(map.values()))
 
             if (data.length < MESSAGES_PER_PAGE) {
                 setHasMoreMessages(false)
@@ -572,7 +577,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
         setRefreshing(false)
         setInitialMessagesLoaded(true)
-    }, [connection, sessionId, setMessages])
+    }, [connection, sessionId, setMessages, getMessagesBySession])
 
     const loadMoreMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token || isLoadingMore || !hasMoreMessages) return

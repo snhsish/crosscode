@@ -68,9 +68,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const projects = useProjects((s) => s.projects)
     const sessions = useSessions((s) => s.sessions)
     const upsertSession = useSessions((s) => s.upsertSession)
-    const messages = useMessages(
-        useCallback((s) => [...(s.messagesBySession[sessionId!] ?? EMPTY_MESSAGES)].reverse(), [sessionId])
-    )
+    const rawMessages = useMessages((s) => s.messagesBySession[sessionId!] ?? EMPTY_MESSAGES)
+    const messages = useMemo(() => [...rawMessages].reverse(), [rawMessages])
     const upsertMessages = useMessages((s) => s.upsertMessages)
     const setMessages = useMessages((s) => s.setMessages)
     const getMessagesBySession = useMessages((s) => s.getMessagesBySession)

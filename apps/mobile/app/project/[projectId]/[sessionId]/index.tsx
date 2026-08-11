@@ -25,9 +25,14 @@ import { TypingDots } from "@/components/typing-animation"
 import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
 import { QuestionRequest } from "@/store/questions.store"
+import { usePermissions } from "@/store/permissions.store"
+import { getPendingPermissions, replyToPermission } from "@/lib/permissions"
+import { PermissionRequest } from "@/store/permissions.store"
 import { getAuthHeader } from "@/lib/utils"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
+
+const EMPTY_PERMISSIONS: PermissionRequest[] = []
 
 const EMPTY_MESSAGES: Message[] = []
 
@@ -77,7 +82,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const fetchAgents = useAgents((s) => s.fetchAgents)
 
     const [selectedAgent, setSelectedAgent] = useState("build")
-    const [selectedModel, setSelectedModel] = useState<{ id: string; providerID: string; variant?: string } | null>(null)
     const [initialMessagesLoaded, setInitialMessagesLoaded] = useState(false)
     const [refreshing, setRefreshing] = useState(false)
     const [isAtBottom, setIsAtBottom] = useState(true)
@@ -130,6 +134,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         useCallback((s) => s.modelBySession[sessionId!], [sessionId])
     )
 
+    const selectedModel = currentAgentModel ?? storedModel ?? session?.model ?? null
+
     const models = useModels((s) => s.models)
     const fetchAll = useModels((s) => s.fetchAll)
 
@@ -139,7 +145,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const setQuestions = useQuestions((s) => s.setQuestions)
     const removeQuestion = useQuestions((s) => s.removeQuestion)
 
+    const pendingPermissions = usePermissions(
+        useCallback((s) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS, [sessionId])
+    )
+    const setPermissions = usePermissions((s) => s.setPermissions)
+    const removePermission = usePermissions((s) => s.removePermission)
+
     const questionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const permissionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const appStateRef = useRef(AppState.currentState)
 
     const pollQuestions = useCallback(async () => {
@@ -172,6 +185,33 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             sub.remove()
         }
     }, [pollQuestions])
+
+    const pollPermissions = useCallback(async () => {
+        if (!connection?.url || !connection?.token) return
+        if (appStateRef.current !== "active") {
+            permissionPollRef.current = setTimeout(pollPermissions, 5000)
+            return
+        }
+        try {
+            const perms = await getPendingPermissions(connection.url, connection.token)
+            const sessionPerms = perms.filter((p) => p.sessionID === sessionId)
+            const current = usePermissions.getState().permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS
+            if (
+                sessionPerms.length !== current.length ||
+                sessionPerms.some((p, i) => p.id !== current[i]?.id)
+            ) {
+                setPermissions(sessionId!, sessionPerms)
+            }
+        } catch {}
+        permissionPollRef.current = setTimeout(pollPermissions, 5000)
+    }, [connection?.url, connection?.token, sessionId, setPermissions])
+
+    useEffect(() => {
+        pollPermissions()
+        return () => {
+            if (permissionPollRef.current) clearTimeout(permissionPollRef.current)
+        }
+    }, [pollPermissions])
 
     const retryTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -208,6 +248,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             removeQuestion(sessionId!, requestId)
         }
     }, [connection?.url, connection?.token, sessionId, removeQuestion])
+
+    const handlePermissionReply = useCallback(async (requestId: string, reply: "once" | "always" | "reject", message?: string) => {
+        if (!connection?.url || !connection?.token) return
+        const success = await replyToPermission(connection.url, connection.token, requestId, reply, message)
+        if (success) {
+            removePermission(sessionId!, requestId)
+        }
+    }, [connection?.url, connection?.token, sessionId, removePermission])
 
     const currentModel = useMemo(
         () =>
@@ -570,17 +618,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     useFocusEffect(
         useCallback(() => {
             const currentModelByAgent = useChatStore.getState().modelByAgent
+            const existingAgentModel = currentModelByAgent[selectedAgent]
+            if (existingAgentModel) return
             if (session?.model) {
-                setSelectedModel({ id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
                 setModelByAgent(selectedAgent, { id: session.model.id, providerID: session.model.providerID, variant: session.model.variant })
             } else if (storedModel) {
-                setSelectedModel({ id: storedModel.id, providerID: storedModel.providerID, variant: storedModel.variant })
                 setModelByAgent(selectedAgent, storedModel)
-            } else {
-                const agentModel = currentModelByAgent[selectedAgent]
-                if (agentModel) {
-                    setSelectedModel({ id: agentModel.id, providerID: agentModel.providerID, variant: agentModel.variant })
-                }
             }
         }, [selectedAgent, session?.model?.id, session?.model?.providerID, session?.model?.variant, storedModel])
     )
@@ -625,6 +668,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     (p.type === "tool-invocation" && p.toolInvocation.toolName === "question") ||
                     (p.type === "tool" && p.tool === "question")
             )
+            const hasPermissionTool = item.parts?.some(
+                (p) => {
+                    if (p.type === "tool-invocation") {
+                        return p.toolInvocation.state === "call"
+                    }
+                    if (p.type === "tool") {
+                        return p.state?.status === "pending" || p.state?.status === "call"
+                    }
+                    return false
+                }
+            )
             const isStreamingMsg = isStreaming && item.role === "assistant" && !item.time?.completed
             return (
                 <MessageItem
@@ -635,11 +689,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     pendingQuestions={hasQuestionTool ? pendingQuestions : EMPTY_QUESTIONS}
                     onQuestionReply={handleQuestionReply}
                     onQuestionReject={handleQuestionReject}
+                    pendingPermissions={hasPermissionTool ? pendingPermissions : EMPTY_PERMISSIONS}
+                    onPermissionReply={handlePermissionReply}
                     streaming={isStreamingMsg}
                 />
             )
         },
-        [theme, projectId, sessionId, pendingQuestions, handleQuestionReply, handleQuestionReject, isStreaming]
+        [theme, projectId, sessionId, pendingQuestions, pendingPermissions, handleQuestionReply, handleQuestionReject, handlePermissionReply, isStreaming]
     )
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
@@ -681,15 +737,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setSelectedAgent(agent)
     }, [])
 
-    const handleModelSelect = useCallback((model: { id: string; providerID: string; variant?: string }) => {
-        setSelectedModel(model)
-    }, [])
+    const handleModelSelect = useCallback((_model: { id: string; providerID: string; variant?: string }) => {}, [])
 
     const handleVariantSelect = useCallback((variant: string) => {
-        setSelectedModel((prev) =>
-            prev ? { ...prev, variant } : prev
-        )
-    }, [])
+        if (sessionId && selectedModel) {
+            setModel(sessionId, { ...selectedModel, variant })
+        }
+    }, [sessionId, selectedModel, setModel])
 
     const handleSessionModelUpdate = useCallback(
         (model: { id: string; providerID: string; variant: string }) => {

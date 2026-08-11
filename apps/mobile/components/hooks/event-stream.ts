@@ -2,6 +2,7 @@ import "fast-text-encoding"
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
+import { usePermissions, PermissionRequest } from "@/store/permissions.store"
 import { getAuthHeader } from "@/lib/utils"
 
 type SSEEvent = {
@@ -199,6 +200,23 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     if (props.sessionID !== currentSessionId) return
                     setStreaming(currentSessionId, false)
                     setActiveMessageId(currentSessionId, null)
+                    break
+                }
+
+                case "permission.asked": {
+                    const perm = props as unknown as PermissionRequest
+                    if (!perm || perm.sessionID !== currentSessionId) return
+                    const current = usePermissions.getState().permissionsBySession[currentSessionId] ?? []
+                    if (!current.some((p) => p.id === perm.id)) {
+                        usePermissions.getState().setPermissions(currentSessionId, [...current, perm])
+                    }
+                    break
+                }
+
+                case "permission.replied": {
+                    const requestID = props.requestID as string | undefined
+                    if (!requestID || props.sessionID !== currentSessionId) return
+                    usePermissions.getState().removePermission(currentSessionId, requestID)
                     break
                 }
             }

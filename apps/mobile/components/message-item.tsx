@@ -14,7 +14,9 @@ import { ToolBlock } from "@/components/tool-block"
 import { BashBlock } from "@/components/bash-block"
 import { EditBlock } from "@/components/edit-block"
 import { QuestionBlock } from "@/components/question-block"
+import { PermissionBlock } from "@/components/permission-block"
 import { QuestionRequest } from "@/store/questions.store"
+import { PermissionRequest } from "@/store/permissions.store"
 import { revertMessage, forkSession } from "@/lib/sessions"
 import { useConnections } from "@/store/connection.store"
 import { useSessions } from "@/store/sessions.store"
@@ -52,6 +54,8 @@ interface MessageItemProps {
     pendingQuestions?: QuestionRequest[]
     onQuestionReply?: (requestId: string, answers: string[][]) => void
     onQuestionReject?: (requestId: string) => void
+    pendingPermissions?: PermissionRequest[]
+    onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void
 }
 
 function getErrorLabel(name?: string): string {
@@ -75,7 +79,7 @@ function getErrorHint(name?: string): string | undefined {
     }
 }
 
-function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, streaming }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; streaming?: boolean }) {
+function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; pendingPermissions?: PermissionRequest[]; onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void; streaming?: boolean }) {
     switch (part.type) {
         case "text":
             return <MemoMarkdown key={part.id ?? index} streaming={streaming}>{part.text}</MemoMarkdown>
@@ -107,6 +111,21 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                             />
                         )
                     }
+                }
+            }
+            if (pendingPermissions && pendingPermissions.length > 0) {
+                const matchingPermission = pendingPermissions.find(
+                    (p) => p.tool?.messageID === message.id && p.tool?.callID === part.toolInvocation.toolCallId
+                )
+                if (matchingPermission && onPermissionReply) {
+                    return (
+                        <PermissionBlock
+                            key={part.id ?? index}
+                            request={matchingPermission}
+                            theme={theme}
+                            onReply={onPermissionReply}
+                        />
+                    )
                 }
             }
             const tiDetails: { label: string; content: unknown }[] = []
@@ -207,6 +226,21 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                     }
                 }
             }
+            if (pendingPermissions && pendingPermissions.length > 0) {
+                const matchingPermission = pendingPermissions.find(
+                    (p) => p.tool?.messageID === message.id && p.tool?.callID === part.callID
+                )
+                if (matchingPermission && onPermissionReply) {
+                    return (
+                        <PermissionBlock
+                            key={part.id ?? index}
+                            request={matchingPermission}
+                            theme={theme}
+                            onReply={onPermissionReply}
+                        />
+                    )
+                }
+            }
             if (part.tool === "bash" && part.state?.input) {
                 const command = part.state.input.command as string | undefined
                 const description = (part.state.input.description as string | undefined) ?? part.state.title
@@ -280,7 +314,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.streaming === next.streaming)
+const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming)
 
 function getPlainText(message: Message): string {
     if (!message.parts) return ""
@@ -296,7 +330,7 @@ function formatTokens(n: number): string {
     return String(n)
 }
 
-function MessageMetadata({ message }: { message: Message }) {
+function MessageMetadata({ message, theme }: { message: Message; theme: "light" | "dark" }) {
     const models = useModels((s) => s.models)
     const providers = useModels((s) => s.providers)
 
@@ -326,7 +360,7 @@ function MessageMetadata({ message }: { message: Message }) {
     )
 }
 
-function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, streaming }: MessageItemProps & { streaming?: boolean }) {
+function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: MessageItemProps & { streaming?: boolean }) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -412,9 +446,9 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                         />
                     )
                 }
-                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} streaming={streaming} />
+                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} pendingPermissions={pendingPermissions} onPermissionReply={onPermissionReply} streaming={streaming} />
             })}
-            <MessageMetadata message={message} />
+            <MessageMetadata message={message} theme={theme} />
 
             <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
                 <Pressable className="flex-1" onPress={closeMenu}>
@@ -455,5 +489,5 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 }
 
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
-    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.streaming === next.streaming
+    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming
 })

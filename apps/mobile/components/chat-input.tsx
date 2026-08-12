@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import { Image } from "expo-image"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
-import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
+import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
 import * as ImagePicker from "expo-image-picker"
@@ -60,6 +60,11 @@ interface ChatInputProps {
     onSessionModelUpdate: (model: { id: string; providerID: string; variant: string }) => void
     images: ImageAttachment[]
     onImagesChange: React.Dispatch<React.SetStateAction<ImageAttachment[]>>
+    recognizing?: boolean
+    voiceVolume?: number
+    voiceAvailable?: boolean
+    onStartVoice?: () => void
+    onStopVoice?: () => void
 }
 
 function ChatInputInner({
@@ -85,6 +90,11 @@ function ChatInputInner({
     connectionToken,
     images,
     onImagesChange,
+    recognizing = false,
+    voiceVolume = 0,
+    voiceAvailable = true,
+    onStartVoice,
+    onStopVoice,
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
@@ -94,6 +104,26 @@ function ChatInputInner({
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
     const attachmentMenuHeight = useSharedValue(0)
     const navigation = useNavigation()
+    const micPulse = useSharedValue(1)
+
+    useEffect(() => {
+        if (recognizing) {
+            const pulse = () => {
+                micPulse.value = withTiming(1.15, { duration: 500, easing: Easing.out(Easing.sin) }, () => {
+                    micPulse.value = withTiming(1, { duration: 500, easing: Easing.in(Easing.sin) }, () => {
+                        if (recognizing) pulse()
+                    })
+                })
+            }
+            pulse()
+        } else {
+            micPulse.value = 1
+        }
+    }, [recognizing])
+
+    const micAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: micPulse.value }],
+    }))
 
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
@@ -217,7 +247,7 @@ function ChatInputInner({
                         </View>
                     )}
                     <Textarea
-                        placeholder={`Ask anything... "Fix broken tests"`}
+                        placeholder={recognizing ? "Listening..." : `Ask anything... "Fix broken tests"`}
                         style={{ borderWidth: 0, backgroundColor: "transparent" }}
                         className="w-full"
                         value={draft}
@@ -300,14 +330,27 @@ function ChatInputInner({
                             )}
                         </View>
 
-                        <Button
-                            className="rounded-full"
-                            size="icon"
-                            onPress={onSend}
-                            disabled={sending || !draft.trim()}
-                        >
-                            <SendIcon size={20} color={THEME[theme].background} />
-                        </Button>
+                        {draft.trim() || !voiceAvailable ? (
+                            <Button
+                                className="rounded-full"
+                                size="icon"
+                                onPress={onSend}
+                                disabled={sending || !draft.trim()}
+                            >
+                                <SendIcon size={20} color={THEME[theme].background} />
+                            </Button>
+                        ) : (
+                            <Pressable
+                                onPressIn={onStartVoice}
+                                onPressOut={onStopVoice}
+                                className="w-10 h-10 rounded-full items-center justify-center"
+                                style={{ backgroundColor: recognizing ? THEME[theme].destructive : THEME[theme].primary }}
+                            >
+                                <Animated.View style={micAnimatedStyle}>
+                                    <MicIcon size={20} color={THEME[theme].background} />
+                                </Animated.View>
+                            </Pressable>
+                        )}
                     </View>
                 </View>
                 {showAttachmentMenu && (

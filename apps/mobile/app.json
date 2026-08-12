@@ -50,6 +50,13 @@
           "backgroundColor": "#000000",
           "resizeMode": "contain"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow CrossCode to use the microphone for voice input.",
+          "speechRecognitionPermission": "Allow CrossCode to use speech recognition."
+        }
       ]
     ]
   }

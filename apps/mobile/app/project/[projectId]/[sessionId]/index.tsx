@@ -18,6 +18,7 @@ import { MessageItem } from "@/components/message-item"
 import { SessionHeader } from "@/components/session-header"
 import { ChatInput, ImageAttachment } from "@/components/chat-input"
 import { useEventStream } from "@/components/hooks/event-stream"
+import { useVoiceInput } from "@/components/hooks/use-voice-input"
 import { useChatStore, SelectedModel } from "@/store/chat.store"
 import { useModels } from "@/store/models.store"
 import { updateSessionModel } from "@/lib/models"
@@ -82,6 +83,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
     const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([])
     const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+    const voice = useVoiceInput()
 
     const scrollRef = useRef<FlatList<Message>>(null)
 
@@ -589,6 +592,28 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
     }, [keyboardHeight])
 
+    const prevTranscriptRef = useRef("")
+    useEffect(() => {
+        if (voice.transcript && voice.transcript !== prevTranscriptRef.current) {
+            const currentDraft = draft
+            const newText = currentDraft ? `${currentDraft} ${voice.transcript}` : voice.transcript
+            setDraft(sessionId!, newText)
+            prevTranscriptRef.current = voice.transcript
+        }
+        if (!voice.recognizing) {
+            prevTranscriptRef.current = ""
+            voice.resetTranscript()
+        }
+    }, [voice.transcript, voice.recognizing])
+
+    const handleStartVoice = useCallback(async () => {
+        await voice.startRecognition()
+    }, [voice.startRecognition])
+
+    const handleStopVoice = useCallback(() => {
+        voice.stopRecognition()
+    }, [voice.stopRecognition])
+
     const handleScroll = useCallback(
         (e: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
@@ -825,6 +850,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 onSessionModelUpdate={handleSessionModelUpdate}
                 images={selectedImages}
                 onImagesChange={setSelectedImages}
+                recognizing={voice.recognizing}
+                voiceVolume={voice.volume}
+                voiceAvailable={voice.isAvailable}
+                onStartVoice={handleStartVoice}
+                onStopVoice={handleStopVoice}
             />
         </View>
     )

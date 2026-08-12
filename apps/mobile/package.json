@@ -29,6 +29,7 @@
     "expo-image-picker": "^57.0.8",
     "expo-linking": "^57.0.5",
     "expo-router": "^57.0.11",
+    "expo-speech-recognition": "^56.0.1",
     "expo-splash-screen": "~57.0.5",
     "expo-status-bar": "~57.0.1",
     "fast-text-encoding": "^1.0.6",

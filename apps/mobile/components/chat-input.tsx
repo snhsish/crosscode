@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import { Image } from "expo-image"
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated"
 import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
@@ -108,16 +108,16 @@ function ChatInputInner({
 
     useEffect(() => {
         if (recognizing) {
-            const pulse = () => {
-                micPulse.value = withTiming(1.15, { duration: 500, easing: Easing.out(Easing.sin) }, () => {
-                    micPulse.value = withTiming(1, { duration: 500, easing: Easing.in(Easing.sin) }, () => {
-                        if (recognizing) pulse()
-                    })
-                })
-            }
-            pulse()
+            micPulse.value = withRepeat(
+                withSequence(
+                    withTiming(1.15, { duration: 500, easing: Easing.out(Easing.sin) }),
+                    withTiming(1, { duration: 500, easing: Easing.in(Easing.sin) })
+                ),
+                -1,
+                true
+            )
         } else {
-            micPulse.value = 1
+            micPulse.value = withTiming(1, { duration: 200 })
         }
     }, [recognizing])
 

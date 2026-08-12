@@ -592,16 +592,19 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
     }, [keyboardHeight])
 
-    const prevTranscriptRef = useRef("")
+    const voiceInitialDraftRef = useRef<string | null>(null)
     useEffect(() => {
-        if (voice.transcript && voice.transcript !== prevTranscriptRef.current) {
-            const currentDraft = draft
-            const newText = currentDraft ? `${currentDraft} ${voice.transcript}` : voice.transcript
-            setDraft(sessionId!, newText)
-            prevTranscriptRef.current = voice.transcript
-        }
-        if (!voice.recognizing) {
-            prevTranscriptRef.current = ""
+        if (voice.recognizing) {
+            if (voiceInitialDraftRef.current === null) {
+                voiceInitialDraftRef.current = draft
+            }
+            if (voice.transcript) {
+                const prefix = voiceInitialDraftRef.current
+                const newText = prefix ? `${prefix} ${voice.transcript}` : voice.transcript
+                setDraft(sessionId!, newText)
+            }
+        } else {
+            voiceInitialDraftRef.current = null
             voice.resetTranscript()
         }
     }, [voice.transcript, voice.recognizing])

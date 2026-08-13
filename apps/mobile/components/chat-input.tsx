@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import { Image } from "expo-image"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated"
-import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon } from "lucide-react-native"
+import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon, ZapIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
 import * as ImagePicker from "expo-image-picker"
@@ -17,6 +17,7 @@ import { VariantSelectTrigger } from "@/components/variant-select"
 import { useRef, useEffect, useState } from "react"
 import { BackHandler } from "react-native"
 import { SelectedModel } from "@/store/chat.store"
+import { QuickPromptsModal } from "@/components/quick-prompts-modal"
 
 export type ImageAttachment = {
     uri: string
@@ -102,6 +103,7 @@ function ChatInputInner({
     const keyboardHeight = useSharedValue(0)
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
+    const [showQuickPromptsModal, setShowQuickPromptsModal] = useState(false)
     const attachmentMenuHeight = useSharedValue(0)
     const navigation = useNavigation()
     const micPulse = useSharedValue(1)
@@ -212,6 +214,12 @@ function ChatInputInner({
         onImagesChange((prev: ImageAttachment[]) => prev.filter((_, i) => i !== index))
     }, [onImagesChange])
 
+    const handleQuickPromptSelect = useCallback((promptText: string) => {
+        setDraft(sessionId, promptText)
+        setShowQuickPromptsModal(false)
+        hideAttachmentMenu()
+    }, [sessionId, setDraft, hideAttachmentMenu])
+
     const animatedInputStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: -keyboardHeight.value }],
     }))
@@ -224,167 +232,187 @@ function ChatInputInner({
     }), [insets.top, insets.bottom])
 
     return (
-        <Animated.View style={animatedInputStyle}>
-            <View className="p-4 !bg-transparent" style={{ paddingBottom: insets.bottom + 16 }}>
-                <View className="p-2 rounded-3xl bg-accent">
-                    {images.length > 0 && (
-                        <View className="flex-row gap-2 px-2 pt-2 pb-1">
-                            {images.map((img, index) => (
-                                <View key={img.uri} className="relative">
-                                    <Image
-                                        source={{ uri: img.uri }}
-                                        className="w-16 h-16 rounded-xl"
-                                        resizeMode="cover"
-                                    />
-                                    <Pressable
-                                        onPress={() => removeImage(index)}
-                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive items-center justify-center"
-                                    >
-                                        <XIcon size={12} color="#fff" />
-                                    </Pressable>
-                                </View>
-                            ))}
-                        </View>
-                    )}
-                    <Textarea
-                        placeholder={recognizing ? "Listening..." : `Ask anything... "Fix broken tests"`}
-                        style={{ borderWidth: 0, backgroundColor: "transparent" }}
-                        className="w-full"
-                        value={draft}
-                        onChangeText={(t) => setDraft(sessionId, t)}
-                        blurOnSubmit={false}
-                        returnKeyType="default"
-                    />
+        <>
+            <Animated.View style={animatedInputStyle}>
+                <View className="p-4 !bg-transparent" style={{ paddingBottom: insets.bottom + 16 }}>
+                    <View className="p-2 rounded-3xl bg-accent">
+                        {images.length > 0 && (
+                            <View className="flex-row gap-2 px-2 pt-2 pb-1">
+                                {images.map((img, index) => (
+                                    <View key={img.uri} className="relative">
+                                        <Image
+                                            source={{ uri: img.uri }}
+                                            className="w-16 h-16 rounded-xl"
+                                            resizeMode="cover"
+                                        />
+                                        <Pressable
+                                            onPress={() => removeImage(index)}
+                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive items-center justify-center"
+                                        >
+                                            <XIcon size={12} color="#fff" />
+                                        </Pressable>
+                                    </View>
+                                ))}
+                            </View>
+                        )}
+                        <Textarea
+                            placeholder={recognizing ? "Listening..." : `Ask anything... "Fix broken tests"`}
+                            style={{ borderWidth: 0, backgroundColor: "transparent" }}
+                            className="w-full"
+                            value={draft}
+                            onChangeText={(t) => setDraft(sessionId, t)}
+                            blurOnSubmit={false}
+                            returnKeyType="default"
+                        />
 
-                    <View className="flex flex-row justify-between items-center">
-                        <View className="flex flex-row items-center gap-1">
-                            <Button variant="ghost" size="icon" className="w-9 h-9" onPress={toggleAttachmentMenu}>
-                                {showAttachmentMenu ? <XIcon size={20} color={THEME[theme].foreground} /> : <PlusIcon size={20} color={THEME[theme].foreground} />}
-                            </Button>
-                            <Select
-                                defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
-                                onValueChange={(option) => {
-                                    const agent = option?.value ?? "plan"
-                                    onAgentChange(agent)
-                                    const agentModel = modelByAgent[agent]
-                                    if (agentModel) {
-                                        onModelSelect({ id: agentModel.id, providerID: agentModel.providerID })
-                                    }
-                                }}
-                            >
-                                <AgentSelectTrigger ref={ref} className="w-fit">
-                                    <SelectValue placeholder="Select an agent" />
-                                </AgentSelectTrigger>
-                                <SelectContent insets={contentInsets} side={isKeyboardVisible ? "top" : "bottom"}>
-                                    <SelectGroup>
-                                        <SelectLabel>Agents</SelectLabel>
-                                        {agents.map((agent) => (
-                                            <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!">
-                                                {capitalize(agent.name)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectGroup>
-                                </SelectContent>
-                            </Select>
-                            <Pressable
-                                className="flex-row items-center gap-1 h-8 px-2 rounded-md border border-border/50 bg-transparent active:bg-accent"
-                                onPress={() =>
-                                    router.push(
-                                        `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModelId ?? ""}&currentProviderId=${selectedProviderId ?? ""}&agent=${selectedAgent}`
-                                    )
-                                }
-                            >
-                                <CpuIcon size={12} color={THEME[theme].mutedForeground} />
-                                <Text className="text-xs text-muted-foreground max-w-[80px]" numberOfLines={1}>
-                                    {selectedModelId ?? "Model"}
-                                </Text>
-                                <ChevronDownIcon size={11} color={THEME[theme].mutedForeground} />
-                            </Pressable>
-                            {variants.length > 0 && (
+                        <View className="flex flex-row justify-between items-center">
+                            <View className="flex flex-row items-center gap-1">
+                                <Button variant="ghost" size="icon" className="w-9 h-9" onPress={toggleAttachmentMenu}>
+                                    {showAttachmentMenu ? <XIcon size={20} color={THEME[theme].foreground} /> : <PlusIcon size={20} color={THEME[theme].foreground} />}
+                                </Button>
                                 <Select
-                                    defaultValue={{ value: currentVariant ?? variants[0]?.name, label: capitalize(currentVariant ?? variants[0]?.name) }}
+                                    defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
                                     onValueChange={(option) => {
-                                        if (!option?.value || !connectionUrl) return
-                                        onVariantSelect(option.value)
-                                        onSessionModelUpdate({
-                                            id: option.value,
-                                            providerID: "",
-                                            variant: option.value,
-                                        })
+                                        const agent = option?.value ?? "plan"
+                                        onAgentChange(agent)
+                                        const agentModel = modelByAgent[agent]
+                                        if (agentModel) {
+                                            onModelSelect({ id: agentModel.id, providerID: agentModel.providerID })
+                                        }
                                     }}
                                 >
-                                    <VariantSelectTrigger className="w-fit">
-                                        <SelectValue placeholder="Effort" />
-                                    </VariantSelectTrigger>
+                                    <AgentSelectTrigger ref={ref} className="w-fit">
+                                        <SelectValue placeholder="Select an agent" />
+                                    </AgentSelectTrigger>
                                     <SelectContent insets={contentInsets} side={isKeyboardVisible ? "top" : "bottom"}>
                                         <SelectGroup>
-                                            <SelectLabel>Effort</SelectLabel>
-                                            {variants.map((v) => (
-                                                <SelectItem key={v.name} label={capitalize(v.name)} value={v.name} className="capitalize!">
-                                                    {capitalize(v.name)}
+                                            <SelectLabel>Agents</SelectLabel>
+                                            {agents.map((agent) => (
+                                                <SelectItem key={agent.name} label={capitalize(agent.name)} value={agent.name} className="capitalize!">
+                                                    {capitalize(agent.name)}
                                                 </SelectItem>
                                             ))}
                                         </SelectGroup>
                                     </SelectContent>
                                 </Select>
+                                <Pressable
+                                    className="flex-row items-center gap-1 h-8 px-2 rounded-md border border-border/50 bg-transparent active:bg-accent"
+                                    onPress={() =>
+                                        router.push(
+                                            `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModelId ?? ""}&currentProviderId=${selectedProviderId ?? ""}&agent=${selectedAgent}`
+                                        )
+                                    }
+                                >
+                                    <CpuIcon size={12} color={THEME[theme].mutedForeground} />
+                                    <Text className="text-xs text-muted-foreground max-w-[80px]" numberOfLines={1}>
+                                        {selectedModelId ?? "Model"}
+                                    </Text>
+                                    <ChevronDownIcon size={11} color={THEME[theme].mutedForeground} />
+                                </Pressable>
+                                {variants.length > 0 && (
+                                    <Select
+                                        defaultValue={{ value: currentVariant ?? variants[0]?.name, label: capitalize(currentVariant ?? variants[0]?.name) }}
+                                        onValueChange={(option) => {
+                                            if (!option?.value || !connectionUrl) return
+                                            onVariantSelect(option.value)
+                                            onSessionModelUpdate({
+                                                id: option.value,
+                                                providerID: "",
+                                                variant: option.value,
+                                            })
+                                        }}
+                                    >
+                                        <VariantSelectTrigger className="w-fit">
+                                            <SelectValue placeholder="Effort" />
+                                        </VariantSelectTrigger>
+                                        <SelectContent insets={contentInsets} side={isKeyboardVisible ? "top" : "bottom"}>
+                                            <SelectGroup>
+                                                <SelectLabel>Effort</SelectLabel>
+                                                {variants.map((v) => (
+                                                    <SelectItem key={v.name} label={capitalize(v.name)} value={v.name} className="capitalize!">
+                                                        {capitalize(v.name)}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectGroup>
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            </View>
+
+                            {draft.trim() || !voiceAvailable ? (
+                                <Button
+                                    className="rounded-full"
+                                    size="icon"
+                                    onPress={onSend}
+                                    disabled={sending || !draft.trim()}
+                                >
+                                    <SendIcon size={20} color={THEME[theme].background} />
+                                </Button>
+                            ) : (
+                                <Pressable
+                                    onPressIn={onStartVoice}
+                                    onPressOut={onStopVoice}
+                                    className="w-10 h-10 rounded-full items-center justify-center"
+                                    style={{ backgroundColor: recognizing ? THEME[theme].destructive : THEME[theme].primary }}
+                                >
+                                    <Animated.View style={micAnimatedStyle}>
+                                        <MicIcon size={20} color={THEME[theme].background} />
+                                    </Animated.View>
+                                </Pressable>
                             )}
                         </View>
-
-                        {draft.trim() || !voiceAvailable ? (
-                            <Button
-                                className="rounded-full"
-                                size="icon"
-                                onPress={onSend}
-                                disabled={sending || !draft.trim()}
-                            >
-                                <SendIcon size={20} color={THEME[theme].background} />
-                            </Button>
-                        ) : (
-                            <Pressable
-                                onPressIn={onStartVoice}
-                                onPressOut={onStopVoice}
-                                className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: recognizing ? THEME[theme].destructive : THEME[theme].primary }}
-                            >
-                                <Animated.View style={micAnimatedStyle}>
-                                    <MicIcon size={20} color={THEME[theme].background} />
-                                </Animated.View>
-                            </Pressable>
-                        )}
                     </View>
-                </View>
-                {showAttachmentMenu && (
-                    <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
-                        <View className="flex-row flex-wrap">
-                            <Pressable
-                                onPress={pickImages}
-                                disabled={images.length >= MAX_IMAGES}
-                                className={`w-1/2 items-center justify-center py-4 ${images.length >= MAX_IMAGES ? "opacity-40" : ""}`}
-                            >
-                                <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
-                                    <ImageIcon size={22} color={THEME[theme].foreground} />
-                                </View>
-                                <Text className="text-xs text-muted-foreground">
-                                    Image{images.length >= MAX_IMAGES ? " (max)" : ""}
-                                </Text>
-                            </Pressable>
-                            {ATTACHMENT_OPTIONS.map((option) => (
+                    {showAttachmentMenu && (
+                        <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
+                            <View className="flex-row flex-wrap">
                                 <Pressable
-                                    key={option.label}
-                                    disabled
-                                    className="w-1/2 items-center justify-center py-4 opacity-40"
+                                    onPress={pickImages}
+                                    disabled={images.length >= MAX_IMAGES}
+                                    className={`w-1/2 items-center justify-center py-4 ${images.length >= MAX_IMAGES ? "opacity-40" : ""}`}
                                 >
                                     <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
-                                        <option.icon size={22} color={THEME[theme].foreground} />
+                                        <ImageIcon size={22} color={THEME[theme].foreground} />
                                     </View>
-                                    <Text className="text-xs text-muted-foreground">{option.label}</Text>
+                                    <Text className="text-xs text-muted-foreground">
+                                        Image{images.length >= MAX_IMAGES ? " (max)" : ""}
+                                    </Text>
                                 </Pressable>
-                            ))}
+                                {ATTACHMENT_OPTIONS.map((option) => (
+                                    <Pressable
+                                        key={option.label}
+                                        disabled
+                                        className="w-1/2 items-center justify-center py-4 opacity-40"
+                                    >
+                                        <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
+                                            <option.icon size={22} color={THEME[theme].foreground} />
+                                        </View>
+                                        <Text className="text-xs text-muted-foreground">{option.label}</Text>
+                                    </Pressable>
+                                ))}
+                                <Pressable
+                                    onPress={() => {
+                                        hideAttachmentMenu()
+                                        setShowQuickPromptsModal(true)
+                                    }}
+                                    className="w-1/2 items-center justify-center py-4"
+                                >
+                                    <View className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center mb-1.5">
+                                        <ZapIcon size={22} color={THEME[theme].primary} />
+                                    </View>
+                                    <Text className="text-xs text-primary font-medium">Quick Prompts</Text>
+                                </Pressable>
+                            </View>
                         </View>
-                    </View>
-                )}
-            </View>
-        </Animated.View>
+                    )}
+                </View>
+            </Animated.View>
+            <QuickPromptsModal
+                visible={showQuickPromptsModal}
+                onClose={() => setShowQuickPromptsModal(false)}
+                onSelect={handleQuickPromptSelect}
+                theme={theme}
+            />
+        </>
     )
 }
 

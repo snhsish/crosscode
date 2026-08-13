@@ -1,9 +1,9 @@
-import { View, ScrollView, Switch, AppState, Linking, Alert, TouchableOpacity } from "react-native"
+import { View, ScrollView, Switch, AppState, Linking, Alert, TouchableOpacity, Pressable } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft } from "lucide-react-native"
+import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -166,6 +166,25 @@ export default function UserPage() {
                 thumbColor={THEME[theme].foreground}
               />
             </View>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Prompts</CardTitle>
+            <CardDescription>Manage your saved quick prompts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Pressable
+              onPress={() => router.push("/quick-prompts")}
+              className="flex-row items-center justify-between p-3 rounded-xl bg-secondary/30 active:bg-secondary"
+            >
+              <View className="flex-row items-center gap-3">
+                <Zap size={18} color={THEME[theme].primary} />
+                <Text className="text-sm font-medium">Manage Quick Prompts</Text>
+              </View>
+              <ChevronRight size={18} color={THEME[theme].mutedForeground} />
+            </Pressable>
           </CardContent>
         </Card>
 

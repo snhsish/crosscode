@@ -24,6 +24,7 @@ export default function StackLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="user" />
+      <Stack.Screen name="quick-prompts" />
     </Stack>
   )
 }

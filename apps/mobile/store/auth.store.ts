@@ -13,8 +13,9 @@ type User = {
 type AuthStore = {
     user: User | null
     sessionToken: string | null
+    serverUrl: string | null
     isLoggedIn: boolean
-    login: (user: User, sessionToken: string) => void
+    login: (user: User, sessionToken: string, serverUrl?: string) => void
     logout: () => void
     setUser: (user: User) => void
 }
@@ -24,9 +25,10 @@ export const useAuth = create<AuthStore>()(
         (set) => ({
             user: null,
             sessionToken: null,
+            serverUrl: null,
             isLoggedIn: false,
-            login: (user, sessionToken) => set({ user, sessionToken, isLoggedIn: true }),
-            logout: () => set({ user: null, sessionToken: null, isLoggedIn: false }),
+            login: (user, sessionToken, serverUrl) => set({ user, sessionToken, serverUrl: serverUrl ?? null, isLoggedIn: true }),
+            logout: () => set({ user: null, sessionToken: null, serverUrl: null, isLoggedIn: false }),
             setUser: (user) => set({ user }),
         }),
         {

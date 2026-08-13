@@ -30,6 +30,7 @@ import { usePermissions } from "@/store/permissions.store"
 import { getPendingPermissions, replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
 import { getAuthHeader } from "@/lib/utils"
+import { notifyAgentStatus } from "@/lib/notifications"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
 
@@ -160,11 +161,24 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 sessionQs.length !== current.length ||
                 sessionQs.some((q, i) => q.id !== current[i]?.id)
             ) {
+                const currentIds = new Set(current.map((q) => q.id))
+                for (const question of sessionQs) {
+                    if (currentIds.has(question.id)) continue
+                    const firstQuestion = question.questions[0]
+                    notifyAgentStatus({
+                        key: `${sessionId}:question:${question.id}`,
+                        kind: "question",
+                        title: "Agent has a question",
+                        message: firstQuestion?.question ?? "The agent is waiting for your answer.",
+                        projectId,
+                        sessionId,
+                    })
+                }
                 setQuestions(sessionId!, sessionQs)
             }
         } catch {}
         questionPollRef.current = setTimeout(pollQuestions, 5000)
-    }, [connection?.url, connection?.token, sessionId, setQuestions])
+    }, [connection?.url, connection?.token, projectId, sessionId, setQuestions])
 
     useEffect(() => {
         pollQuestions()
@@ -262,7 +276,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const onScrollToIndexFailed = useCallback(() => {}, [])
 
-    useEventStream(connection?.url, sessionId, connection?.token)
+    useEventStream(connection?.url, sessionId, connection?.token, projectId)
 
     const attemptSendMessage = useCallback(async (
         connectionUrl: string,

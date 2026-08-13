@@ -70,3 +70,30 @@ export const deviceSession = pgTable("device_session", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 })
+
+export const accountNotificationSettings = pgTable("account_notification_settings", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  agentResponseCompleted: boolean("agent_response_completed").notNull().default(true),
+  agentQuestionInterruption: boolean("agent_question_interruption").notNull().default(true),
+  agentPermissionInterruption: boolean("agent_permission_interruption").notNull().default(true),
+  agentErrorInterruption: boolean("agent_error_interruption").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})
+
+export const pushDevice = pgTable("push_device", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  deviceSessionId: text("device_session_id")
+    .references(() => deviceSession.id, { onDelete: "cascade" }),
+  expoPushToken: text("expo_push_token").notNull().unique(),
+  platform: text("platform").notNull(),
+  deviceName: text("device_name"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})

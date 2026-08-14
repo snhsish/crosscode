@@ -13,6 +13,8 @@ import { useConnections } from "@/store/connection.store"
 import { useAuth } from "@/store/auth.store"
 import { getAccountNotificationSettings, registerPushDevice, updateAccountNotificationSettings } from "@/lib/account-notifications"
 import { requestNotificationsPermission } from "@/lib/notifications"
+import { TunnelUsageCard } from "@/components/TunnelUsageCard"
+import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
 import React from "react"
 
 const SUPPORT_EMAIL = "crosscode@sish.work"
@@ -217,6 +219,10 @@ export default function UserPage() {
             </Pressable>
           </CardContent>
         </Card>
+
+        <TunnelUsageCard />
+
+        <OpencodeStatsCard />
 
         <Card>
           <CardHeader>

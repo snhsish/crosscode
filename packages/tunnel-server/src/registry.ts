@@ -13,9 +13,23 @@ export interface ClientEntry {
   userId: string
   connectedAt: Date
   pendingRequests: Map<string, PendingRequest>
+  requestCount: number
+  completedRequests: number
+  failedRequests: number
+  requestBytes: number
+  responseBytes: number
+  totalLatencyMs: number
 }
 
 const registry = new Map<string, ClientEntry>()
+const lifetimeStats = {
+  totalRequests: 0,
+  completedRequests: 0,
+  failedRequests: 0,
+  requestBytes: 0,
+  responseBytes: 0,
+  totalLatencyMs: 0,
+}
 
 export function register(projectId: string, userId: string, ws: WebSocket): ClientEntry {
   const existing = registry.get(projectId)
@@ -29,6 +43,12 @@ export function register(projectId: string, userId: string, ws: WebSocket): Clie
     userId,
     connectedAt: new Date(),
     pendingRequests: new Map(),
+    requestCount: 0,
+    completedRequests: 0,
+    failedRequests: 0,
+    requestBytes: 0,
+    responseBytes: 0,
+    totalLatencyMs: 0,
   }
   registry.set(projectId, entry)
   logger.info("Tunnel client registered", { projectId, userId, totalClients: registry.size })
@@ -91,8 +111,72 @@ export function countByUserId(userId: string): number {
   return count
 }
 
-export function getRegistryStats(): { totalClients: number; totalPendingRequests: number; clients: Array<{ projectId: string; userId: string; pendingRequests: number; connectedAt: string }> } {
-  const clients: Array<{ projectId: string; userId: string; pendingRequests: number; connectedAt: string }> = []
+export function recordRequestStart(projectId: string): void {
+  const entry = registry.get(projectId)
+  if (entry) entry.requestCount++
+  lifetimeStats.totalRequests++
+}
+
+export function recordRequestBytes(projectId: string, bytes: number): void {
+  const entry = registry.get(projectId)
+  if (entry) entry.requestBytes += bytes
+  lifetimeStats.requestBytes += bytes
+}
+
+export function recordResponseBytes(projectId: string, bytes: number): void {
+  const entry = registry.get(projectId)
+  if (entry) entry.responseBytes += bytes
+  lifetimeStats.responseBytes += bytes
+}
+
+export function recordRequestEnd(projectId: string, durationMs: number, failed: boolean): void {
+  const entry = registry.get(projectId)
+  if (failed) {
+    lifetimeStats.failedRequests++
+  } else {
+    lifetimeStats.completedRequests++
+  }
+  lifetimeStats.totalLatencyMs += durationMs
+  if (!entry) return
+  if (failed) entry.failedRequests++
+  else entry.completedRequests++
+  entry.totalLatencyMs += durationMs
+}
+
+export function getRegistryStats(): {
+  totalClients: number
+  totalPendingRequests: number
+  totalRequests: number
+  completedRequests: number
+  failedRequests: number
+  requestBytes: number
+  responseBytes: number
+  totalLatencyMs: number
+  clients: Array<{
+    projectId: string
+    userId: string
+    pendingRequests: number
+    connectedAt: string
+    requestCount: number
+    completedRequests: number
+    failedRequests: number
+    requestBytes: number
+    responseBytes: number
+    totalLatencyMs: number
+  }>
+} {
+  const clients: Array<{
+    projectId: string
+    userId: string
+    pendingRequests: number
+    connectedAt: string
+    requestCount: number
+    completedRequests: number
+    failedRequests: number
+    requestBytes: number
+    responseBytes: number
+    totalLatencyMs: number
+  }> = []
   let totalPendingRequests = 0
   for (const [projectId, entry] of registry) {
     clients.push({
@@ -100,8 +184,19 @@ export function getRegistryStats(): { totalClients: number; totalPendingRequests
       userId: entry.userId,
       pendingRequests: entry.pendingRequests.size,
       connectedAt: entry.connectedAt.toISOString(),
+      requestCount: entry.requestCount,
+      completedRequests: entry.completedRequests,
+      failedRequests: entry.failedRequests,
+      requestBytes: entry.requestBytes,
+      responseBytes: entry.responseBytes,
+      totalLatencyMs: entry.totalLatencyMs,
     })
     totalPendingRequests += entry.pendingRequests.size
   }
-  return { totalClients: registry.size, totalPendingRequests, clients }
+  return {
+    totalClients: registry.size,
+    totalPendingRequests,
+    ...lifetimeStats,
+    clients,
+  }
 }

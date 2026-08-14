@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback } from "react"
-import { View, Pressable, Modal } from "react-native"
+import { View, Pressable, Modal, Dimensions } from "react-native"
 import { Image } from "expo-image"
 import * as Clipboard from "expo-clipboard"
 import { TriangleAlertIcon, RotateCcwIcon, CopyIcon, PenLineIcon, GitBranchIcon } from "lucide-react-native"
@@ -367,6 +367,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
     const containerRef = useRef<View>(null)
+    const touchPosRef = useRef({ x: 0, y: 0 })
 
     const connections = useConnections((s) => s.connections)
     const current = useConnections((s) => s.current)
@@ -383,10 +384,18 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const closeMenu = useCallback(() => setShowMenu(false), [])
 
     const handleLongPress = useCallback(() => {
-        containerRef.current?.measure((x, y, width, height, pageX, pageY) => {
-            setMenuPos({ top: pageY + height / 2, left: pageX + width / 2 - 100 })
-            setShowMenu(true)
-        })
+        const { width: screenW, height: screenH } = Dimensions.get("window")
+        const menuW = 224
+        const menuH = 180
+        const { x, y } = touchPosRef.current
+        const left = Math.min(Math.max(8, x - menuW / 2), screenW - menuW - 8)
+        const top = Math.min(Math.max(8, y + 8), screenH - menuH - 8)
+        setMenuPos({ top, left })
+        setShowMenu(true)
+    }, [])
+
+    const handleTouchStart = useCallback((e: { nativeEvent: { pageX: number; pageY: number } }) => {
+        touchPosRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }
     }, [])
 
     const handleCopyFull = useCallback(async () => {
@@ -431,6 +440,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                 hasError ? "bg-destructive/10 border border-destructive/30" : null,
             )}
             onLongPress={handleLongPress}
+            onTouchStart={handleTouchStart}
         >
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">

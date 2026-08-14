@@ -1,5 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "http"
-import { get, addPendingRequest } from "./registry.js"
+import {
+  get,
+  addPendingRequest,
+  recordRequestBytes,
+  recordRequestEnd,
+  recordRequestStart,
+  recordResponseBytes,
+} from "./registry.js"
 import { generateReqId } from "./ws-handler.js"
 import type { TunnelS2C } from "@crosscode/shared"
 import type { WebSocket } from "ws"
@@ -42,6 +49,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   }
 
   const reqId = generateReqId()
+  recordRequestStart(projectId)
   const hasAuth = !!req.headers["authorization"]
   const authValue = req.headers["authorization"]
   logger.info("Proxy request started", { projectId, reqId, method, path, userId: entry.userId, hasAuth, authValue: authValue ? authValue.substring(0, 30) + "..." : "none" })
@@ -56,7 +64,10 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   logger.info("Headers forwarded to tunnel client", { projectId, reqId, headerKeys: Object.keys(headers) })
 
   const bodyChunks: Buffer[] = []
-  req.on("data", (chunk) => bodyChunks.push(chunk))
+  req.on("data", (chunk) => {
+    recordRequestBytes(projectId, chunk.length)
+    bodyChunks.push(chunk)
+  })
   req.on("end", () => {
     const body = bodyChunks.length > 0
       ? Buffer.concat(bodyChunks).toString("base64")
@@ -86,6 +97,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(status, safeHeaders)
       },
       onChunk(data) {
+        recordResponseBytes(projectId, data.length)
         pushObserver?.write(data)
         if (!headSent) {
           logger.warn("Response chunk before head, sending 200", { projectId, reqId })
@@ -104,10 +116,12 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
         }
         res.end()
         const duration = Date.now() - startTime
+        recordRequestEnd(projectId, duration, false)
         logger.info("Proxy request completed", { projectId, reqId, method, path, status: responseStatus, duration })
       },
       onError(message) {
         const duration = Date.now() - startTime
+        recordRequestEnd(projectId, duration, true)
         if (!headSent) {
           logger.error("Proxy request error (before head)", { projectId, reqId, method, path, error: message, duration })
           res.writeHead(502, { "Content-Type": "application/json" })
@@ -133,6 +147,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
 
   req.on("error", (err) => {
     const duration = Date.now() - startTime
+    recordRequestEnd(projectId, duration, true)
     logger.error("Request stream error", { projectId, reqId, error: err.message, duration })
     res.writeHead(500)
     res.end("Internal error")

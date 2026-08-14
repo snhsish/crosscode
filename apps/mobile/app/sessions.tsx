@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ActivityIndicator, FlatList, Modal, Pressable, RefreshControl, TextInput, View } from "react-native"
+import { ActivityIndicator, Modal, Pressable, RefreshControl, SectionList, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "nativewind"
@@ -13,15 +13,20 @@ import { useSessions, Session } from "@/store/sessions.store"
 import { getSessionsByProjectDir, deleteSession, createSession } from "@/lib/sessions"
 import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
-import { AlertTriangle, ArrowLeft, ArrowUpDown, Filter, MessageCircle, Plus, Search, Trash2, X } from "lucide-react-native"
+import { AlertTriangle, ArrowLeft, ArrowUpDown, Bot, Filter, GitBranch, MessageCircle, Plus, Search, Trash2, X } from "lucide-react-native"
 
-type FilterType = "all" | "active" | "completed"
+type FilterType = "all" | "agents" | "subagents"
 type SortType = "recent" | "oldest" | "name"
+type SessionSection = {
+  category: Exclude<FilterType, "all">
+  title: string
+  data: Session[]
+}
 
 const FILTER_OPTIONS: { key: FilterType; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "active", label: "Active" },
-    { key: "completed", label: "Completed" },
+  { key: "all", label: "All" },
+  { key: "agents", label: "Agents" },
+  { key: "subagents", label: "Subagents" },
 ]
 
 const SORT_OPTIONS: { key: SortType; label: string }[] = [
@@ -29,6 +34,15 @@ const SORT_OPTIONS: { key: SortType; label: string }[] = [
     { key: "oldest", label: "Oldest" },
     { key: "name", label: "Name" },
 ]
+
+function getSessionCategory(session: Session): Exclude<FilterType, "all"> {
+  return session.parentID ? "subagents" : "agents"
+}
+
+const CATEGORY_DETAILS = {
+  agents: { title: "Agent sessions", icon: Bot },
+  subagents: { title: "Subagent sessions", icon: GitBranch },
+} as const
 
 function formatTime(ts: number, now: number) {
   const diff = now - ts
@@ -214,7 +228,7 @@ export default function SessionsScreen() {
     }
   }, [connection?.id, project?.id, fetchSessions])
 
-  const filteredSessions = React.useMemo(() => {
+  const sessionSections = React.useMemo<SessionSection[]>(() => {
     let result = sessions.filter((s) => s.directory === project?.directory)
 
     if (searchQuery.trim()) {
@@ -224,22 +238,35 @@ export default function SessionsScreen() {
       )
     }
 
-    if (filter === "active") {
-      result = result.filter((s) => !s.time.compacting)
-    } else if (filter === "completed") {
-      result = result.filter((s) => s.time.compacting)
+    if (filter !== "all") {
+      result = result.filter((s) => getSessionCategory(s) === filter)
     }
 
-    if (sortBy === "recent") {
-      result.sort((a, b) => b.time.updated - a.time.updated)
-    } else if (sortBy === "oldest") {
-      result.sort((a, b) => a.time.updated - b.time.updated)
-    } else if (sortBy === "name") {
-      result.sort((a, b) => (a.title || "").localeCompare(b.title || ""))
-    }
+    const sortSessions = (items: Session[]) => [...items].sort((a, b) => {
+      if (sortBy === "oldest") return a.time.updated - b.time.updated
+      if (sortBy === "name") return (a.title || "").localeCompare(b.title || "")
+      return b.time.updated - a.time.updated
+    })
 
-    return result
+    return (Object.keys(CATEGORY_DETAILS) as Exclude<FilterType, "all">[])
+      .filter((category) => filter === "all" || category === filter)
+      .map((category) => ({
+        category,
+        title: CATEGORY_DETAILS[category].title,
+        data: sortSessions(result.filter((session) => getSessionCategory(session) === category)),
+      }))
+      .filter((section) => section.data.length > 0)
   }, [sessions, project, searchQuery, filter, sortBy])
+
+  const visibleSessionCount = sessionSections.reduce((count, section) => count + section.data.length, 0)
+  const categoryCounts = React.useMemo(() => {
+    const projectSessions = sessions.filter((s) => s.directory === project?.directory)
+    return {
+      all: projectSessions.length,
+      agents: projectSessions.filter((s) => getSessionCategory(s) === "agents").length,
+      subagents: projectSessions.filter((s) => getSessionCategory(s) === "subagents").length,
+    }
+  }, [sessions, project])
 
   const handleDelete = React.useCallback((sessionId: string) => {
     setSelectedSessionId(sessionId)
@@ -328,7 +355,7 @@ export default function SessionsScreen() {
                       "text-xs font-medium capitalize",
                       filter === f.key ? "text-primary-foreground" : "text-muted-foreground"
                     )}>
-                      {f.label}
+                      {f.label} ({categoryCounts[f.key]})
                     </Text>
                   </Pressable>
                 ))}
@@ -359,12 +386,12 @@ export default function SessionsScreen() {
         )}
       </View>
 
-      {loading && filteredSessions.length === 0 ? (
+      {loading && visibleSessionCount === 0 ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color={THEME[theme].mutedForeground} />
           <Text className="text-xs text-muted-foreground mt-3">Loading sessions...</Text>
         </View>
-      ) : filteredSessions.length === 0 ? (
+      ) : visibleSessionCount === 0 ? (
         <View className="flex-1 items-center justify-center px-8 gap-4">
           <View className="w-16 h-16 rounded-2xl bg-muted items-center justify-center">
             <MessageCircle size={28} color={THEME[theme].mutedForeground} />
@@ -387,9 +414,9 @@ export default function SessionsScreen() {
           </Button>
         </View>
       ) : (
-        <FlatList
+        <SectionList<Session, SessionSection>
           className="flex-1"
-          data={filteredSessions}
+          sections={sessionSections}
           keyExtractor={(session) => session.id}
           removeClippedSubviews
           maxToRenderPerBatch={10}
@@ -402,10 +429,22 @@ export default function SessionsScreen() {
               tintColor={THEME[theme].primary}
             />
           }
-          renderItem={({ item: session, index }) => (
+          renderSectionHeader={({ section }) => {
+            const Icon = CATEGORY_DETAILS[section.category].icon
+            return (
+              <View className="flex-row items-center gap-2 px-6 pt-5 pb-2 bg-background">
+                <Icon size={15} color={THEME[theme].mutedForeground} />
+                <Text className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {section.title}
+                </Text>
+                <Text className="text-xs text-muted-foreground/70">{section.data.length}</Text>
+              </View>
+            )
+          }}
+          renderItem={({ item: session, index, section }) => (
             <SessionItem
               session={session}
-              isLast={index === filteredSessions.length - 1}
+              isLast={index === section.data.length - 1}
               onNavigate={handleNavigate}
               onDelete={handleDelete}
               now={now}
@@ -434,7 +473,7 @@ export default function SessionsScreen() {
         />
       </Dialog>
 
-      {filteredSessions.length > 0 && (
+      {visibleSessionCount > 0 && (
         <View className="absolute" style={{ bottom: insets.bottom + 24, right: 24 }}>
           <Pressable
             onPress={handleCreateSession}

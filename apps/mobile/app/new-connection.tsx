@@ -13,6 +13,8 @@ import { useAuth } from "@/store/auth.store"
 import { registerPushDevice } from "@/lib/account-notifications"
 import { useSettings } from "@/store/settings.store"
 
+const AUTH_SERVER_URL = "https://crosscode.site"
+
 export default function NewConnectionScreen() {
   const router = useRouter()
   const params = useLocalSearchParams<{ mode?: string }>()
@@ -55,7 +57,7 @@ export default function NewConnectionScreen() {
         const payload = decodeDeviceLinkQrPayload(data)
         navigated.current = true
         setClaiming(true)
-        await claimDevice(payload.token, payload.url)
+        await claimDevice(payload.token, isLoginMode ? AUTH_SERVER_URL : payload.url)
       } else {
         const payload = decodeQrPayload(data)
         navigated.current = true

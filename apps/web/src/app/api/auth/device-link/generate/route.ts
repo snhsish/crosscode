@@ -32,8 +32,7 @@ export async function POST(req: NextRequest) {
       expiresAt,
     })
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    const qrData = encodeDeviceLinkQrPayload({ type: "device-link", token, url: baseUrl, v: 1 })
+    const qrData = encodeDeviceLinkQrPayload({ type: "device-link", token, v: 1 })
 
     logger.info("API", `POST /api/auth/device-link/generate - token=${token.substring(0, 8)}..., expiresAt=${expiresAt.toISOString()}`)
     return NextResponse.json({ token, qrData, expiresAt })

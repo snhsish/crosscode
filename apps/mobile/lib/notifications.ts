@@ -129,15 +129,20 @@ export function useNotificationRouting() {
 }
 
 export async function getExpoPushToken(): Promise<string | null> {
-    const granted = await requestNotificationsPermission()
-    if (!granted) return null
+    try {
+        const granted = await requestNotificationsPermission()
+        if (!granted) return null
 
-    const projectId =
-        Constants.expoConfig?.extra?.eas?.projectId ??
-        Constants.easConfig?.projectId
+        const projectId =
+            Constants.expoConfig?.extra?.eas?.projectId ??
+            Constants.easConfig?.projectId
 
-    const token = await Notifications.getExpoPushTokenAsync(
-        projectId ? { projectId } : undefined
-    )
-    return token.data
+        const token = await Notifications.getExpoPushTokenAsync(
+            projectId ? { projectId } : undefined
+        )
+        return token.data
+    } catch {
+        // Push notifications are optional and may be unavailable without native credentials.
+        return null
+    }
 }

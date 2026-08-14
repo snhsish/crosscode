@@ -109,24 +109,23 @@ export function detectQrPayloadType(encoded: string): "login" | "connection" | "
   return "connection"
 }
 
-export function encodeDeviceLinkQrPayload(payload: DeviceLinkQrPayload): string {
+export function encodeDeviceLinkQrPayload(payload: Omit<DeviceLinkQrPayload, "url"> & Partial<Pick<DeviceLinkQrPayload, "url">>): string {
   return toBase64(JSON.stringify({
     type: payload.type,
     token: payload.token,
-    url: payload.url,
     v: payload.v,
   }))
 }
 
 export function decodeDeviceLinkQrPayload(encoded: string): DeviceLinkQrPayload {
   const parsed = JSON.parse(fromBase64(encoded))
-  if (parsed.type !== "device-link" || typeof parsed.token !== "string" || typeof parsed.url !== "string" || parsed.v !== 1) {
+  if (parsed.type !== "device-link" || typeof parsed.token !== "string" || parsed.v !== 1) {
     throw new Error('Invalid device-link QR payload')
   }
   return {
     type: parsed.type,
     token: parsed.token,
-    url: parsed.url,
+    url: parsed.url ?? "",
     v: parsed.v,
   }
 }

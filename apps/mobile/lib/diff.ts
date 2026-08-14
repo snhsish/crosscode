@@ -2,10 +2,31 @@ import { getAuthHeader } from "@/lib/utils"
 
 export type FileDiff = {
     file: string
+    patch: string
     before: string
     after: string
     additions: number
     deletions: number
+}
+
+function normalizeFileDiff(value: unknown): FileDiff | null {
+    if (!value || typeof value !== "object") return null
+
+    const diff = value as Record<string, unknown>
+    const file = typeof diff.file === "string" ? diff.file : diff.filePath
+    if (typeof file !== "string") return null
+
+    const before = diff.before ?? diff.oldString ?? diff.old
+    const after = diff.after ?? diff.newString ?? diff.new
+
+    return {
+        file,
+        patch: typeof diff.patch === "string" ? diff.patch : "",
+        before: typeof before === "string" ? before : "",
+        after: typeof after === "string" ? after : "",
+        additions: typeof diff.additions === "number" ? diff.additions : 0,
+        deletions: typeof diff.deletions === "number" ? diff.deletions : 0,
+    }
 }
 
 export async function fetchSessionDiffs(url: string, token: string, sessionId: string): Promise<FileDiff[]> {
@@ -18,7 +39,12 @@ export async function fetchSessionDiffs(url: string, token: string, sessionId: s
         })
         if (!res.ok) return []
         const data = await res.json()
-        return Array.isArray(data) ? data : []
+        const records = Array.isArray(data)
+            ? data
+            : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).diffs)
+                ? (data as { diffs: unknown[] }).diffs
+                : []
+        return records.map(normalizeFileDiff).filter((diff): diff is FileDiff => diff !== null)
     } catch {
         return []
     }
@@ -29,9 +55,9 @@ export type DiffLine =
     | { type: "add"; content: string; newLine: number }
     | { type: "remove"; content: string; oldLine: number }
 
-export function computeLineDiff(oldText: string, newText: string): DiffLine[] {
-    const oldLines = oldText.split("\n")
-    const newLines = newText.split("\n")
+export function computeLineDiff(oldText: string | null | undefined, newText: string | null | undefined): DiffLine[] {
+    const oldLines = (typeof oldText === "string" ? oldText : "").split("\n")
+    const newLines = (typeof newText === "string" ? newText : "").split("\n")
 
     if (oldLines.length * newLines.length > 250000) {
         return computeLineDiffDeferred(oldLines, newLines)
@@ -39,6 +65,40 @@ export function computeLineDiff(oldText: string, newText: string): DiffLine[] {
 
     const lcs = buildLCS(oldLines, newLines)
     return buildDiffResult(oldLines, newLines, lcs)
+}
+
+export function computePatchDiff(patch: string | null | undefined): DiffLine[] {
+    if (typeof patch !== "string") return []
+
+    const result: DiffLine[] = []
+    let oldLine = 0
+    let newLine = 0
+    let inHunk = false
+
+    for (const line of patch.split("\n")) {
+        const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/)
+        if (hunk) {
+            oldLine = Number(hunk[1])
+            newLine = Number(hunk[2])
+            inHunk = true
+            continue
+        }
+        if (!inHunk || line === "\\ No newline at end of file" || line.startsWith("diff ")) continue
+
+        if (line.startsWith("+")) {
+            result.push({ type: "add", content: line.slice(1), newLine })
+            newLine++
+        } else if (line.startsWith("-")) {
+            result.push({ type: "remove", content: line.slice(1), oldLine })
+            oldLine++
+        } else if (line.startsWith(" ")) {
+            result.push({ type: "context", content: line.slice(1), oldLine, newLine })
+            oldLine++
+            newLine++
+        }
+    }
+
+    return result
 }
 
 function computeLineDiffDeferred(oldLines: string[], newLines: string[]): DiffLine[] {

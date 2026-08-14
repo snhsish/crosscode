@@ -51,8 +51,8 @@ export default function FilesPage() {
     }, [files])
 
     const handleFilePress = useCallback(
-        (file: string, before: string, after: string) => {
-            setDiff({ filePath: file, oldString: before, newString: after })
+        (file: FileDiff) => {
+            setDiff({ filePath: file.file, oldString: file.before, newString: file.after, patch: file.patch })
             router.push(`/project/${projectId}/${sessionId}/diff`)
         },
         [setDiff, router, projectId, sessionId]
@@ -68,7 +68,7 @@ export default function FilesPage() {
                     className={`flex-row items-center gap-3 px-4 py-3 border-b border-border/50 active:bg-accent/30 ${
                         index === files.length - 1 ? "border-b-0" : ""
                     }`}
-                    onPress={() => handleFilePress(item.file, item.before, item.after)}
+                    onPress={() => handleFilePress(item)}
                 >
                     <View className="w-10 h-10 rounded-lg bg-accent/60 items-center justify-center">
                         <FileIcon size={18} color={THEME[theme].mutedForeground} />

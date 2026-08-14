@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { FlatList, View } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -7,7 +7,7 @@ import { ArrowLeftIcon } from "lucide-react-native"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
-import { computeLineDiff, countChanges, DiffLine } from "@/lib/diff"
+import { computeLineDiff, computePatchDiff, countChanges, DiffLine } from "@/lib/diff"
 import { useDiffStore } from "@/store/diff.store"
 
 export default function DiffPage() {
@@ -17,15 +17,12 @@ export default function DiffPage() {
     const theme = colorScheme ?? "light"
     const { projectId, sessionId } = useLocalSearchParams<{ projectId: string; sessionId: string }>()
     const currentDiff = useDiffStore((s) => s.currentDiff)
-    const clearDiff = useDiffStore((s) => s.clearDiff)
-
-    useEffect(() => {
-        return () => clearDiff()
-    }, [])
 
     const diffLines = useMemo(() => {
         if (!currentDiff) return []
-        return computeLineDiff(currentDiff.oldString, currentDiff.newString)
+        return currentDiff.patch
+            ? computePatchDiff(currentDiff.patch)
+            : computeLineDiff(currentDiff.oldString, currentDiff.newString)
     }, [currentDiff])
 
     const { additions, deletions } = useMemo(() => countChanges(diffLines), [diffLines])
@@ -96,7 +93,8 @@ export default function DiffPage() {
         )
     }
 
-    const fileName = currentDiff.filePath.split("/").pop() ?? currentDiff.filePath
+    const filePath = typeof currentDiff.filePath === "string" ? currentDiff.filePath : "Unknown file"
+    const fileName = filePath.split("/").pop() ?? filePath
 
     return (
         <View className="flex-1 bg-background">
@@ -112,7 +110,7 @@ export default function DiffPage() {
                         {fileName}
                     </Text>
                     <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                        {currentDiff.filePath}
+                        {filePath}
                     </Text>
                 </View>
                 {additions > 0 && (

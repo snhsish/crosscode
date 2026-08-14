@@ -11,6 +11,8 @@ import Constants from "expo-constants"
 import { useSettings } from "@/store/settings.store"
 import { useConnections } from "@/store/connection.store"
 import { useAuth } from "@/store/auth.store"
+import { getAccountNotificationSettings, registerPushDevice, updateAccountNotificationSettings } from "@/lib/account-notifications"
+import { requestNotificationsPermission } from "@/lib/notifications"
 import React from "react"
 
 const SUPPORT_EMAIL = "crosscode@sish.work"
@@ -23,6 +25,7 @@ export default function UserPage() {
 
   const user = useAuth((s) => s.user)
   const sessionToken = useAuth((s) => s.sessionToken)
+  const serverUrl = useAuth((s) => s.serverUrl)
   const logout = useAuth((s) => s.logout)
   const isLoggedIn = useAuth((s) => s.isLoggedIn)
 
@@ -47,6 +50,20 @@ export default function UserPage() {
     return () => subscription.remove()
   }, [clearLastRemoteUrlOnClose, setCurrent])
 
+  React.useEffect(() => {
+    if (!serverUrl || !sessionToken) return
+
+    getAccountNotificationSettings(serverUrl, sessionToken).then((settings) => {
+      if (!settings) return
+      const enabled =
+        settings.agentResponseCompleted ||
+        settings.agentQuestionInterruption ||
+        settings.agentPermissionInterruption ||
+        settings.agentErrorInterruption
+      setNotifications(enabled)
+    })
+  }, [serverUrl, sessionToken, setNotifications])
+
   const handleLogout = () => {
     Alert.alert(
       "Logout",
@@ -66,6 +83,19 @@ export default function UserPage() {
   }
 
   const openLink = (url: string) => Linking.openURL(url)
+
+  const handleNotificationsChange = React.useCallback(async (value: boolean) => {
+    setNotifications(value)
+    if (serverUrl && sessionToken) {
+      await updateAccountNotificationSettings(serverUrl, sessionToken, value)
+    }
+    if (!value) return
+
+    const granted = await requestNotificationsPermission()
+    if (granted && serverUrl && sessionToken) {
+      await registerPushDevice(serverUrl, sessionToken)
+    }
+  }, [serverUrl, sessionToken, setNotifications])
 
   const version = Constants.expoConfig?.version ?? "1.0.0"
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? undefined
@@ -161,7 +191,7 @@ export default function UserPage() {
               </View>
               <Switch
                 value={notifications}
-                onValueChange={setNotifications}
+                onValueChange={handleNotificationsChange}
                 trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
                 thumbColor={THEME[theme].foreground}
               />

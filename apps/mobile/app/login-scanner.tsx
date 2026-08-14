@@ -11,6 +11,8 @@ import { Toggle } from "@/components/ui/toggle"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { useAuth } from "@/store/auth.store"
+import { registerPushDevice } from "@/lib/account-notifications"
+import { useSettings } from "@/store/settings.store"
 
 export default function LoginScannerScreen() {
   const router = useRouter()
@@ -72,8 +74,12 @@ export default function LoginScannerScreen() {
             name: accountData.user.name,
             tier: accountData.user.tier,
           },
-          token
+          token,
+          serverUrl
         )
+        if (useSettings.getState().notifications) {
+          await registerPushDevice(serverUrl, token)
+        }
         Alert.alert("Logged In", "You have been successfully logged in!", [
           { text: "OK", onPress: () => router.replace("/(tabs)/user") },
         ])

@@ -4,6 +4,7 @@ import { useChatStore } from "@/store/chat.store"
 import { useMessages, Message, Part } from "@/store/messages.store"
 import { usePermissions, PermissionRequest } from "@/store/permissions.store"
 import { getAuthHeader } from "@/lib/utils"
+import { notifyAgentStatus } from "@/lib/notifications"
 
 type SSEEvent = {
     type: string
@@ -15,7 +16,7 @@ type MessagePart = Part & {
     messageID?: string
 }
 
-export function useEventStream(url?: string, sessionId?: string, token?: string) {
+export function useEventStream(url?: string, sessionId?: string, token?: string, projectId?: string) {
     const abortRef = useRef<AbortController | null>(null)
 
     useEffect(() => {
@@ -45,6 +46,12 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
 
         let pendingMessages: Message[] | null = null
         let flushScheduled = false
+        let lastCompleted: {
+            messageId: string
+            sessionId: string
+            hasError: boolean
+            errorMessage: string
+        } | null = null
 
         function scheduleFlush() {
             if (flushScheduled) return
@@ -78,6 +85,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
 
                     const existing = getOrCreatePending()
                     const existingIdx = existing.findIndex(m => m.id === info.id)
+                    const previous = existingIdx >= 0 ? existing[existingIdx] : undefined
 
                     if (existingIdx >= 0) {
                         const existingMsg = existing[existingIdx]
@@ -101,6 +109,18 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                         setActiveMessageId(currentSessionId, info.id)
                         if (!info.time?.completed) {
                             setStreaming(currentSessionId, true)
+                        } else {
+                            const errorMessage = info.error
+                                ? "data" in info.error && typeof info.error.data?.message === "string"
+                                    ? info.error.data.message
+                                    : "The agent stopped because it hit an error."
+                                : ""
+                            lastCompleted = {
+                                messageId: info.id,
+                                sessionId: currentSessionId,
+                                hasError: !!info.error,
+                                errorMessage,
+                            }
                         }
                     }
                     break
@@ -189,6 +209,31 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     } else if (status.type === "idle") {
                         setStreaming(currentSessionId, false)
                         setActiveMessageId(currentSessionId, null)
+
+                        if (lastCompleted && lastCompleted.sessionId === currentSessionId) {
+                            const { messageId, sessionId: sid, hasError, errorMessage: errMsg } = lastCompleted
+                            lastCompleted = null
+
+                            if (hasError) {
+                                notifyAgentStatus({
+                                    key: `${sid}:error:${messageId}`,
+                                    kind: "error",
+                                    title: "Agent response failed",
+                                    message: errMsg,
+                                    projectId,
+                                    sessionId: sid,
+                                })
+                            } else {
+                                notifyAgentStatus({
+                                    key: `${sid}:completion:${messageId}`,
+                                    kind: "completion",
+                                    title: "Agent response completed",
+                                    message: "The agent finished responding.",
+                                    projectId,
+                                    sessionId: sid,
+                                })
+                            }
+                        }
                     }
                     break
                 }
@@ -197,6 +242,31 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     if (props.sessionID !== currentSessionId) return
                     setStreaming(currentSessionId, false)
                     setActiveMessageId(currentSessionId, null)
+
+                    if (lastCompleted && lastCompleted.sessionId === currentSessionId) {
+                        const { messageId, sessionId: sid, hasError, errorMessage: errMsg } = lastCompleted
+                        lastCompleted = null
+
+                        if (hasError) {
+                            notifyAgentStatus({
+                                key: `${sid}:error:${messageId}`,
+                                kind: "error",
+                                title: "Agent response failed",
+                                message: errMsg,
+                                projectId,
+                                sessionId: sid,
+                            })
+                        } else {
+                            notifyAgentStatus({
+                                key: `${sid}:completion:${messageId}`,
+                                kind: "completion",
+                                title: "Agent response completed",
+                                message: "The agent finished responding.",
+                                projectId,
+                                sessionId: sid,
+                            })
+                        }
+                    }
                     break
                 }
 
@@ -206,6 +276,14 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
                     const current = usePermissions.getState().permissionsBySession[currentSessionId] ?? []
                     if (!current.some((p) => p.id === perm.id)) {
                         usePermissions.getState().setPermissions(currentSessionId, [...current, perm])
+                        notifyAgentStatus({
+                            key: `${currentSessionId}:permission:${perm.id}`,
+                            kind: "permission",
+                            title: "Agent needs permission",
+                            message: perm.permission || "Review the pending permission request.",
+                            projectId,
+                            sessionId: currentSessionId,
+                        })
                     }
                     break
                 }
@@ -345,5 +423,5 @@ export function useEventStream(url?: string, sessionId?: string, token?: string)
             setStreaming(sid, false)
             setActiveMessageId(sid, null)
         }
-    }, [sessionId, url, token])
+    }, [sessionId, url, token, projectId])
 }

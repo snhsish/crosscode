@@ -12,6 +12,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import * as SplashScreen from "expo-splash-screen"
 
 import { NAV_THEME } from "@/lib/theme"
+import { useNotificationRouting } from "@/lib/notifications"
 
 SplashScreen.preventAutoHideAsync()
 
@@ -19,6 +20,7 @@ export default function RootLayout() {
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "dark"
   const [fontsLoaded] = useFonts({ Manrope: Manrope_400Regular })
+  useNotificationRouting()
 
   React.useEffect(() => {
     if (fontsLoaded) {

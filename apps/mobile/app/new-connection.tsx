@@ -10,6 +10,8 @@ import { Toggle } from "@/components/ui/toggle"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { useAuth } from "@/store/auth.store"
+import { registerPushDevice } from "@/lib/account-notifications"
+import { useSettings } from "@/store/settings.store"
 
 export default function NewConnectionScreen() {
   const router = useRouter()
@@ -92,8 +94,12 @@ export default function NewConnectionScreen() {
             name: accountData.user.name,
             tier: accountData.user.tier,
           },
-          token
+          token,
+          serverUrl
         )
+        if (useSettings.getState().notifications) {
+          await registerPushDevice(serverUrl, token)
+        }
         Alert.alert("Device Linked", "Your phone has been linked to your account!", [
           { text: "OK", onPress: () => router.replace("/(tabs)/user") },
         ])

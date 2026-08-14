@@ -4,6 +4,7 @@ import { generateReqId } from "./ws-handler.js"
 import type { TunnelS2C } from "@crosscode/shared"
 import type { WebSocket } from "ws"
 import { logger } from "./logger.js"
+import { createQuestionPushObserver, createSsePushObserver } from "./push-events.js"
 
 export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   const url = req.url || "/"
@@ -65,8 +66,13 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
       logger.debug("Request body received", { projectId, reqId, bodySize: body.length })
     }
 
-    let headSent = false
-    let responseStatus = 0
+  let headSent = false
+  let responseStatus = 0
+  const pushObserver: { write(data: Buffer): void; end?: () => void } | null = method === "POST" && path === "/mobile-event"
+    ? createSsePushObserver(entry.userId, projectId)
+    : method === "GET" && path === "/question"
+      ? createQuestionPushObserver(entry.userId, projectId)
+    : null
 
     addPendingRequest(projectId, reqId, {
       onHead(status, respHeaders) {
@@ -80,6 +86,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
         res.writeHead(status, safeHeaders)
       },
       onChunk(data) {
+        pushObserver?.write(data)
         if (!headSent) {
           logger.warn("Response chunk before head, sending 200", { projectId, reqId })
           res.writeHead(200, { "Content-Type": "application/octet-stream" })
@@ -89,6 +96,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
         res.write(data)
       },
       onEnd() {
+        pushObserver?.end?.()
         if (!headSent) {
           logger.warn("Response end before head, sending 200", { projectId, reqId })
           res.writeHead(200)

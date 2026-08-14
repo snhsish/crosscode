@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.snehasishkun.crosscode"
+      "bundleIdentifier": "com.snehasishkun.crosscode",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow CrossCode to use speech recognition.",
+        "NSMicrophoneUsageDescription": "Allow CrossCode to use the microphone for voice input.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,6 +27,7 @@
       "package": "com.snehasishkun.crosscode",
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -49,6 +55,13 @@
           "image": "./assets/splash-icon.png",
           "backgroundColor": "#000000",
           "resizeMode": "contain"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#000000",
+          "defaultChannel": "agent-status"
         }
       ],
       [

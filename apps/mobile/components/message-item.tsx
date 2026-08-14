@@ -1,7 +1,8 @@
 import { memo, useState, useRef, useCallback } from "react"
-import { View, Pressable, Modal, Share } from "react-native"
+import { View, Pressable, Modal, Dimensions } from "react-native"
 import { Image } from "expo-image"
-import { TriangleAlertIcon, RotateCcwIcon, CopyIcon, GitBranchIcon } from "lucide-react-native"
+import * as Clipboard from "expo-clipboard"
+import { TriangleAlertIcon, RotateCcwIcon, CopyIcon, PenLineIcon, GitBranchIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Message, Part } from "@/store/messages.store"
 import { THEME } from "@/lib/theme"
@@ -21,6 +22,7 @@ import { revertMessage, forkSession } from "@/lib/sessions"
 import { useConnections } from "@/store/connection.store"
 import { useSessions } from "@/store/sessions.store"
 import { useModels } from "@/store/models.store"
+import { useSelectiveCopy } from "@/store/selective-copy.store"
 
 function extractTodos(result: unknown): TodoItem[] | null {
     if (!result || typeof result !== "object") return null
@@ -365,6 +367,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
     const containerRef = useRef<View>(null)
+    const touchPosRef = useRef({ x: 0, y: 0 })
 
     const connections = useConnections((s) => s.connections)
     const current = useConnections((s) => s.current)
@@ -381,19 +384,36 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const closeMenu = useCallback(() => setShowMenu(false), [])
 
     const handleLongPress = useCallback(() => {
-        containerRef.current?.measure((x, y, width, height, pageX, pageY) => {
-            setMenuPos({ top: pageY + height / 2, left: pageX + width / 2 - 100 })
-            setShowMenu(true)
-        })
+        const { width: screenW, height: screenH } = Dimensions.get("window")
+        const menuW = 224
+        const menuH = 180
+        const { x, y } = touchPosRef.current
+        const left = Math.min(Math.max(8, x - menuW / 2), screenW - menuW - 8)
+        const top = Math.min(Math.max(8, y + 8), screenH - menuH - 8)
+        setMenuPos({ top, left })
+        setShowMenu(true)
     }, [])
 
-    const handleCopy = useCallback(async () => {
+    const handleTouchStart = useCallback((e: { nativeEvent: { pageX: number; pageY: number } }) => {
+        touchPosRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }
+    }, [])
+
+    const handleCopyFull = useCallback(async () => {
         closeMenu()
         const text = getPlainText(message)
         if (text) {
-            await Share.share({ message: text })
+            await Clipboard.setStringAsync(text)
         }
     }, [message, closeMenu])
+
+    const handleSelectiveCopy = useCallback(() => {
+        closeMenu()
+        const text = getPlainText(message)
+        if (text) {
+            useSelectiveCopy.getState().setText(text)
+            router.push(`/project/${projectId}/${sessionId}/selective-copy`)
+        }
+    }, [message, closeMenu, router, projectId, sessionId])
 
     const handleRevert = useCallback(async () => {
         closeMenu()
@@ -420,6 +440,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                 hasError ? "bg-destructive/10 border border-destructive/30" : null,
             )}
             onLongPress={handleLongPress}
+            onTouchStart={handleTouchStart}
         >
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">
@@ -453,7 +474,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
                 <Pressable className="flex-1" onPress={closeMenu}>
                     <View
-                        className="w-48 rounded-xl bg-card border border-border shadow-lg"
+                        className="w-56 rounded-xl bg-card border border-border shadow-lg"
                         style={{ position: "absolute", top: menuPos.top, left: menuPos.left }}
                     >
                         <View className="py-2">
@@ -467,10 +488,18 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 
                             <Pressable
                                 className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                onPress={handleCopy}
+                                onPress={handleCopyFull}
                             >
                                 <CopyIcon size={16} color={THEME[theme].mutedForeground} />
-                                <Text className="text-sm text-foreground">Copy</Text>
+                                <Text className="text-sm text-foreground">Copy full message</Text>
+                            </Pressable>
+
+                            <Pressable
+                                className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
+                                onPress={handleSelectiveCopy}
+                            >
+                                <PenLineIcon size={16} color={THEME[theme].mutedForeground} />
+                                <Text className="text-sm text-foreground">Selective Copy</Text>
                             </Pressable>
 
                             <Pressable

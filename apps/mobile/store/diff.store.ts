@@ -4,6 +4,7 @@ export type DiffData = {
     filePath: string
     oldString: string
     newString: string
+    patch?: string
 }
 
 type DiffStore = {

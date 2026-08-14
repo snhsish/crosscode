@@ -2,7 +2,7 @@ import { Pressable, ScrollView, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bell, CheckCircle2, CircleAlert, CircleHelp, ShieldAlert, Trash2 } from "lucide-react-native"
+import { ArrowLeft, Bell, CheckCheck, CheckCircle2, CircleAlert, CircleHelp, ShieldAlert, Trash2 } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -40,6 +40,7 @@ export default function NotificationsPage() {
   const { colorScheme } = useColorScheme()
   const theme = (colorScheme ?? "dark") as "light" | "dark"
   const notifications = useNotifications((s) => s.notifications)
+  const unreadCount = useNotifications((s) => s.unreadCount)
   const markAsRead = useNotifications((s) => s.markAsRead)
   const markAllAsRead = useNotifications((s) => s.markAllAsRead)
   const removeNotification = useNotifications((s) => s.removeNotification)
@@ -63,10 +64,13 @@ export default function NotificationsPage() {
         <Text className="text-2xl font-semibold tracking-tight flex-1">Notifications</Text>
         {notifications.length > 0 && (
           <>
-            <Button variant="ghost" className="h-10 px-3" onPress={markAllAsRead}>
-              <Text className="text-xs">Read</Text>
-            </Button>
-            <Button variant="ghost" className="w-10 h-10" onPress={clearAll}>
+            {unreadCount > 0 && (
+              <Button variant="ghost" size="sm" className="px-2" onPress={markAllAsRead}>
+                <CheckCheck size={16} color={THEME[theme].mutedForeground} />
+                <Text className="text-xs">Read all</Text>
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onPress={clearAll}>
               <Trash2 size={18} color={THEME[theme].mutedForeground} />
             </Button>
           </>
@@ -93,16 +97,26 @@ export default function NotificationsPage() {
               onPress={() => openNotification(notification)}
               className={cn(
                 "flex-row gap-3 rounded-lg border border-border bg-card p-4 active:bg-accent",
-                !notification.read && "border-primary/40 bg-primary/5"
+                !notification.read && "border-primary/60 border-l-4 bg-primary/5"
               )}
             >
-              <View className="mt-0.5">
+              <View
+                className={cn(
+                  "relative mt-0.5 h-9 w-9 items-center justify-center rounded-lg",
+                  notification.read ? "bg-muted" : "bg-primary/15"
+                )}
+              >
                 <NotificationIcon notification={notification} theme={theme} />
+                {!notification.read && <View className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-primary" />}
               </View>
               <View className="flex-1 gap-1">
                 <View className="flex-row items-start justify-between gap-3">
-                  <Text className="text-sm font-semibold text-foreground flex-1">{notification.title}</Text>
-                  <Text className="text-[11px] text-muted-foreground">{formatTime(notification.timestamp)}</Text>
+                  <Text className={cn("text-sm text-foreground flex-1", notification.read ? "font-semibold" : "font-bold")}>
+                    {notification.title}
+                  </Text>
+                  <Text className={cn("text-[11px]", notification.read ? "text-muted-foreground" : "text-primary font-medium")}>
+                    {formatTime(notification.timestamp)}
+                  </Text>
                 </View>
                 <Text className="text-xs text-muted-foreground leading-4">{notification.message}</Text>
               </View>

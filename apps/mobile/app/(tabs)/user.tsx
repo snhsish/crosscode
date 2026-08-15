@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight } from "lucide-react-native"
+import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight, RotateCcw } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -37,6 +37,7 @@ export default function UserPage() {
   const setNotifications = useSettings((s) => s.setNotifications)
   const emailForUpdates = useSettings((s) => s.emailForUpdates)
   const setEmailForUpdates = useSettings((s) => s.setEmailForUpdates)
+  const resetOnboarding = useSettings((s) => s.resetOnboarding)
 
   const setCurrent = useConnections((s) => s.setCurrent)
 
@@ -98,6 +99,23 @@ export default function UserPage() {
       await registerPushDevice(serverUrl, sessionToken)
     }
   }, [serverUrl, sessionToken, setNotifications])
+
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      "Reset onboarding",
+      "The onboarding guide will open again so you can walk through it from the beginning.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reset",
+          onPress: () => {
+            resetOnboarding()
+            router.replace("/onboarding")
+          },
+        },
+      ]
+    )
+  }
 
   const version = Constants.expoConfig?.version ?? "1.0.0"
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? undefined
@@ -223,6 +241,27 @@ export default function UserPage() {
         <TunnelUsageCard />
 
         <OpencodeStatsCard />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Onboarding</CardTitle>
+            <CardDescription>Review the quick guide to CrossCode features</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Pressable
+              onPress={handleResetOnboarding}
+              className="flex-row items-center justify-between rounded-xl bg-secondary/30 p-3 active:bg-secondary"
+              accessibilityRole="button"
+              accessibilityLabel="Reset onboarding"
+            >
+              <View className="flex-row items-center gap-3">
+                <RotateCcw size={18} color={THEME[theme].primary} />
+                <Text className="text-sm font-medium">Reset onboarding</Text>
+              </View>
+              <ChevronRight size={18} color={THEME[theme].mutedForeground} />
+            </Pressable>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

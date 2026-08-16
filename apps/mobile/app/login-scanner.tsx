@@ -6,7 +6,8 @@ import { decodeDeviceLinkQrPayload, detectQrPayloadType } from "@crosscode/share
 import QrScanner from "@/components/qr-scanner"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
-import { FlashlightIcon, FlashlightOffIcon, ArrowLeft } from "lucide-react-native"
+import { importQrFromGallery } from "@/lib/qr-from-gallery"
+import { FlashlightIcon, FlashlightOffIcon, ArrowLeft, Images } from "lucide-react-native"
 import { Toggle } from "@/components/ui/toggle"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -21,6 +22,7 @@ export default function LoginScannerScreen() {
   const theme = colorScheme ?? "light"
   const [torch, setTorch] = React.useState<boolean>(false)
   const [claiming, setClaiming] = React.useState(false)
+  const [importing, setImporting] = React.useState(false)
   const navigated = React.useRef(false)
   const login = useAuth((s) => s.login)
 
@@ -31,7 +33,7 @@ export default function LoginScannerScreen() {
   )
 
   const handleScan = async (data: string) => {
-    if (navigated.current || claiming) return
+    if (navigated.current || claiming || importing) return
     try {
       const payloadType = detectQrPayloadType(data)
 
@@ -45,6 +47,20 @@ export default function LoginScannerScreen() {
       }
     } catch {
       Alert.alert("Invalid QR", "Please scan a valid login QR code.")
+    }
+  }
+
+  const handleGalleryImport = async () => {
+    if (navigated.current || claiming || importing) return
+
+    setImporting(true)
+    try {
+      const data = await importQrFromGallery()
+      if (data) await handleScan(data)
+    } catch (error) {
+      Alert.alert("Unable to import QR", error instanceof Error ? error.message : "Please select a valid QR code image")
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -134,20 +150,26 @@ export default function LoginScannerScreen() {
       </View>
 
       <View className="flex-1 items-center justify-center px-6">
-        {claiming ? (
+        {claiming || importing ? (
           <View className="items-center gap-4">
             <ActivityIndicator size="large" color={THEME[theme].primary} />
-            <Text className="text-sm text-muted-foreground">Logging in...</Text>
+            <Text className="text-sm text-muted-foreground">
+              {claiming ? "Logging in..." : "Reading QR code..."}
+            </Text>
           </View>
         ) : (
           <QrScanner onScan={handleScan} torch={torch} />
         )}
       </View>
 
-      <View className="items-center py-6">
+      <View className="flex-row items-center justify-center gap-4 py-6">
         <Toggle pressed={torch} onPressedChange={setTorch}>
           {torch ? <FlashlightIcon size={20} color={THEME[theme].foreground} /> : <FlashlightOffIcon size={20} color={THEME[theme].foreground} />}
         </Toggle>
+        <Button variant="outline" onPress={handleGalleryImport} disabled={claiming || importing}>
+          <Images size={18} color={THEME[theme].foreground} />
+          <Text>Import from gallery</Text>
+        </Button>
       </View>
     </View>
   )

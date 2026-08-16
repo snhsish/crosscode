@@ -112,12 +112,15 @@ export default function OnboardingScreen() {
 
           return (
             <View className="flex-1 items-center justify-center px-8" style={{ width }}>
-              <View className={`mb-10 h-40 w-40 items-center justify-center rounded-[40px] ${index === 0 ? "" : item.accent}`}>
+              <View
+                className={`mb-10 items-center justify-center overflow-hidden rounded-[40px] ${index === 0 ? "bg-background" : `h-40 w-40 ${item.accent}`}`}
+                style={index === 0 ? { width: width - 32, height: width - 32 } : undefined}
+              >
                 {index === 0 ? (
                   <Image
-                    source={theme === "dark" ? require("@/assets/branding-dark-mode.png") : require("@/assets/branding-light-mode.png")}
-                    accessibilityLabel="CrossCode"
-                    className="h-24 w-24"
+                    source={theme === "dark" ? require("@/assets/onboarding_1_dark.png") : require("@/assets/onboarding_1_light.png")}
+                    accessibilityLabel="Welcome to CrossCode"
+                    style={{ width: "100%", height: "100%" }}
                     resizeMode="contain"
                   />
                 ) : Icon ? (

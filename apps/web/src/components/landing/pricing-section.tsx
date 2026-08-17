@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X, ArrowRight } from "lucide-react";
+import { Check, ArrowRight } from "lucide-react";
 
 const tiers = [
   {
@@ -13,7 +13,7 @@ const tiers = [
     features: [
       "Cloudflare (ephemeral) tunnel",
       "1 active tunnel",
-      "1 concurrent session",
+      "Normal usage on shared infrastructure",
       "Best-effort uptime",
     ],
     cta: "Get Started",
@@ -22,47 +22,47 @@ const tiers = [
   },
   {
     name: "Starter",
-    price: "$3",
+    price: "$2",
     period: "/mo",
     description: "For individual developers",
     features: [
       "Custom VPS tunnel",
-      "2 active tunnels",
-      "3 concurrent sessions",
-      "99% SLA uptime",
+      "1 active tunnel",
+      "Unlimited fair-use traffic",
+      "Best-effort uptime",
     ],
     cta: "Upgrade",
     ctaHref: "/login",
     highlighted: false,
   },
   {
-    name: "Pro",
-    price: "$8",
+    name: "Builder",
+    price: "$5",
     period: "/mo",
-    description: "For power users and freelancers",
+    description: "For power users and small teams",
     features: [
       "Custom VPS tunnel",
       "5 active tunnels",
-      "10 concurrent sessions",
-      "99.9% SLA uptime",
+      "Unlimited fair-use traffic",
+      "1 custom domain",
     ],
     cta: "Upgrade",
     ctaHref: "/login",
     highlighted: true,
   },
   {
-    name: "Team",
-    price: "$19",
-    period: "/mo",
-    description: "For teams and organizations",
+    name: "Enterprise",
+    price: "Custom",
+    period: "",
+    description: "For teams with tailored requirements",
     features: [
-      "Custom VPS tunnel",
-      "15 active tunnels",
-      "Unlimited sessions",
-      "99.9% SLA uptime",
+      "Custom tunnel limits",
+      "Custom domains",
+      "Dedicated capacity",
+      "Priority support and SLA",
     ],
-    cta: "Upgrade",
-    ctaHref: "/login",
+    cta: "Contact us",
+    ctaHref: "mailto:crosscode@sish.work?subject=CrossCode%20Enterprise",
     highlighted: false,
   },
 ];
@@ -98,7 +98,9 @@ export function PricingSection() {
               </div>
               <div className="mt-2 flex items-baseline gap-1">
                 <span className="text-3xl font-bold">{tier.price}</span>
-                <span className="text-sm text-muted-foreground">{tier.period}</span>
+                {tier.period && (
+                  <span className="text-sm text-muted-foreground">{tier.period}</span>
+                )}
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{tier.description}</p>
             </CardHeader>
@@ -107,7 +109,17 @@ export function PricingSection() {
                 {tier.features.map((feature) => (
                   <li key={feature} className="flex items-start gap-2 text-sm">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <span>{feature}</span>
+                    {feature === "Unlimited fair-use traffic" ? (
+                      <span>
+                        Unlimited{" "}
+                        <Link href="/legal/fair-usage" className="underline underline-offset-4 hover:text-primary">
+                          fair-use
+                        </Link>{" "}
+                        traffic
+                      </span>
+                    ) : (
+                      <span>{feature}</span>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -16,6 +16,12 @@ export const sitemapRoutes: MetadataRoute.Sitemap = [
     priority: 0.8,
   },
   {
+    url: "/legal/fair-usage",
+    lastModified: new Date(),
+    changeFrequency: "yearly",
+    priority: 0.3,
+  },
+  {
     url: "/download",
     lastModified: new Date(),
     changeFrequency: "weekly",

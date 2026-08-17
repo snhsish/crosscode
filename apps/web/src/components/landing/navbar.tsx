@@ -23,6 +23,9 @@ export function Navbar() {
           <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Docs
           </Link>
+          <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Blog
+          </Link>
           <Link href="/docs/cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             CLI
           </Link>

@@ -11,7 +11,7 @@ function Textarea({
   return (
     <TextInput
       className={cn(
-        'text-foreground border-input placeholder:text-muted-foreground dark:bg-input/30 flex min-h-16 w-full flex-row rounded-md border bg-transparent px-3 py-2 text-base shadow-sm shadow-black/5 md:text-sm',
+        'font-sans text-foreground border-input placeholder:text-muted-foreground dark:bg-input/30 flex min-h-16 w-full flex-row rounded-md border bg-transparent px-3 py-2 text-base shadow-sm shadow-black/5 md:text-sm',
         Platform.select({
           web: 'focus-visible:border-ring ...',
         }),

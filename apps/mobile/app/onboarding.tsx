@@ -130,7 +130,7 @@ export default function OnboardingScreen() {
                 )}
               </View>
 
-              <Text variant="h1" className="max-w-sm text-3xl">{item.title}</Text>
+              <Text variant="h1" className="w-full max-w-sm flex-shrink-0 text-3xl font-semibold">{item.title}</Text>
               <Text className="mt-4 max-w-sm text-center text-base leading-6 text-muted-foreground">
                 {item.description}
               </Text>

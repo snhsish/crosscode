@@ -1,3 +1,4 @@
+const plugin = require('tailwindcss/plugin')
 const { hairlineWidth } = require('nativewind/theme')
 
 /** @type {import('tailwindcss').Config} */
@@ -10,6 +11,9 @@ module.exports = {
     './lib/**/*.{ts,tsx}',
   ],
   presets: [require('nativewind/preset')],
+  corePlugins: {
+    fontWeight: false,
+  },
   theme: {
     extend: {
       colors: {
@@ -53,7 +57,7 @@ module.exports = {
         sm: 'calc(var(--radius) - 4px)',
       },
       fontFamily: {
-        sans: ["Manrope"],
+        sans: ["Manrope_400Regular"],
         mono: ["Menlo", "monospace"],
       },
       borderWidth: {
@@ -61,5 +65,20 @@ module.exports = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [
+    require('tailwindcss-animate'),
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        '.font-thin': { fontFamily: 'Manrope_200ExtraLight' },
+        '.font-extralight': { fontFamily: 'Manrope_200ExtraLight' },
+        '.font-light': { fontFamily: 'Manrope_300Light' },
+        '.font-normal': { fontFamily: 'Manrope_400Regular' },
+        '.font-medium': { fontFamily: 'Manrope_500Medium' },
+        '.font-semibold': { fontFamily: 'Manrope_600SemiBold' },
+        '.font-bold': { fontFamily: 'Manrope_700Bold' },
+        '.font-extrabold': { fontFamily: 'Manrope_800ExtraBold' },
+        '.font-black': { fontFamily: 'Manrope_800ExtraBold' },
+      })
+    }),
+  ],
 }

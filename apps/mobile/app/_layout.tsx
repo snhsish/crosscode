@@ -2,8 +2,14 @@ import "../global.css"
 
 import { PortalHost } from "@rn-primitives/portal"
 import { ThemeProvider } from "@react-navigation/native"
-import { useFonts } from "@expo-google-fonts/manrope"
-import { Manrope_400Regular } from "@expo-google-fonts/manrope"
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from "@expo-google-fonts/manrope"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useColorScheme } from "nativewind"
@@ -22,7 +28,13 @@ export default function RootLayout() {
   const segments = useSegments()
   const { colorScheme } = useColorScheme()
   const theme = colorScheme ?? "dark"
-  const [fontsLoaded] = useFonts({ Manrope: Manrope_400Regular })
+  const [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  })
   const hasCompletedOnboarding = useSettings((state) => state.hasCompletedOnboarding)
   const [settingsHydrated, setSettingsHydrated] = React.useState(useSettings.persist.hasHydrated())
   useNotificationRouting()

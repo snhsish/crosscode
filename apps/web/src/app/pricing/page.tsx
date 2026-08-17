@@ -16,14 +16,12 @@ const tiers = [
     features: [
       { label: "Cloudflare (ephemeral) tunnel", included: true },
       { label: "1 active tunnel", included: true },
-      { label: "1 concurrent session", included: true },
+      { label: "Fair-use traffic", included: true },
       { label: "Best-effort uptime", included: true },
       { label: "No custom subdomain", included: false },
-      { label: "15s heartbeat interval", included: true },
-      { label: "60 req/min rate limit", included: true },
-      { label: "No push notifications", included: false },
-      { label: "No priority support", included: false },
-      { label: "No connection history", included: false },
+      { label: "No custom domain", included: false },
+      { label: "No SLA", included: false },
+      { label: "Community support", included: true },
     ],
     cta: "Get Started",
     ctaHref: "/login",
@@ -31,65 +29,61 @@ const tiers = [
   },
   {
     name: "Starter",
-    price: "$3",
+    price: "$2",
     period: "/mo",
     description: "For individual developers",
     features: [
       { label: "Custom VPS tunnel", included: true },
-      { label: "2 active tunnels", included: true },
-      { label: "3 concurrent sessions", included: true },
-      { label: "99% SLA uptime", included: true },
+      { label: "1 active tunnel", included: true },
+      { label: "Unlimited fair-use traffic", included: true, href: "/legal/fair-usage" },
+      { label: "Shared infrastructure", included: true },
       { label: "*.tunnel.crosscode.site subdomain", included: true },
-      { label: "10s heartbeat interval", included: true },
-      { label: "200 req/min rate limit", included: true },
-      { label: "Push notifications", included: true },
-      { label: "Email support", included: true },
-      { label: "7 days connection history", included: true },
+      { label: "Best-effort uptime", included: true },
+      { label: "Community support", included: true },
+      { label: "No custom domain", included: false },
+      { label: "No SLA", included: false },
     ],
     cta: "Upgrade to Starter",
     ctaHref: "/login",
     highlighted: false,
   },
   {
-    name: "Pro",
-    price: "$8",
+    name: "Builder",
+    price: "$5",
     period: "/mo",
-    description: "For power users and freelancers",
+    description: "For power users and small teams",
     features: [
       { label: "Custom VPS tunnel", included: true },
       { label: "5 active tunnels", included: true },
-      { label: "10 concurrent sessions", included: true },
-      { label: "99.9% SLA uptime", included: true },
+      { label: "Unlimited fair-use traffic", included: true, href: "/legal/fair-usage" },
+      { label: "Shared infrastructure", included: true },
       { label: "*.tunnel.crosscode.site subdomain", included: true },
-      { label: "5s heartbeat interval", included: true },
-      { label: "500 req/min rate limit", included: true },
-      { label: "Push notifications", included: true },
-      { label: "Email + Discord support", included: true },
-      { label: "30 days connection history", included: true },
+      { label: "1 custom domain", included: true },
+      { label: "Best-effort uptime", included: true },
+      { label: "Email support", included: true },
+      { label: "No dedicated capacity", included: false },
+      { label: "No SLA", included: false },
     ],
-    cta: "Upgrade to Pro",
+    cta: "Upgrade to Builder",
     ctaHref: "/login",
     highlighted: true,
   },
   {
-    name: "Team",
-    price: "$19",
-    period: "/mo",
-    description: "For teams and organizations",
+    name: "Enterprise",
+    price: "Custom",
+    period: "",
+    description: "For teams with tailored requirements",
     features: [
-      { label: "Custom VPS tunnel", included: true },
-      { label: "15 active tunnels", included: true },
-      { label: "Unlimited concurrent sessions", included: true },
-      { label: "99.9% SLA uptime", included: true },
-      { label: "Own domain support", included: true },
-      { label: "5s heartbeat interval", included: true },
-      { label: "2000 req/min rate limit", included: true },
-      { label: "Push notifications", included: true },
-      { label: "Dedicated support", included: true },
-      { label: "90 days connection history", included: true },
+      { label: "Custom tunnel limits", included: true },
+      { label: "Custom domains", included: true },
+      { label: "Dedicated capacity", included: true },
+      { label: "Priority support", included: true },
+      { label: "Custom SLA", included: true },
+      { label: "Annual invoicing", included: true },
+      { label: "Custom onboarding", included: true },
     ],
-    cta: "Upgrade to Team",
-    ctaHref: "/login",
+    cta: "Contact us",
+    ctaHref: "mailto:crosscode@sish.work?subject=CrossCode%20Enterprise",
     highlighted: false,
   },
 ];
@@ -98,31 +92,32 @@ const comparisonFeatures = [
   {
     category: "Tunnel",
     rows: [
-      { label: "Tunnel type", values: ["Cloudflare (ephemeral)", "Custom VPS tunnel", "Custom VPS tunnel", "Custom VPS tunnel"] },
-      { label: "Active tunnels", values: ["1", "2", "5", "15"] },
-      { label: "Concurrent sessions", values: ["1", "3", "10", "Unlimited"] },
-      { label: "Tunnel uptime", values: ["Best-effort", "99% SLA", "99.9% SLA", "99.9% SLA"] },
+      { label: "Tunnel type", values: ["Cloudflare (ephemeral)", "Custom VPS tunnel", "Custom VPS tunnel", "Custom relay"] },
+      { label: "Active tunnels", values: ["1", "1", "5", "Custom"] },
+      { label: "Traffic", values: ["Fair use", "Unlimited fair use", "Unlimited fair use", "Custom"] },
+      { label: "Tunnel uptime", values: ["Best-effort", "Best-effort", "Best-effort", "Custom SLA"] },
     ],
   },
   {
     category: "Customization",
     rows: [
-      { label: "Custom subdomain", values: ["No", "*.tunnel.crosscode.site", "*.tunnel.crosscode.site", "Own domain support"] },
+      { label: "CrossCode subdomain", values: ["No", "Yes", "Yes", "Yes"] },
+      { label: "Custom domain", values: ["No", "No", "1 domain", "Custom"] },
     ],
   },
   {
-    category: "Performance",
+    category: "Infrastructure",
     rows: [
-      { label: "Heartbeat interval", values: ["15s", "10s", "5s", "5s"] },
-      { label: "Rate limit", values: ["60 req/min", "200 req/min", "500 req/min", "2000 req/min"] },
+      { label: "Infrastructure", values: ["Cloudflare", "Shared", "Shared", "Dedicated or reserved"] },
+      { label: "Priority support", values: ["No", "No", "Email", "Yes"] },
     ],
   },
   {
-    category: "Support & Extras",
+    category: "Billing & Support",
     rows: [
-      { label: "Push notifications", values: ["No", "Yes", "Yes", "Yes"] },
-      { label: "Priority support", values: ["No", "Email", "Email + Discord", "Dedicated"] },
-      { label: "Connection history", values: ["None", "7 days", "30 days", "90 days"] },
+      { label: "Annual invoicing", values: ["No", "No", "No", "Yes"] },
+      { label: "Custom onboarding", values: ["No", "No", "No", "Yes"] },
+      { label: "SLA", values: ["No", "No", "No", "Custom"] },
     ],
   },
 ];
@@ -166,7 +161,9 @@ export default function PricingPage() {
                   </div>
                   <div className="mt-2 flex items-baseline gap-1">
                     <span className="text-3xl font-bold">{tier.price}</span>
-                    <span className="text-sm text-muted-foreground">{tier.period}</span>
+                    {tier.period && (
+                      <span className="text-sm text-muted-foreground">{tier.period}</span>
+                    )}
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{tier.description}</p>
                 </CardHeader>
@@ -179,9 +176,31 @@ export default function PricingPage() {
                         ) : (
                           <X className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         )}
-                        <span className={feature.included ? "text-foreground" : "text-muted-foreground"}>
-                          {feature.label}
-                        </span>
+                        {feature.href ? (
+                          feature.label === "Unlimited fair-use traffic" ? (
+                            <span className={feature.included ? "text-foreground" : "text-muted-foreground"}>
+                              Unlimited{" "}
+                              <Link
+                                href={feature.href}
+                                className="underline underline-offset-4 hover:text-primary"
+                              >
+                                fair-use
+                              </Link>{" "}
+                              traffic
+                            </span>
+                          ) : (
+                            <Link
+                              href={feature.href}
+                              className={`${feature.included ? "text-foreground" : "text-muted-foreground"} underline underline-offset-4 hover:text-primary`}
+                            >
+                              {feature.label}
+                            </Link>
+                          )
+                        ) : (
+                          <span className={feature.included ? "text-foreground" : "text-muted-foreground"}>
+                            {feature.label}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -208,8 +227,8 @@ export default function PricingPage() {
                     <th className="py-3 pr-4 pl-6 text-left font-medium text-muted-foreground">Feature</th>
                     <th className="px-4 py-3 text-left font-medium">Free</th>
                     <th className="px-4 py-3 text-left font-medium">Starter</th>
-                    <th className="px-4 py-3 text-left font-medium">Pro</th>
-                    <th className="py-3 pl-4 pr-6 text-left font-medium">Team</th>
+                    <th className="px-4 py-3 text-left font-medium">Builder</th>
+                    <th className="py-3 pl-4 pr-6 text-left font-medium">Enterprise</th>
                   </tr>
                 </thead>
                 <tbody>

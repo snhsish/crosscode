@@ -136,7 +136,7 @@ export default function SelectiveCopyScreen() {
                 style={{
                     color: t.foreground,
                     textAlignVertical: "top",
-                    fontFamily: "Manrope",
+                    fontFamily: "Manrope_400Regular",
                 }}
                 value={text}
                 onChangeText={handleChangeText}

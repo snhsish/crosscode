@@ -1,7 +1,24 @@
 import { memo, useEffect, useRef, useState } from "react"
 import { type ReactNode, Fragment } from "react"
 import Markdown from "react-native-marked"
+import type { MarkedStyles } from "react-native-marked"
 import { Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
+
+const manropeStyles: MarkedStyles = {
+    text: { fontFamily: "Manrope_400Regular" },
+    em: { fontFamily: "Manrope_400Regular" },
+    strong: { fontFamily: "Manrope_700Bold" },
+    strikethrough: { fontFamily: "Manrope_400Regular" },
+    link: { fontFamily: "Manrope_400Regular" },
+    h1: { fontFamily: "Manrope_700Bold" },
+    h2: { fontFamily: "Manrope_700Bold" },
+    h3: { fontFamily: "Manrope_600SemiBold" },
+    h4: { fontFamily: "Manrope_600SemiBold" },
+    h5: { fontFamily: "Manrope_600SemiBold" },
+    h6: { fontFamily: "Manrope_600SemiBold" },
+    codespan: { fontFamily: "Manrope_400Regular" },
+    li: { fontFamily: "Manrope_400Regular" },
+}
 
 function keyedChildren(children: ReactNode[]): ReactNode {
     if (!Array.isArray(children)) return children
@@ -86,13 +103,14 @@ function MarkdownRendererInner({ children, streaming }: { children: string; stre
     }, [children, streaming])
 
     if (streaming && parsed !== children) {
-        return <Text className="text-sm text-foreground leading-relaxed">{children}</Text>
+        return <Text className="text-sm text-foreground leading-relaxed font-sans">{children}</Text>
     }
 
     return (
         <Markdown
             value={parsed}
             renderer={customRenderer}
+            styles={manropeStyles}
             flatListProps={{
                 scrollEnabled: false,
                 style: {

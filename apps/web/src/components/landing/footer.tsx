@@ -94,6 +94,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/blog" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Blog
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://github.com/snhsish/crosscode"
                   target="_blank"

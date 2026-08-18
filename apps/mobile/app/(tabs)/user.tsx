@@ -3,7 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight, RotateCcw } from "lucide-react-native"
+import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight, RotateCcw, Sparkles } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -19,6 +19,7 @@ import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
 import React from "react"
 
 const SUPPORT_EMAIL = "crosscode@sish.work"
+const WEB_APP_URL = "https://crosscode.site"
 
 export default function UserPage() {
   const insets = useSafeAreaInsets()
@@ -88,6 +89,8 @@ export default function UserPage() {
 
   const openLink = (url: string) => Linking.openURL(url)
 
+  const openPricing = () => openLink(`${serverUrl ?? WEB_APP_URL}/pricing`)
+
   const handleNotificationsChange = React.useCallback(async (value: boolean) => {
     setNotifications(value)
     if (serverUrl && sessionToken) {
@@ -151,10 +154,16 @@ export default function UserPage() {
                 <View className="h-12 w-12 rounded-full bg-primary items-center justify-center">
                   <UserIcon size={24} color={THEME[theme].background} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-base font-medium">{user.email}</Text>
+                <View className="flex-1 min-w-0">
+                  <Text className="text-base font-medium" numberOfLines={1}>{user.email}</Text>
                   <Text className="text-sm text-muted-foreground capitalize">{user.tier} tier</Text>
                 </View>
+                {user.tier === "free" && (
+                  <Button size="sm" onPress={openPricing}>
+                    <Sparkles size={16} color={THEME[theme].background} />
+                    <Text>Upgrade</Text>
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onPress={handleLogout}>
                   <LogOut size={18} color={THEME[theme].mutedForeground} />
                 </Button>

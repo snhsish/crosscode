@@ -1,5 +1,6 @@
 const plugin = require('tailwindcss/plugin')
 const { hairlineWidth } = require('nativewind/theme')
+const { Platform } = require('react-native')
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
@@ -58,7 +59,7 @@ module.exports = {
       },
       fontFamily: {
         sans: ["Manrope_400Regular"],
-        mono: ["Menlo", "monospace"],
+        mono: Platform.select({ ios: ["Menlo"], default: ["monospace"] }),
       },
       borderWidth: {
         hairline: hairlineWidth(),

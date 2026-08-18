@@ -39,6 +39,8 @@
     "jsqr": "^1.4.0",
     "lucide-react-native": "^0.487.0",
     "nativewind": "^4.2.6",
+    "prism-react-renderer": "^2.4.1",
+    "prismjs": "^1.29.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",

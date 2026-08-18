@@ -84,7 +84,7 @@ function getErrorHint(name?: string): string | undefined {
 function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; pendingPermissions?: PermissionRequest[]; onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void; streaming?: boolean }) {
     switch (part.type) {
         case "text":
-            return <MemoMarkdown key={part.id ?? index} streaming={streaming}>{part.text}</MemoMarkdown>
+            return <MemoMarkdown key={part.id ?? index} theme={theme} streaming={streaming}>{part.text}</MemoMarkdown>
         case "reasoning":
             return null
         case "tool-invocation":

@@ -12,6 +12,7 @@ import { useSettings } from "@/store/settings.store"
 import { useConnections } from "@/store/connection.store"
 import { useAuth } from "@/store/auth.store"
 import { getAccountNotificationSettings, registerPushDevice, updateAccountNotificationSettings } from "@/lib/account-notifications"
+import { createBillingCheckout, createBillingPortal } from "@/lib/billing"
 import { requestNotificationsPermission } from "@/lib/notifications"
 import { TunnelUsageCard } from "@/components/TunnelUsageCard"
 import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
@@ -117,6 +118,14 @@ export default function UserPage() {
     )
   }
 
+  const openBilling = async (action: "checkout" | "portal", tier?: "starter" | "builder") => {
+    if (!serverUrl || !sessionToken) return
+    const url = action === "portal"
+      ? await createBillingPortal(serverUrl, sessionToken)
+      : await createBillingCheckout(serverUrl, sessionToken, tier || "starter")
+    if (url) await Linking.openURL(url)
+  }
+
   const version = Constants.expoConfig?.version ?? "1.0.0"
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? undefined
   const versionDisplay = buildNumber ? `${version} (${buildNumber})` : version
@@ -162,6 +171,26 @@ export default function UserPage() {
             )}
           </CardContent>
         </Card>
+
+        {isLoggedIn && user && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Subscription</CardTitle>
+              <CardDescription>Manage your CrossCode plan</CardDescription>
+            </CardHeader>
+            <CardContent className="gap-3">
+              <Text className="text-sm capitalize">Current tier: {user.tier}</Text>
+              {user.tier === "free" ? (
+                <View className="gap-2">
+                  <Button onPress={() => openBilling("checkout", "starter")}><Text>Subscribe to Starter</Text></Button>
+                  <Button variant="outline" onPress={() => openBilling("checkout", "builder")}><Text>Subscribe to Builder</Text></Button>
+                </View>
+              ) : (
+                <Button variant="outline" onPress={() => openBilling("portal")}><Text>Manage billing</Text></Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

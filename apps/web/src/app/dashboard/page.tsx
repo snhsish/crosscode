@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [apiKey, setApiKey] = useState<string | null>(null)
   const [user, setUser] = useState<{ id: string; name: string; email: string; tier?: string } | null>(null)
+  const [subscription, setSubscription] = useState<{ status?: string; renewsAt?: string | null; cancelAtPeriodEnd?: boolean }>({})
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -30,6 +31,8 @@ export default function DashboardPage() {
         return
       }
       setUser(data.user)
+      const billingResponse = await fetch("/api/billing/subscription")
+      if (billingResponse.ok) setSubscription(await billingResponse.json())
       setLoading(false)
     }
     checkAuth()
@@ -58,6 +61,22 @@ export default function DashboardPage() {
   const logout = async () => {
     await authClient.signOut()
     router.push("/login")
+  }
+
+  const openCheckout = async (tier: "starter" | "builder") => {
+    const response = await fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier, cycle: "monthly" }),
+    })
+    const data = await response.json()
+    if (response.ok && data.checkoutUrl) window.location.assign(data.checkoutUrl)
+  }
+
+  const openPortal = async () => {
+    const response = await fetch("/api/billing/portal", { method: "POST" })
+    const data = await response.json()
+    if (response.ok && data.url) window.location.assign(data.url)
   }
 
   const generateLoginQR = async () => {
@@ -183,6 +202,38 @@ export default function DashboardPage() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tier:</span>
               <span className="font-medium capitalize">{user?.tier || "free"}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Subscription</CardTitle>
+            <CardDescription>Manage your CrossCode plan and billing</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Status:</span>
+              <span className="font-medium capitalize">{subscription.status || (user?.tier === "free" ? "free" : "active")}</span>
+            </div>
+            {subscription.renewsAt && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Renews:</span>
+                <span className="font-medium">{new Date(subscription.renewsAt).toLocaleDateString()}</span>
+              </div>
+            )}
+            {subscription.cancelAtPeriodEnd && (
+              <p className="text-sm text-amber-600">Your subscription is scheduled to cancel at the end of this billing period.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {user?.tier === "free" ? (
+                <>
+                  <Button onClick={() => openCheckout("starter")}>Subscribe to Starter</Button>
+                  <Button variant="outline" onClick={() => openCheckout("builder")}>Subscribe to Builder</Button>
+                </>
+              ) : (
+                <Button variant="outline" onClick={openPortal}>Manage billing</Button>
+              )}
             </div>
           </CardContent>
         </Card>

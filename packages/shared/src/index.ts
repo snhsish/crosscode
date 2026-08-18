@@ -27,6 +27,8 @@ export type DeviceLinkQrPayload = {
   v: number
 }
 
+export * from "./plans"
+
 function toBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   let result = ''

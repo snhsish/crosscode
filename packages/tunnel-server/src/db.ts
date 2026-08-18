@@ -15,7 +15,10 @@ export async function validateApiKey(apiKey: string): Promise<{ userId: string; 
   logger.debug("Validating API key", { apiKey: apiKey.substring(0, 8) + "..." })
   try {
     const rows = await sql`
-      SELECT id, email, tier FROM "user" WHERE api_key = ${apiKey} LIMIT 1
+      SELECT id, email,
+        CASE WHEN tier IN ('starter', 'builder', 'enterprise') AND COALESCE(subscription_status, '') != 'active'
+          THEN 'free' ELSE tier END AS tier
+      FROM "user" WHERE api_key = ${apiKey} LIMIT 1
     `
     if (rows.length === 0) {
       logger.warn("API key not found in database", { apiKey: apiKey.substring(0, 8) + "..." })

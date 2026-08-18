@@ -8,8 +8,20 @@ export const user = pgTable("user", {
   image: text("image"),
   tier: text("tier").notNull().default("free"),
   apiKey: text("api_key").unique(),
+  dodoCustomerId: text("dodo_customer_id").unique(),
+  dodoSubscriptionId: text("dodo_subscription_id").unique(),
+  subscriptionStatus: text("subscription_status"),
+  subscriptionProductId: text("subscription_product_id"),
+  subscriptionRenewsAt: timestamp("subscription_renews_at"),
+  subscriptionCancelAtPeriodEnd: boolean("subscription_cancel_at_period_end").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})
+
+export const dodoWebhookEvent = pgTable("dodo_webhook_event", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  processedAt: timestamp("processed_at").notNull().defaultNow(),
 })
 
 export const session = pgTable("session", {

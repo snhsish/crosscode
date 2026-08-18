@@ -54,7 +54,7 @@ export default function LoginPage() {
       if (error) {
         setError(error.message || "Invalid OTP")
       } else {
-        router.push("/dashboard")
+        router.push(new URLSearchParams(window.location.search).get("next") || "/dashboard")
       }
     } catch {
       setError("Failed to verify OTP")

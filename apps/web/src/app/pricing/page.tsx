@@ -1,3 +1,5 @@
+"use client";
+
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 import { Badge } from "@/components/ui/badge";
@@ -5,13 +7,31 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, X } from "lucide-react";
 import Link from "next/link";
-import React from "react";
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { paidPlans, type BillingCurrency, type BillingCycle, type PaidTier } from "@crosscode/shared";
+
+function detectCurrency(): BillingCurrency {
+  if (typeof window === "undefined") return "usd";
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  return timezone.includes("Kolkata") || timezone.includes("Calcutta") ? "inr" : "usd";
+}
+
+const subscribeCurrency = () => () => {};
+
+function useDetectedCurrency(): BillingCurrency {
+  return useSyncExternalStore(
+    subscribeCurrency,
+    detectCurrency,
+    () => "usd" as BillingCurrency
+  );
+}
 
 const tiers = [
   {
     name: "Free",
-    price: "$0",
-    period: "/mo",
+    tier: null,
     description: "For trying out CrossCode",
     features: [
       { label: "Cloudflare (ephemeral) tunnel", included: true },
@@ -29,8 +49,7 @@ const tiers = [
   },
   {
     name: "Starter",
-    price: "$2",
-    period: "/mo",
+    tier: "starter" as PaidTier,
     description: "For individual developers",
     features: [
       { label: "Custom VPS tunnel", included: true },
@@ -49,8 +68,7 @@ const tiers = [
   },
   {
     name: "Builder",
-    price: "$5",
-    period: "/mo",
+    tier: "builder" as PaidTier,
     description: "For power users and small teams",
     features: [
       { label: "Custom VPS tunnel", included: true },
@@ -70,8 +88,7 @@ const tiers = [
   },
   {
     name: "Enterprise",
-    price: "Custom",
-    period: "",
+    tier: null,
     description: "For teams with tailored requirements",
     features: [
       { label: "Custom tunnel limits", included: true },
@@ -87,6 +104,11 @@ const tiers = [
     highlighted: false,
   },
 ];
+
+function discountPercent(tier: PaidTier, currency: "usd" | "inr") {
+  const plan = paidPlans[tier];
+  return Math.round((1 - plan.yearly[currency] / (plan.monthly[currency] * 12)) * 100);
+}
 
 const comparisonFeatures = [
   {
@@ -122,12 +144,48 @@ const comparisonFeatures = [
   },
 ];
 
-export const metadata = {
-  title: "Pricing - CrossCode",
-  description: "Simple, transparent pricing for CrossCode. Choose the plan that fits your needs.",
-};
-
 export default function PricingPage() {
+  const router = useRouter();
+  const [cycle, setCycle] = useState<BillingCycle>("monthly");
+  const [currency, setCurrency] = useState<BillingCurrency | null>(null);
+  const detectedCurrency = useDetectedCurrency();
+  const effectiveCurrency = currency ?? detectedCurrency;
+  const [checkoutTier, setCheckoutTier] = useState<PaidTier | null>(null);
+
+  const startCheckout = useCallback(async (tier: PaidTier, selectedCycle: BillingCycle = cycle, selectedCurrency: BillingCurrency = effectiveCurrency) => {
+    setCheckoutTier(tier);
+    try {
+      const { data } = await authClient.getSession();
+      if (!data?.session) {
+        router.push(`/login?next=${encodeURIComponent(`/pricing?plan=${tier}&cycle=${selectedCycle}&currency=${selectedCurrency}`)}`);
+        return;
+      }
+      const response = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier, cycle: selectedCycle, currency: selectedCurrency }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.checkoutUrl) throw new Error(result.error || "Checkout failed");
+      window.location.assign(result.checkoutUrl);
+    } catch (error) {
+      console.error("Unable to start checkout", error);
+      setCheckoutTier(null);
+    }
+  }, [cycle, effectiveCurrency, router]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const requestedTier = params.get("plan");
+    const requestedCycle = params.get("cycle");
+    const requestedCurrency = params.get("currency");
+    if ((requestedTier === "starter" || requestedTier === "builder") && (requestedCycle === "monthly" || requestedCycle === "yearly")) {
+      authClient.getSession().then(({ data }) => {
+        if (data?.session) startCheckout(requestedTier, requestedCycle, requestedCurrency === "inr" ? "inr" : "usd");
+      });
+    }
+  }, [startCheckout]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
@@ -142,7 +200,37 @@ export default function PricingPage() {
             </p>
           </div>
 
-          <div className="mx-auto mt-12 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto mt-10 flex flex-wrap justify-center gap-3">
+            <div className="inline-flex rounded-lg border bg-muted p-1" role="group" aria-label="Billing cycle">
+              {(["monthly", "yearly"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setCycle(option)}
+                  aria-pressed={cycle === option}
+                  className={`cursor-pointer rounded-md px-4 py-2 text-sm font-medium transition-colors ${cycle === option ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {option === "monthly" ? "Monthly" : "Yearly"}
+                  {option === "yearly" && <span className="ml-2 text-xs text-primary">Save ~17%</span>}
+                </button>
+              ))}
+            </div>
+            <div className="inline-flex rounded-lg border bg-muted p-1" role="group" aria-label="Currency">
+              {(["usd", "inr"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setCurrency(option)}
+                  aria-pressed={effectiveCurrency === option}
+                  className={`cursor-pointer rounded-md px-4 py-2 text-sm font-medium transition-colors ${effectiveCurrency === option ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {option === "usd" ? "USD" : "INR"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mx-auto mt-8 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {tiers.map((tier) => (
               <Card
                 key={tier.name}
@@ -160,11 +248,27 @@ export default function PricingPage() {
                     )}
                   </div>
                   <div className="mt-2 flex items-baseline gap-1">
-                    <span className="text-3xl font-bold">{tier.price}</span>
-                    {tier.period && (
-                      <span className="text-sm text-muted-foreground">{tier.period}</span>
-                    )}
+                    <span className="text-3xl font-bold">
+                      {tier.tier
+                        ? `${effectiveCurrency === "inr" ? "₹" : "$"}${paidPlans[tier.tier][cycle][effectiveCurrency]}`
+                        : tier.name === "Free"
+                          ? effectiveCurrency === "inr" ? "₹0" : "$0"
+                          : "Custom"}
+                    </span>
+                    {tier.name !== "Enterprise" && <span className="text-sm text-muted-foreground">/{cycle === "monthly" ? "mo" : "yr"}</span>}
                   </div>
+                  {tier.tier && (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        {effectiveCurrency === "inr" ? `≈ $${paidPlans[tier.tier][cycle].usd}/yr` : `India: ₹${paidPlans[tier.tier][cycle].inr}/${cycle === "monthly" ? "mo" : "yr"}`}
+                      </p>
+                      {cycle === "yearly" && (
+                        <p className="mt-1 text-xs font-medium text-primary">
+                          Save {discountPercent(tier.tier, effectiveCurrency)}% versus monthly
+                        </p>
+                      )}
+                    </>
+                  )}
                   <p className="mt-1 text-sm text-muted-foreground">{tier.description}</p>
                 </CardHeader>
                 <CardContent className="flex-1">
@@ -176,7 +280,7 @@ export default function PricingPage() {
                         ) : (
                           <X className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                         )}
-                        {feature.href ? (
+                        {"href" in feature && feature.href ? (
                           feature.label === "Unlimited fair-use traffic" ? (
                             <span className={feature.included ? "text-foreground" : "text-muted-foreground"}>
                               Unlimited{" "}
@@ -209,9 +313,11 @@ export default function PricingPage() {
                   <Button
                     className="w-full"
                     variant={tier.highlighted ? "default" : "outline"}
-                    asChild
+                    disabled={Boolean(tier.tier && checkoutTier)}
+                    asChild={!tier.tier}
+                    onClick={tier.tier ? () => startCheckout(tier.tier!) : undefined}
                   >
-                    <Link href={tier.ctaHref}>{tier.cta}</Link>
+                    {tier.tier ? (checkoutTier === tier.tier ? "Opening checkout..." : tier.cta) : <Link href={tier.ctaHref}>{tier.cta}</Link>}
                   </Button>
                 </CardFooter>
               </Card>

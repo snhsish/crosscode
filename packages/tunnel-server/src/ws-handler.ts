@@ -2,6 +2,7 @@ import { WebSocket } from "ws"
 import { validateApiKey } from "./db.js"
 import { register, deregister, get, removePendingRequest, countByUserId } from "./registry.js"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
+import { tierTunnelLimits } from "@crosscode/shared"
 import crypto from "crypto"
 import { logger } from "./logger.js"
 
@@ -138,10 +139,11 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         return
       }
 
-      const activeTunnels = countByUserId(result.userId)
-      if (result.tier === "free" && activeTunnels >= 1) {
-        logger.warn("Auth failed: free tier tunnel limit reached", { projectId: projId, userId: result.userId, activeTunnels })
-        send(ws, { type: "auth.fail", reason: "Free plan allows only 1 active custom tunnel. Upgrade for more." })
+       const activeTunnels = countByUserId(result.userId)
+       const tunnelLimit = tierTunnelLimits[result.tier] ?? tierTunnelLimits.free
+       if (activeTunnels >= tunnelLimit) {
+         logger.warn("Auth failed: tunnel limit reached", { projectId: projId, userId: result.userId, tier: result.tier, activeTunnels, tunnelLimit })
+         send(ws, { type: "auth.fail", reason: `${result.tier} plan allows ${tunnelLimit} active tunnel${tunnelLimit === 1 ? "" : "s"}. Upgrade for more.` })
         ws.close(4003, "Tunnel limit reached")
         return
       }

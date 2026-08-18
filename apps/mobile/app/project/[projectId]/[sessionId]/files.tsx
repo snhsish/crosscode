@@ -9,7 +9,24 @@ import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { useDiffStore } from "@/store/diff.store"
 import { fetchSessionDiffs, FileDiff } from "@/lib/diff"
+import { getMessages } from "@/lib/messages"
+import { Message, Part } from "@/store/messages.store"
 import { useConnections } from "@/store/connection.store"
+
+function toFileDiff(value: unknown): FileDiff | null {
+    if (!value || typeof value !== "object") return null
+    const diff = value as Record<string, unknown>
+    const file = typeof diff.file === "string" ? diff.file : undefined
+    if (!file) return null
+    return {
+        file,
+        patch: typeof diff.patch === "string" ? diff.patch : "",
+        before: typeof diff.before === "string" ? diff.before : "",
+        after: typeof diff.after === "string" ? diff.after : "",
+        additions: typeof diff.additions === "number" ? diff.additions : 0,
+        deletions: typeof diff.deletions === "number" ? diff.deletions : 0,
+    }
+}
 
 export default function FilesPage() {
     const insets = useSafeAreaInsets()
@@ -28,8 +45,36 @@ export default function FilesPage() {
 
     const loadDiffs = useCallback(async () => {
         if (!connection?.url || !connection?.token || !sessionId) return
-        const data = await fetchSessionDiffs(connection.url, connection.token, sessionId)
-        setFiles(data)
+
+        const byFile = new Map<string, FileDiff>()
+        let lastUserMessageId: string | undefined
+
+        try {
+            const raw = await getMessages(connection.url, connection.token, sessionId, 100)
+            if (raw && raw.length > 0) {
+                const data =
+                    "info" in raw[0]
+                        ? (raw as unknown as Array<{ info: Message; parts: Part[] }>).map((m) => ({ ...m.info, parts: m.parts }))
+                        : raw
+
+                for (const message of data) {
+                    if (message.role !== "user") continue
+                    lastUserMessageId = message.id
+                    const diffs = (message as { summary?: { diffs?: unknown[] } }).summary?.diffs
+                    for (const diff of diffs ?? []) {
+                        const normalized = toFileDiff(diff)
+                        if (normalized) byFile.set(normalized.file, normalized)
+                    }
+                }
+            }
+        } catch {}
+
+        if (byFile.size === 0 && lastUserMessageId) {
+            const fallback = await fetchSessionDiffs(connection.url, connection.token, sessionId, lastUserMessageId)
+            for (const diff of fallback) byFile.set(diff.file, diff)
+        }
+
+        setFiles(Array.from(byFile.values()))
         setLoading(false)
     }, [connection?.url, connection?.token, sessionId])
 

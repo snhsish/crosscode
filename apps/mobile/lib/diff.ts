@@ -29,9 +29,10 @@ function normalizeFileDiff(value: unknown): FileDiff | null {
     }
 }
 
-export async function fetchSessionDiffs(url: string, token: string, sessionId: string): Promise<FileDiff[]> {
+export async function fetchSessionDiffs(url: string, token: string, sessionId: string, messageID?: string): Promise<FileDiff[]> {
     try {
-        const res = await fetch(`${url}/session/${sessionId}/diff`, {
+        const query = messageID ? `?messageID=${encodeURIComponent(messageID)}` : ""
+        const res = await fetch(`${url}/session/${sessionId}/diff${query}`, {
             method: "GET",
             headers: {
                 "Authorization": getAuthHeader(token),

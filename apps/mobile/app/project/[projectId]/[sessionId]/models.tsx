@@ -92,6 +92,7 @@ export default function ModelsPage() {
                 (m) =>
                     (m.name ?? "").toLowerCase().includes(q) ||
                     (m.providerID ?? "").toLowerCase().includes(q) ||
+                    (providerMap[m.providerID] ?? "").toLowerCase().includes(q) ||
                     (m.family ?? "").toLowerCase().includes(q) ||
                     (m.id ?? "").toLowerCase().includes(q)
             )
@@ -113,7 +114,7 @@ export default function ModelsPage() {
         })
 
         return list
-    }, [models, search, sort, statusFilter])
+    }, [models, search, sort, statusFilter, providerMap])
 
     const setModel = useChatStore((s) => s.setModel)
     const setModelByAgent = useChatStore((s) => s.setModelByAgent)

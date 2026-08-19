@@ -1,8 +1,11 @@
-import { memo, useEffect, useRef, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { type ReactNode, Fragment } from "react"
 import Markdown from "react-native-marked"
 import type { MarkedStyles } from "react-native-marked"
-import { Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
+import { Platform, Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
+import { CodeBlock } from "@/components/code-block"
+
+const monoFont = Platform.select({ ios: "Menlo", default: "monospace" })
 
 const manropeStyles: MarkedStyles = {
     text: { fontFamily: "Manrope_400Regular" },
@@ -10,13 +13,13 @@ const manropeStyles: MarkedStyles = {
     strong: { fontFamily: "Manrope_700Bold" },
     strikethrough: { fontFamily: "Manrope_400Regular" },
     link: { fontFamily: "Manrope_400Regular" },
-    h1: { fontFamily: "Manrope_700Bold" },
-    h2: { fontFamily: "Manrope_700Bold" },
-    h3: { fontFamily: "Manrope_600SemiBold" },
-    h4: { fontFamily: "Manrope_600SemiBold" },
-    h5: { fontFamily: "Manrope_600SemiBold" },
-    h6: { fontFamily: "Manrope_600SemiBold" },
-    codespan: { fontFamily: "Manrope_400Regular" },
+    h1: { fontFamily: "Manrope_700Bold", fontSize: 20, lineHeight: 28, fontWeight: "700" },
+    h2: { fontFamily: "Manrope_700Bold", fontSize: 18, lineHeight: 25, fontWeight: "700" },
+    h3: { fontFamily: "Manrope_600SemiBold", fontSize: 17, lineHeight: 24, fontWeight: "600" },
+    h4: { fontFamily: "Manrope_600SemiBold", fontSize: 16, lineHeight: 23, fontWeight: "600" },
+    h5: { fontFamily: "Manrope_600SemiBold", fontSize: 15, lineHeight: 21, fontWeight: "600" },
+    h6: { fontFamily: "Manrope_600SemiBold", fontSize: 14, lineHeight: 20, fontWeight: "600" },
+    codespan: { fontFamily: monoFont },
     li: { fontFamily: "Manrope_400Regular" },
 }
 
@@ -25,7 +28,7 @@ function keyedChildren(children: ReactNode[]): ReactNode {
     return children.map((child, i) => <Fragment key={i}>{child}</Fragment>)
 }
 
-const customRenderer = {
+const createCustomRenderer = (theme: "light" | "dark") => ({
     paragraph(children: ReactNode[], styles?: ViewStyle) {
         return <Text selectable={false} style={styles}>{keyedChildren(children)}</Text>
     },
@@ -36,7 +39,7 @@ const customRenderer = {
         return <Text selectable={false} style={styles}>{Array.isArray(text) ? keyedChildren(text) : text}</Text>
     },
     code(text: string, language?: string, containerStyle?: ViewStyle, textStyle?: TextStyle) {
-        return <View style={containerStyle}><Text selectable={false} style={textStyle}>{text}</Text></View>
+        return <CodeBlock text={text} language={language} theme={theme} />
     },
     hr(styles?: ViewStyle) {
         return <View style={styles} />
@@ -83,11 +86,12 @@ const customRenderer = {
     table(header: ReactNode[][], rows: ReactNode[][][], tableStyle?: ViewStyle, rowStyle?: ViewStyle, cellStyle?: ViewStyle) {
         return <View style={tableStyle}><Text selectable={false}>Table</Text></View>
     },
-}
+})
 
-function MarkdownRendererInner({ children, streaming }: { children: string; streaming?: boolean }) {
+function MarkdownRendererInner({ children, streaming, theme }: { children: string; streaming?: boolean; theme: "light" | "dark" }) {
     const [parsed, setParsed] = useState(children)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const customRenderer = useMemo(() => createCustomRenderer(theme), [theme])
 
     useEffect(() => {
         if (streaming) {
@@ -121,6 +125,6 @@ function MarkdownRendererInner({ children, streaming }: { children: string; stre
     )
 }
 
-const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children && prev.streaming === next.streaming)
+const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children && prev.streaming === next.streaming && prev.theme === next.theme)
 
 export default MemoMarkdown

@@ -1,6 +1,8 @@
 const plugin = require('tailwindcss/plugin')
 const { hairlineWidth } = require('nativewind/theme')
 
+const nativewindOs = process.env.NATIVEWIND_OS
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -58,7 +60,7 @@ module.exports = {
       },
       fontFamily: {
         sans: ["Manrope_400Regular"],
-        mono: ["Menlo", "monospace"],
+        mono: nativewindOs === 'ios' ? ['Menlo'] : ['monospace'],
       },
       borderWidth: {
         hairline: hairlineWidth(),

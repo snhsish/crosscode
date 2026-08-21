@@ -1,9 +1,22 @@
-import { View, ScrollView, Switch, AppState, Linking, Alert, TouchableOpacity, Pressable } from "react-native"
+import { View, ScrollView, Switch, AppState, Linking, Alert } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ExternalLink, Moon, Sun, LogOut, User as UserIcon, Bell, Mail, ArrowLeft, Zap, ChevronRight, RotateCcw, Sparkles } from "lucide-react-native"
+import {
+  ArrowLeft,
+  Bell,
+  CreditCard,
+  ExternalLink,
+  Info,
+  LogOut,
+  Mail,
+  Moon,
+  RotateCcw,
+  Sparkles,
+  Sun,
+  User as UserIcon,
+  Zap,
+} from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
@@ -16,10 +29,21 @@ import { createBillingCheckout, createBillingPortal } from "@/lib/billing"
 import { requestNotificationsPermission } from "@/lib/notifications"
 import { TunnelUsageCard } from "@/components/TunnelUsageCard"
 import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
+import {
+  SettingsDivider,
+  SettingsIcon,
+  SettingsLinkRow,
+  SettingsRow,
+  SettingsSection,
+  SettingsSectionLabel,
+} from "@/components/settings"
 import React from "react"
 
 const SUPPORT_EMAIL = "crosscode@sish.work"
 const WEB_APP_URL = "https://crosscode.site"
+const PRIVACY_URL = "https://crosscode.sish.works/privacy"
+const TERMS_URL = "https://crosscode.sish.works/terms"
+const SUPPORT_URL = "https://crosscode.sish.works/support"
 
 export default function UserPage() {
   const insets = useSafeAreaInsets()
@@ -133,6 +157,15 @@ export default function UserPage() {
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? undefined
   const versionDisplay = buildNumber ? `${version} (${buildNumber})` : version
 
+  const switchControl = (value: boolean, onChange: (v: boolean) => void) => (
+    <Switch
+      value={value}
+      onValueChange={onChange}
+      trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
+      thumbColor={THEME[theme].foreground}
+    />
+  )
+
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="p-4 flex-row items-center gap-2">
@@ -142,235 +175,171 @@ export default function UserPage() {
         <Text className="text-2xl font-semibold tracking-tight">Account</Text>
       </View>
 
-      <ScrollView className="flex-1 px-6" contentContainerStyle={{ gap: 16, paddingBottom: 32 }}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-            <CardDescription>Your CrossCode account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoggedIn && user ? (
-              <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 rounded-full bg-primary items-center justify-center">
-                  <UserIcon size={24} color={THEME[theme].background} />
+      <ScrollView className="flex-1" contentContainerStyle={{ gap: 20, paddingHorizontal: 16, paddingBottom: 48 }}>
+        {/* Account */}
+        <SettingsSection title="Account">
+          {isLoggedIn && user ? (
+            <>
+              <View className="flex-row items-center gap-3 px-4 py-3">
+                <View className="h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary">
+                  <UserIcon size={22} color={THEME[theme].background} />
                 </View>
                 <View className="flex-1 min-w-0">
                   <Text className="text-base font-medium" numberOfLines={1}>{user.email}</Text>
-                  <Text className="text-sm text-muted-foreground capitalize">{user.tier} tier</Text>
+                  <Text className="text-sm capitalize text-muted-foreground">{user.tier} tier</Text>
                 </View>
-                {user.tier === "free" && (
-                  <Button size="sm" onPress={openPricing}>
-                    <Sparkles size={16} color={THEME[theme].background} />
-                    <Text>Upgrade</Text>
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" onPress={handleLogout}>
-                  <LogOut size={18} color={THEME[theme].mutedForeground} />
-                </Button>
               </View>
-            ) : (
-              <View className="items-center py-4 gap-3">
-                <Text className="text-sm text-muted-foreground text-center">
-                  Scan a QR code from the terminal to login
-                </Text>
-                <Button onPress={() => router.push("/new-connection?mode=login")}>
-                  <Text>Scan QR to Login</Text>
-                </Button>
-              </View>
-            )}
-          </CardContent>
-        </Card>
 
-        {isLoggedIn && user && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Subscription</CardTitle>
-              <CardDescription>Manage your CrossCode plan</CardDescription>
-            </CardHeader>
-            <CardContent className="gap-3">
-              <Text className="text-sm capitalize">Current tier: {user.tier}</Text>
               {user.tier === "free" ? (
-                <View className="gap-2">
-                  <Button onPress={() => openBilling("checkout", "starter")}><Text>Subscribe to Starter</Text></Button>
-                  <Button variant="outline" onPress={() => openBilling("checkout", "builder")}><Text>Subscribe to Builder</Text></Button>
-                </View>
+                <>
+                  <SettingsDivider />
+                  <SettingsLinkRow
+                    icon={<Sparkles size={18} color={THEME[theme].primary} />}
+                    title="See plans & pricing"
+                    description="Compare Starter and Builder tiers"
+                    onPress={openPricing}
+                  />
+                  <SettingsDivider />
+                  <SettingsLinkRow
+                    icon={<CreditCard size={18} color={THEME[theme].primary} />}
+                    title="Subscribe to Starter"
+                    onPress={() => openBilling("checkout", "starter")}
+                  />
+                  <SettingsDivider />
+                  <SettingsLinkRow
+                    icon={<CreditCard size={18} color={THEME[theme].primary} />}
+                    title="Subscribe to Builder"
+                    onPress={() => openBilling("checkout", "builder")}
+                  />
+                </>
               ) : (
-                <Button variant="outline" onPress={() => openBilling("portal")}><Text>Manage billing</Text></Button>
+                <>
+                  <SettingsDivider />
+                  <SettingsLinkRow
+                    icon={<CreditCard size={18} color={THEME[theme].primary} />}
+                    title="Manage billing"
+                    description={`Manage your ${user.tier} plan and invoices`}
+                    onPress={() => openBilling("portal")}
+                  />
+                </>
               )}
-            </CardContent>
-          </Card>
-        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Customize the app look and feel</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <View className="flex-row items-center justify-between py-2">
-              <View className="flex-1 mr-4">
-                <View className="flex-row items-center gap-2">
-                  {colorScheme === "dark" ? (
-                    <Moon size={18} color={THEME[theme].foreground} />
-                  ) : (
-                    <Sun size={18} color={THEME[theme].foreground} />
-                  )}
-                  <Text className="text-sm">Dark mode</Text>
-                </View>
-                <Text className="text-xs text-muted-foreground mt-1">
-                  Toggle between light and dark color themes
-                </Text>
-              </View>
-              <Switch
-                value={colorScheme === "dark"}
-                onValueChange={toggleColorScheme}
-                trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
-                thumbColor={THEME[theme].foreground}
+              <SettingsDivider />
+              <SettingsLinkRow
+                icon={<LogOut size={18} color={THEME[theme].destructive} />}
+                title="Log out"
+                destructive
+                onPress={handleLogout}
               />
-            </View>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>Manage app notification preferences</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <View className="flex-row items-center justify-between py-2">
-              <View className="flex-1 mr-4">
-                <View className="flex-row items-center gap-2">
-                  <Bell size={18} color={THEME[theme].foreground} />
-                  <Text className="text-sm">Enable notifications</Text>
-                </View>
-                <Text className="text-xs text-muted-foreground mt-1">
-                  Receive alerts for connection status and session activity
-                </Text>
-              </View>
-              <Switch
-                value={notifications}
-                onValueChange={handleNotificationsChange}
-                trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
-                thumbColor={THEME[theme].foreground}
-              />
-            </View>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Prompts</CardTitle>
-            <CardDescription>Manage your saved quick prompts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Pressable
-              onPress={() => router.push("/quick-prompts")}
-              className="flex-row items-center justify-between p-3 rounded-xl bg-secondary/30 active:bg-secondary"
-            >
-              <View className="flex-row items-center gap-3">
-                <Zap size={18} color={THEME[theme].primary} />
-                <Text className="text-sm font-medium">Manage Quick Prompts</Text>
-              </View>
-              <ChevronRight size={18} color={THEME[theme].mutedForeground} />
-            </Pressable>
-          </CardContent>
-        </Card>
-
-        <TunnelUsageCard />
-
-        <OpencodeStatsCard />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Onboarding</CardTitle>
-            <CardDescription>Review the quick guide to CrossCode features</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Pressable
-              onPress={handleResetOnboarding}
-              className="flex-row items-center justify-between rounded-xl bg-secondary/30 p-3 active:bg-secondary"
-              accessibilityRole="button"
-              accessibilityLabel="Reset onboarding"
-            >
-              <View className="flex-row items-center gap-3">
-                <RotateCcw size={18} color={THEME[theme].primary} />
-                <Text className="text-sm font-medium">Reset onboarding</Text>
-              </View>
-              <ChevronRight size={18} color={THEME[theme].mutedForeground} />
-            </Pressable>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Updates</CardTitle>
-            <CardDescription>Stay informed about new features and improvements</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <View className="flex-row items-center justify-between py-2">
-              <View className="flex-1 mr-4">
-                <View className="flex-row items-center gap-2">
-                  <Mail size={18} color={THEME[theme].foreground} />
-                  <Text className="text-sm">Receive product updates</Text>
-                </View>
-                <Text className="text-xs text-muted-foreground mt-1">
-                  {isLoggedIn && user?.email ? `Updates sent to ${user.email}` : "Login to receive updates"}
-                </Text>
-              </View>
-              <Switch
-                value={emailForUpdates === (user?.email ?? "")}
-                onValueChange={(value) => setEmailForUpdates(value ? (user?.email ?? "") : "")}
-                trackColor={{ false: THEME[theme].border, true: THEME[theme].primary }}
-                thumbColor={THEME[theme].foreground}
-              />
-            </View>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>About</CardTitle>
-          </CardHeader>
-          <CardContent className="gap-3">
-            <View>
-              <Text className="text-sm text-muted-foreground">Version</Text>
-              <Text className="text-base">{versionDisplay}</Text>
-            </View>
-
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm">Privacy Policy</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/privacy")}>
-                <ExternalLink size={16} color={THEME[theme].mutedForeground} />
+            </>
+          ) : (
+            <View className="items-center gap-3 px-6 py-6">
+              <SettingsIcon>
+                <UserIcon size={18} color={THEME[theme].primary} />
+              </SettingsIcon>
+              <Text className="text-sm text-muted-foreground text-center">
+                Scan a QR code from the terminal to login
+              </Text>
+              <Button onPress={() => router.push("/new-connection?mode=login")}>
+                <Text>Scan QR to Login</Text>
               </Button>
             </View>
+          )}
+        </SettingsSection>
 
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm">Terms of Use</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/terms")}>
-                <ExternalLink size={16} color={THEME[theme].mutedForeground} />
-              </Button>
-            </View>
+        {/* Preferences */}
+        <SettingsSection title="Preferences">
+          <SettingsRow
+            icon={
+              colorScheme === "dark"
+                ? <Moon size={18} color={THEME[theme].primary} />
+                : <Sun size={18} color={THEME[theme].primary} />
+            }
+            title="Dark mode"
+            description="Toggle between light and dark themes"
+            control={switchControl(colorScheme === "dark", toggleColorScheme)}
+          />
+          <SettingsDivider />
+          <SettingsRow
+            icon={<Bell size={18} color={THEME[theme].primary} />}
+            title="Push notifications"
+            description="Alerts for connection status and agent activity"
+            control={switchControl(notifications, handleNotificationsChange)}
+          />
+          <SettingsDivider />
+          <SettingsRow
+            icon={<Mail size={18} color={THEME[theme].primary} />}
+            title="Product updates"
+            description={isLoggedIn && user?.email ? `Email updates to ${user.email}` : "Login to receive email updates"}
+            control={switchControl(
+              emailForUpdates === (user?.email ?? ""),
+              (value) => setEmailForUpdates(value ? (user?.email ?? "") : "")
+            )}
+          />
+        </SettingsSection>
 
-            <View className="flex-row items-center justify-between">
-              <Text className="text-sm">Support</Text>
-              <Button variant="ghost" size="sm" onPress={() => openLink("https://crosscode.sish.works/support")}>
-                <ExternalLink size={16} color={THEME[theme].mutedForeground} />
-              </Button>
-            </View>
-          </CardContent>
-        </Card>
+        {/* Workspace */}
+        <SettingsSection title="Workspace">
+          <SettingsLinkRow
+            icon={<Zap size={18} color={THEME[theme].primary} />}
+            title="Quick prompts"
+            description="Manage your saved quick prompts"
+            onPress={() => router.push("/quick-prompts")}
+          />
+          <SettingsDivider />
+          <SettingsLinkRow
+            icon={<RotateCcw size={18} color={THEME[theme].primary} />}
+            title="Replay onboarding"
+            description="Review the guide to CrossCode features"
+            onPress={handleResetOnboarding}
+          />
+        </SettingsSection>
 
-        <View className="items-center pt-4 pb-8">
-          <Text className="text-xs text-muted-foreground">
-            For help, contact us at{" "}
-            <Text
-              className="text-xs text-primary"
-              onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
-            >
-              {SUPPORT_EMAIL}
-            </Text>
-          </Text>
+        {/* Usage */}
+        <View className="gap-2">
+          <SettingsSectionLabel>Usage</SettingsSectionLabel>
+          <View className="gap-4">
+            <TunnelUsageCard />
+            <OpencodeStatsCard />
+          </View>
         </View>
+
+        {/* About */}
+        <SettingsSection title="About">
+          <SettingsRow
+            icon={<Info size={18} color={THEME[theme].primary} />}
+            title="Version"
+            description={versionDisplay}
+          />
+          <SettingsDivider />
+          <SettingsLinkRow
+            icon={<ExternalLink size={18} color={THEME[theme].primary} />}
+            title="Privacy policy"
+            onPress={() => openLink(PRIVACY_URL)}
+          />
+          <SettingsDivider />
+          <SettingsLinkRow
+            icon={<ExternalLink size={18} color={THEME[theme].primary} />}
+            title="Terms of use"
+            onPress={() => openLink(TERMS_URL)}
+          />
+          <SettingsDivider />
+          <SettingsLinkRow
+            icon={<ExternalLink size={18} color={THEME[theme].primary} />}
+            title="Support"
+            onPress={() => openLink(SUPPORT_URL)}
+          />
+        </SettingsSection>
+
+        <Text className="pt-2 pb-2 text-center text-xs text-muted-foreground">
+          Need help? Contact us at{" "}
+          <Text
+            className="text-xs text-primary"
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
+          >
+            {SUPPORT_EMAIL}
+          </Text>
+        </Text>
       </ScrollView>
     </View>
   )

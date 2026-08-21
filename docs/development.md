@@ -36,7 +36,8 @@ crosscode/
 │   └── web/             # Website
 ├── packages/
 │   ├── crosscode/       # Companion CLI: `npx crosscode`
-│   └── shared/          # Shared types, constants, QR payload schema
+│   ├── shared/          # Shared types, constants, QR payload schema, plans
+│   └── tunnel-server/   # WebSocket relay service for paid-tier tunnels
 └── README.md
 ```
 
@@ -66,7 +67,10 @@ pnpm ios          # Run on iOS
 | State | Zustand |
 | Styling | NativeWind (Tailwind) |
 | Companion CLI | Node.js |
-| Tunnel | Cloudflare Tunnel |
+| Web | Next.js |
+| Database | PostgreSQL + Drizzle |
+| Payments | Dodo Payments |
+| Tunnel | Cloudflare Tunnel / ngrok / self-hosted WS relay |
 | Monorepo | pnpm workspaces + Turborepo |
 
 ## Contributing

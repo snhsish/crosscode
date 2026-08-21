@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import { Image } from "expo-image"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated"
-import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon, ZapIcon } from "lucide-react-native"
+import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, SquareIcon, VideoIcon, XIcon, ZapIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
 import * as ImagePicker from "expo-image-picker"
@@ -80,6 +80,8 @@ interface ChatInputProps {
     voiceAvailable?: boolean
     onStartVoice?: () => void
     onStopVoice?: () => void
+    streaming?: boolean
+    onStop?: () => void
 }
 
 function ChatInputInner({
@@ -110,6 +112,8 @@ function ChatInputInner({
     voiceAvailable = true,
     onStartVoice,
     onStopVoice,
+    streaming = false,
+    onStop,
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
@@ -363,18 +367,24 @@ function ChatInputInner({
                             </View>
 
                             <Pressable
-                                onPress={handleActionPress}
-                                disabled={showSend ? sending || !draft.trim() : false}
+                                onPress={streaming ? onStop : handleActionPress}
+                                disabled={streaming ? false : showSend ? sending || !draft.trim() : false}
+                                accessibilityRole="button"
+                                accessibilityLabel={streaming ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
                                 className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: recognizing && !showSend ? THEME[theme].destructive : THEME[theme].primary }}
+                                style={{ backgroundColor: streaming || (recognizing && !showSend) ? THEME[theme].destructive : THEME[theme].primary }}
                             >
-                                <Animated.View style={micAnimatedStyle}>
-                                    {showSend ? (
-                                        <SendIcon size={20} color={THEME[theme].background} />
-                                    ) : (
-                                        <MicIcon size={20} color={THEME[theme].background} />
-                                    )}
-                                </Animated.View>
+                                {streaming ? (
+                                    <SquareIcon size={16} color={THEME[theme].background} fill={THEME[theme].background} />
+                                ) : (
+                                    <Animated.View style={micAnimatedStyle}>
+                                        {showSend ? (
+                                            <SendIcon size={20} color={THEME[theme].background} />
+                                        ) : (
+                                            <MicIcon size={20} color={THEME[theme].background} />
+                                        )}
+                                    </Animated.View>
+                                )}
                             </Pressable>
                         </View>
                     </View>

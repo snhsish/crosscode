@@ -433,6 +433,16 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
     }, [connection, selectedAgent, attemptSendMessage, finalizeSendError])
 
+    const abortStreaming = useCallback(async () => {
+        if (!connection?.url || !isStreaming) return
+        try {
+            await fetch(`${connection.url}/session/${sessionId}/abort`, {
+                method: "POST",
+                headers: { Authorization: getAuthHeader(connection.token) },
+            })
+        } catch {}
+    }, [connection, sessionId, isStreaming])
+
     const sendMessage = useCallback(async () => {
         if (!connection?.url || sending) return
 
@@ -902,6 +912,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 voiceAvailable={voice.isAvailable}
                 onStartVoice={handleStartVoice}
                 onStopVoice={handleStopVoice}
+                streaming={isStreaming}
+                onStop={abortStreaming}
             />
         </View>
     )

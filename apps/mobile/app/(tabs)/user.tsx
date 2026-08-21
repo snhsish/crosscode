@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Sparkles,
   Sun,
+  Terminal,
   User as UserIcon,
   Zap,
 } from "lucide-react-native"
@@ -63,6 +64,8 @@ export default function UserPage() {
   const setNotifications = useSettings((s) => s.setNotifications)
   const emailForUpdates = useSettings((s) => s.emailForUpdates)
   const setEmailForUpdates = useSettings((s) => s.setEmailForUpdates)
+  const allowTerminal = useSettings((s) => s.allowTerminal)
+  const setAllowTerminal = useSettings((s) => s.setAllowTerminal)
   const resetOnboarding = useSettings((s) => s.resetOnboarding)
 
   const setCurrent = useConnections((s) => s.setCurrent)
@@ -280,6 +283,13 @@ export default function UserPage() {
 
         {/* Workspace */}
         <SettingsSection title="Workspace">
+          <SettingsRow
+            icon={<Terminal size={18} color={THEME[theme].primary} />}
+            title="Allow terminal"
+            description="Permit remote git and terminal-backed features on your connections"
+            control={switchControl(allowTerminal, setAllowTerminal)}
+          />
+          <SettingsDivider />
           <SettingsLinkRow
             icon={<Zap size={18} color={THEME[theme].primary} />}
             title="Quick prompts"

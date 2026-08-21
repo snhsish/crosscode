@@ -376,11 +376,6 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 
     const hasError = message.role === "assistant" && "error" in message && message.error
 
-    const duration =
-        message.role === "assistant" && "completed" in message.time && message.time.completed
-            ? (message.time.completed - message.time.created) / 1000
-            : undefined
-
     const closeMenu = useCallback(() => setShowMenu(false), [])
 
     const handleLongPress = useCallback(() => {
@@ -459,11 +454,14 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             ) : null}
             {message.parts?.map((part, j) => {
                 if (part.type === "reasoning") {
+                    const isPartStreaming = !!streaming && j === message.parts!.length - 1
                     return (
                         <ReasoningBlock
                             key={part.id ?? j}
                             text={part.text}
-                            duration={duration}
+                            streaming={isPartStreaming}
+                            startedAt={message.time.created}
+                            theme={theme}
                         />
                     )
                 }

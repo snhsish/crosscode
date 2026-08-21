@@ -1,9 +1,10 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { type ReactNode, Fragment } from "react"
 import Markdown from "react-native-marked"
 import type { MarkedStyles } from "react-native-marked"
 import { Platform, Text, View, type TextStyle, type ViewStyle, type ImageStyle } from "react-native"
 import { CodeBlock } from "@/components/code-block"
+import { LinkOptionsModal } from "@/components/link-options-modal"
 
 const monoFont = Platform.select({ ios: "Menlo", default: "monospace" })
 
@@ -28,7 +29,7 @@ function keyedChildren(children: ReactNode[]): ReactNode {
     return children.map((child, i) => <Fragment key={i}>{child}</Fragment>)
 }
 
-const createCustomRenderer = (theme: "light" | "dark") => ({
+const createCustomRenderer = (theme: "light" | "dark", onLinkPress: (href: string) => void) => ({
     paragraph(children: ReactNode[], styles?: ViewStyle) {
         return <Text selectable={false} style={styles}>{keyedChildren(children)}</Text>
     },
@@ -72,7 +73,17 @@ const createCustomRenderer = (theme: "light" | "dark") => ({
         return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
     },
     link(children: string | ReactNode[], href: string, styles?: TextStyle, title?: string) {
-        return <Text selectable={false} style={styles}>{Array.isArray(children) ? keyedChildren(children) : children}</Text>
+        return (
+            <Text
+                selectable={false}
+                style={styles}
+                onPress={() => {
+                    if (href) onLinkPress(href)
+                }}
+            >
+                {Array.isArray(children) ? keyedChildren(children) : children}
+            </Text>
+        )
     },
     image(uri: string, alt?: string, style?: ImageStyle, title?: string) {
         return null
@@ -90,8 +101,10 @@ const createCustomRenderer = (theme: "light" | "dark") => ({
 
 function MarkdownRendererInner({ children, streaming, theme }: { children: string; streaming?: boolean; theme: "light" | "dark" }) {
     const [parsed, setParsed] = useState(children)
+    const [pendingLink, setPendingLink] = useState<string | null>(null)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const customRenderer = useMemo(() => createCustomRenderer(theme), [theme])
+    const onLinkPress = useCallback((href: string) => setPendingLink(href), [])
+    const customRenderer = useMemo(() => createCustomRenderer(theme, onLinkPress), [theme, onLinkPress])
 
     useEffect(() => {
         if (streaming) {
@@ -111,17 +124,20 @@ function MarkdownRendererInner({ children, streaming, theme }: { children: strin
     }
 
     return (
-        <Markdown
-            value={parsed}
-            renderer={customRenderer}
-            styles={manropeStyles}
-            flatListProps={{
-                scrollEnabled: false,
-                style: {
-                    backgroundColor: "transparent"
-                }
-            }}
-        />
+        <>
+            <Markdown
+                value={parsed}
+                renderer={customRenderer}
+                styles={manropeStyles}
+                flatListProps={{
+                    scrollEnabled: false,
+                    style: {
+                        backgroundColor: "transparent"
+                    }
+                }}
+            />
+            <LinkOptionsModal open={pendingLink !== null} url={pendingLink} onClose={() => setPendingLink(null)} theme={theme} />
+        </>
     )
 }
 

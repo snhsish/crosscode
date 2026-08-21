@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ActivityIndicator, Modal, Pressable, View } from "react-native"
+import { BlurView } from "expo-blur"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -8,14 +9,27 @@ type DialogProps = {
   open: boolean
   onClose: () => void
   children: React.ReactNode
+  contentClassName?: string
+  blurred?: boolean
+  blurTint?: "light" | "dark" | "default"
 }
 
-function Dialog({ open, onClose, children }: DialogProps) {
+function Dialog({ open, onClose, children, contentClassName, blurred, blurTint = "dark" }: DialogProps) {
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="flex-1 items-center justify-center" onPress={onClose}>
-        <View className="bg-black/40 absolute inset-0" />
-        <Pressable className="bg-card rounded-2xl w-[85%] max-w-sm p-6 shadow-lg" onPress={(e) => e.stopPropagation()}>
+        {blurred ? (
+          <>
+            <BlurView intensity={40} tint={blurTint} experimentalBlurMethod="dimezisBlurView" className="absolute inset-0" />
+            <View className="bg-black/20 absolute inset-0" />
+          </>
+        ) : (
+          <View className="bg-black/40 absolute inset-0" />
+        )}
+        <Pressable
+          className={cn("bg-card rounded-2xl w-[85%] max-w-sm p-6 shadow-lg", contentClassName)}
+          onPress={(e) => e.stopPropagation()}
+        >
           {children}
         </Pressable>
       </Pressable>

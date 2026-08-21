@@ -13,6 +13,7 @@ import http from "http"
 import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
 import { connectTunnel, deriveProjectId } from "./tunnel-client"
+import { handleGitRequest } from "./git-handler"
 
 const children: import("child_process").ChildProcess[] = []
 const logDir = join(homedir(), ".crosscode")
@@ -452,7 +453,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("using detected port", { detected: targetPort, requested: requestedPort })
             }
 
-            const proxy = http.createServer((req, res) => {
+            const proxy = http.createServer(async (req, res) => {
                 const safePath = sanitizeUrlPath(req.url)
                 const targetUrl = `http://127.0.0.1:${targetPort}${safePath}`
                 const authHeader = req.headers["authorization"]
@@ -518,6 +519,10 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                         sseReq.destroy()
                     })
 
+                    return
+                }
+
+                if (await handleGitRequest(req, res, { worktree: process.cwd(), sessionToken })) {
                     return
                 }
 
@@ -863,7 +868,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("using detected port", { detected: detectedPort, requested: port })
             }
 
-            const proxy = http.createServer((req, res) => {
+            const proxy = http.createServer(async (req, res) => {
                 const safePath = sanitizeUrlPath(req.url)
                 const targetUrl = `http://127.0.0.1:${detectedPort}${safePath}`
                 const authHeader = req.headers["authorization"]
@@ -929,6 +934,10 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                         sseReq.destroy()
                     })
 
+                    return
+                }
+
+                if (await handleGitRequest(req, res, { worktree: process.cwd(), sessionToken })) {
                     return
                 }
 

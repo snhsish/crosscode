@@ -60,7 +60,7 @@ export default function ModelsPage() {
     const fetchAll = useModels((s) => s.fetchAll)
 
     const [search, setSearch] = useState("")
-    const [statusFilter, setStatusFilter] = useState("all")
+    const [statusFilter, setStatusFilter] = useState("active")
     const [sort, setSort] = useState<SortMode>("name")
     const [selectedId, setSelectedId] = useState(currentModelId ?? "")
     const [selectedProviderId, setSelectedProviderId] = useState(currentProviderId ?? "")

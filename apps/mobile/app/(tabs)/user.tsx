@@ -26,7 +26,7 @@ import { useSettings } from "@/store/settings.store"
 import { useConnections } from "@/store/connection.store"
 import { useAuth } from "@/store/auth.store"
 import { getAccountNotificationSettings, registerPushDevice, updateAccountNotificationSettings } from "@/lib/account-notifications"
-import { createBillingCheckout, createBillingPortal } from "@/lib/billing"
+import { createBillingPortal } from "@/lib/billing"
 import { requestNotificationsPermission } from "@/lib/notifications"
 import { TunnelUsageCard } from "@/components/TunnelUsageCard"
 import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
@@ -41,6 +41,13 @@ import {
 import React from "react"
 
 const SUPPORT_EMAIL = "crosscode@sish.work"
+
+const maskEmail = (email: string) => {
+  const [local, domain] = email.split("@")
+  if (!domain) return email
+  const visible = Math.ceil(local.length / 2)
+  return `${local.slice(0, visible)}${"*".repeat(local.length - visible)}@${domain}`
+}
 const WEB_APP_URL = "https://crosscode.site"
 const PRIVACY_URL = "https://crosscode.sish.works/privacy"
 const TERMS_URL = "https://crosscode.sish.works/terms"
@@ -148,11 +155,9 @@ export default function UserPage() {
     )
   }
 
-  const openBilling = async (action: "checkout" | "portal", tier?: "starter" | "builder") => {
+  const openBilling = async () => {
     if (!serverUrl || !sessionToken) return
-    const url = action === "portal"
-      ? await createBillingPortal(serverUrl, sessionToken)
-      : await createBillingCheckout(serverUrl, sessionToken, tier || "starter")
+    const url = await createBillingPortal(serverUrl, sessionToken)
     if (url) await Linking.openURL(url)
   }
 
@@ -188,7 +193,7 @@ export default function UserPage() {
                   <UserIcon size={22} color={THEME[theme].background} />
                 </View>
                 <View className="flex-1 min-w-0">
-                  <Text className="text-base font-medium" numberOfLines={1}>{user.email}</Text>
+                  <Text className="text-base font-medium" numberOfLines={1}>{maskEmail(user.email)}</Text>
                   <Text className="text-sm capitalize text-muted-foreground">{user.tier} tier</Text>
                 </View>
               </View>
@@ -198,21 +203,9 @@ export default function UserPage() {
                   <SettingsDivider />
                   <SettingsLinkRow
                     icon={<Sparkles size={18} color={THEME[theme].primary} />}
-                    title="See plans & pricing"
+                    title="Upgrade plan"
                     description="Compare Starter and Builder tiers"
                     onPress={openPricing}
-                  />
-                  <SettingsDivider />
-                  <SettingsLinkRow
-                    icon={<CreditCard size={18} color={THEME[theme].primary} />}
-                    title="Subscribe to Starter"
-                    onPress={() => openBilling("checkout", "starter")}
-                  />
-                  <SettingsDivider />
-                  <SettingsLinkRow
-                    icon={<CreditCard size={18} color={THEME[theme].primary} />}
-                    title="Subscribe to Builder"
-                    onPress={() => openBilling("checkout", "builder")}
                   />
                 </>
               ) : (
@@ -222,7 +215,7 @@ export default function UserPage() {
                     icon={<CreditCard size={18} color={THEME[theme].primary} />}
                     title="Manage billing"
                     description={`Manage your ${user.tier} plan and invoices`}
-                    onPress={() => openBilling("portal")}
+                    onPress={() => openBilling()}
                   />
                 </>
               )}
@@ -273,7 +266,7 @@ export default function UserPage() {
           <SettingsRow
             icon={<Mail size={18} color={THEME[theme].primary} />}
             title="Product updates"
-            description={isLoggedIn && user?.email ? `Email updates to ${user.email}` : "Login to receive email updates"}
+            description={isLoggedIn && user?.email ? `Email updates to ${maskEmail(user.email)}` : "Login to receive email updates"}
             control={switchControl(
               emailForUpdates === (user?.email ?? ""),
               (value) => setEmailForUpdates(value ? (user?.email ?? "") : "")

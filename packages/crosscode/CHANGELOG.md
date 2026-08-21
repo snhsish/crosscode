@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.5.0
+
+### Minor Changes
+
+- feat: git graph
+
 ## 0.4.1
 
 ### Patch Changes

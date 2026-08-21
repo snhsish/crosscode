@@ -1,8 +1,10 @@
 import "fast-text-encoding"
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
-import { useMessages, Message, Part } from "@/store/messages.store"
+import { useMessages, AssistantMessage, Message, Part } from "@/store/messages.store"
 import { usePermissions, PermissionRequest } from "@/store/permissions.store"
+import { useOpencodeStats } from "@/store/opencode-stats.store"
+import { useProjects } from "@/store/projects.store"
 import { getAuthHeader } from "@/lib/utils"
 import { notifyAgentStatus } from "@/lib/notifications"
 
@@ -46,6 +48,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
 
         let pendingMessages: Message[] | null = null
         let flushScheduled = false
+        const countedMessageIds = new Set<string>()
         let lastCompleted: {
             messageId: string
             sessionId: string
@@ -120,6 +123,21 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                                 sessionId: currentSessionId,
                                 hasError: !!info.error,
                                 errorMessage,
+                            }
+
+                            if (!info.error && projectId && !countedMessageIds.has(info.id)) {
+                                countedMessageIds.add(info.id)
+                                const assistant = info as AssistantMessage
+                                const projectName =
+                                    useProjects.getState().projects.find((p) => p.id === projectId)?.name ??
+                                    "Unknown project"
+                                useOpencodeStats.getState().incrementProjectStats(
+                                    projectId,
+                                    projectName,
+                                    assistant.tokens?.input ?? 0,
+                                    assistant.tokens?.output ?? 0,
+                                    assistant.cost ?? 0
+                                )
                             }
                         }
                     }

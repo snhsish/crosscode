@@ -146,18 +146,17 @@ function ChatInputInner({
         showSendRef.current = showSend
     }, [showSend])
 
-    const handleActionPressIn = useCallback(() => {
-        if (showSendRef.current) return
-        onStartVoice?.()
-    }, [onStartVoice])
-
-    const handleActionPressOut = useCallback(() => {
-        onStopVoice?.()
-    }, [onStopVoice])
-
     const handleActionPress = useCallback(() => {
-        if (showSendRef.current) onSend?.()
-    }, [onSend])
+        if (showSendRef.current) {
+            onSend?.()
+            return
+        }
+        if (recognizing) {
+            onStopVoice?.()
+        } else {
+            onStartVoice?.()
+        }
+    }, [onSend, onStartVoice, onStopVoice, recognizing])
 
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
@@ -364,8 +363,6 @@ function ChatInputInner({
                             </View>
 
                             <Pressable
-                                onPressIn={handleActionPressIn}
-                                onPressOut={handleActionPressOut}
                                 onPress={handleActionPress}
                                 disabled={showSend ? sending || !draft.trim() : false}
                                 className="w-10 h-10 rounded-full items-center justify-center"

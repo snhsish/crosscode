@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.6.0
+
+### Minor Changes
+
+- b6750ef: feat(cli): add git-log and git-commit endpoints for mobile git graph
+
 ## 0.5.0
 
 ### Minor Changes

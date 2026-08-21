@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react"
 import { Keyboard, Platform, Pressable, View } from "react-native"
 import { Image } from "expo-image"
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated"
-import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, VideoIcon, XIcon, ZapIcon } from "lucide-react-native"
+import { CameraIcon, ChevronDownIcon, CpuIcon, FilesIcon, ImageIcon, MicIcon, PlusIcon, SendIcon, SquareIcon, VideoIcon, XIcon, ZapIcon } from "lucide-react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
 import * as ImagePicker from "expo-image-picker"
@@ -28,11 +28,25 @@ export type ImageAttachment = {
 
 const MAX_IMAGES = 2
 
-const ATTACHMENT_OPTIONS = [
-    { icon: VideoIcon, label: "Video" },
-    { icon: FilesIcon, label: "Files" },
-    { icon: CameraIcon, label: "Camera" },
+const ATTACHMENT_SECTIONS = [
+    {
+        title: "Add to message",
+        actions: [
+            { key: "photo", icon: ImageIcon, label: "Photo Library" },
+            { key: "camera", icon: CameraIcon, label: "Camera" },
+        ],
+    },
+    {
+        title: "More",
+        actions: [
+            { key: "files", icon: FilesIcon, label: "Files" },
+            { key: "video", icon: VideoIcon, label: "Video" },
+            { key: "quick-prompts", icon: ZapIcon, label: "Quick Prompts" },
+        ],
+    },
 ] as const
+
+const DISABLED_ACTIONS = new Set(["camera", "files", "video"])
 
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
@@ -66,6 +80,8 @@ interface ChatInputProps {
     voiceAvailable?: boolean
     onStartVoice?: () => void
     onStopVoice?: () => void
+    streaming?: boolean
+    onStop?: () => void
 }
 
 function ChatInputInner({
@@ -96,6 +112,8 @@ function ChatInputInner({
     voiceAvailable = true,
     onStartVoice,
     onStopVoice,
+    streaming = false,
+    onStop,
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
@@ -104,7 +122,6 @@ function ChatInputInner({
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
     const [showAttachmentMenu, setShowAttachmentMenu] = useState(false)
     const [showQuickPromptsModal, setShowQuickPromptsModal] = useState(false)
-    const attachmentMenuHeight = useSharedValue(0)
     const navigation = useNavigation()
     const micPulse = useSharedValue(1)
 
@@ -133,18 +150,17 @@ function ChatInputInner({
         showSendRef.current = showSend
     }, [showSend])
 
-    const handleActionPressIn = useCallback(() => {
-        if (showSendRef.current) return
-        onStartVoice?.()
-    }, [onStartVoice])
-
-    const handleActionPressOut = useCallback(() => {
-        onStopVoice?.()
-    }, [onStopVoice])
-
     const handleActionPress = useCallback(() => {
-        if (showSendRef.current) onSend?.()
-    }, [onSend])
+        if (showSendRef.current) {
+            onSend?.()
+            return
+        }
+        if (recognizing) {
+            onStopVoice?.()
+        } else {
+            onStartVoice?.()
+        }
+    }, [onSend, onStartVoice, onStopVoice, recognizing])
 
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
@@ -168,10 +184,6 @@ function ChatInputInner({
     }, [])
 
     const hideAttachmentMenu = useCallback(() => {
-        attachmentMenuHeight.value = withTiming(0, {
-            duration: 250,
-            easing: Easing.out(Easing.cubic),
-        })
         setShowAttachmentMenu(false)
     }, [])
 
@@ -181,10 +193,6 @@ function ChatInputInner({
         } else {
             Keyboard.dismiss()
             setShowAttachmentMenu(true)
-            attachmentMenuHeight.value = withTiming(200, {
-                duration: 250,
-                easing: Easing.out(Easing.cubic),
-            })
         }
     }, [showAttachmentMenu, hideAttachmentMenu])
 
@@ -359,63 +367,96 @@ function ChatInputInner({
                             </View>
 
                             <Pressable
-                                onPressIn={handleActionPressIn}
-                                onPressOut={handleActionPressOut}
-                                onPress={handleActionPress}
-                                disabled={showSend ? sending || !draft.trim() : false}
+                                onPress={streaming ? onStop : handleActionPress}
+                                disabled={streaming ? false : showSend ? sending || !draft.trim() : false}
+                                accessibilityRole="button"
+                                accessibilityLabel={streaming ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
                                 className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: recognizing && !showSend ? THEME[theme].destructive : THEME[theme].primary }}
+                                style={{ backgroundColor: streaming || (recognizing && !showSend) ? THEME[theme].destructive : THEME[theme].primary }}
                             >
-                                <Animated.View style={micAnimatedStyle}>
-                                    {showSend ? (
-                                        <SendIcon size={20} color={THEME[theme].background} />
-                                    ) : (
-                                        <MicIcon size={20} color={THEME[theme].background} />
-                                    )}
-                                </Animated.View>
+                                {streaming ? (
+                                    <SquareIcon size={16} color={THEME[theme].background} fill={THEME[theme].background} />
+                                ) : (
+                                    <Animated.View style={micAnimatedStyle}>
+                                        {showSend ? (
+                                            <SendIcon size={20} color={THEME[theme].background} />
+                                        ) : (
+                                            <MicIcon size={20} color={THEME[theme].background} />
+                                        )}
+                                    </Animated.View>
+                                )}
                             </Pressable>
                         </View>
                     </View>
                     {showAttachmentMenu && (
                         <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
-                            <View className="flex-row flex-wrap">
-                                <Pressable
-                                    onPress={pickImages}
-                                    disabled={images.length >= MAX_IMAGES}
-                                    className={`w-1/2 items-center justify-center py-4 ${images.length >= MAX_IMAGES ? "opacity-40" : ""}`}
-                                >
-                                    <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
-                                        <ImageIcon size={22} color={THEME[theme].foreground} />
-                                    </View>
-                                    <Text className="text-xs text-muted-foreground">
-                                        Image{images.length >= MAX_IMAGES ? " (max)" : ""}
-                                    </Text>
-                                </Pressable>
-                                {ATTACHMENT_OPTIONS.map((option) => (
-                                    <Pressable
-                                        key={option.label}
-                                        disabled
-                                        className="w-1/2 items-center justify-center py-4 opacity-40"
+                            {ATTACHMENT_SECTIONS.map((section, sectionIndex) => (
+                                <View key={section.title}>
+                                    {sectionIndex > 0 && <View className="h-px bg-border/60" style={{ marginHorizontal: 16 }} />}
+                                    <Text
+                                        className="text-xs text-muted-foreground uppercase tracking-wide px-4 pt-3 pb-1"
+                                        accessibilityRole="header"
                                     >
-                                        <View className="w-12 h-12 rounded-2xl bg-secondary/70 items-center justify-center mb-1.5">
-                                            <option.icon size={22} color={THEME[theme].foreground} />
-                                        </View>
-                                        <Text className="text-xs text-muted-foreground">{option.label}</Text>
-                                    </Pressable>
-                                ))}
-                                <Pressable
-                                    onPress={() => {
-                                        hideAttachmentMenu()
-                                        setShowQuickPromptsModal(true)
-                                    }}
-                                    className="w-1/2 items-center justify-center py-4"
-                                >
-                                    <View className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center mb-1.5">
-                                        <ZapIcon size={22} color={THEME[theme].primary} />
-                                    </View>
-                                    <Text className="text-xs text-primary font-medium">Quick Prompts</Text>
-                                </Pressable>
-                            </View>
+                                        {section.title}
+                                    </Text>
+                                    {section.actions.map((action, actionIndex) => {
+                                        const isPhoto = action.key === "photo"
+                                        const isQuickPrompts = action.key === "quick-prompts"
+                                        const disabled = DISABLED_ACTIONS.has(action.key) || (isPhoto && images.length >= MAX_IMAGES)
+                                        const tint = isQuickPrompts ? THEME[theme].primary : THEME[theme].foreground
+
+                                        return (
+                                            <Pressable
+                                                key={action.key}
+                                                onPress={() => {
+                                                    if (isPhoto) pickImages()
+                                                    else if (isQuickPrompts) {
+                                                        hideAttachmentMenu()
+                                                        setShowQuickPromptsModal(true)
+                                                    }
+                                                }}
+                                                disabled={disabled}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={action.label}
+                                                accessibilityHint={
+                                                    disabled
+                                                        ? "Not available yet"
+                                                        : isPhoto
+                                                            ? `Attach an image. Up to ${MAX_IMAGES} images per message.`
+                                                            : `Open ${action.label}`
+                                                }
+                                                accessibilityState={{ disabled }}
+                                                className={`flex-row items-center gap-3 px-4 py-3 min-h-[44px] active:bg-muted ${
+                                                    disabled ? "opacity-40" : ""
+                                                } ${actionIndex === section.actions.length - 1 ? "mb-1" : ""}`}
+                                            >
+                                                <View
+                                                    className="w-8 h-8 rounded-lg items-center justify-center"
+                                                    style={{
+                                                        backgroundColor: isQuickPrompts
+                                                            ? THEME[theme].primary + "1A"
+                                                            : THEME[theme].secondary,
+                                                    }}
+                                                >
+                                                    <action.icon size={18} color={tint} />
+                                                </View>
+                                                <Text
+                                                    className={`flex-1 text-[15px] ${
+                                                        isQuickPrompts ? "text-primary font-medium" : "text-foreground"
+                                                    }`}
+                                                >
+                                                    {action.label}
+                                                    {isPhoto && images.length >= MAX_IMAGES ? " (max reached)" : ""}
+                                                </Text>
+                                                {disabled && !isPhoto && (
+                                                    <Text className="text-xs text-muted-foreground">Soon</Text>
+                                                )}
+                                            </Pressable>
+                                        )
+                                    })}
+                                    {sectionIndex === ATTACHMENT_SECTIONS.length - 1 && <View className="pb-1" />}
+                                </View>
+                            ))}
                         </View>
                     )}
                 </View>

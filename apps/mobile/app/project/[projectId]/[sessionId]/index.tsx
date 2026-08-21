@@ -22,7 +22,7 @@ import { useVoiceInput } from "@/components/hooks/use-voice-input"
 import { useChatStore, SelectedModel } from "@/store/chat.store"
 import { useModels } from "@/store/models.store"
 import { updateSessionModel } from "@/lib/models"
-import { TypingDots } from "@/components/typing-animation"
+import { WorkingIndicator } from "@/components/typing-animation"
 import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
 import { QuestionRequest } from "@/store/questions.store"
@@ -433,6 +433,16 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
     }, [connection, selectedAgent, attemptSendMessage, finalizeSendError])
 
+    const abortStreaming = useCallback(async () => {
+        if (!connection?.url || !isStreaming) return
+        try {
+            await fetch(`${connection.url}/session/${sessionId}/abort`, {
+                method: "POST",
+                headers: { Authorization: getAuthHeader(connection.token) },
+            })
+        } catch {}
+    }, [connection, sessionId, isStreaming])
+
     const sendMessage = useCallback(async () => {
         if (!connection?.url || sending) return
 
@@ -693,6 +703,25 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
 
+    const workingStartAt = useMemo(() => {
+        if (!isStreaming) return null
+        const ordered = [...rawMessages].reverse()
+        const streamingMsg = ordered.find((m) => m.role === "assistant" && !m.time?.completed)
+        if (streamingMsg) return streamingMsg.time.created
+        const lastUser = [...ordered].reverse().find((m) => m.role === "user")
+        return lastUser?.time?.created ?? null
+    }, [isStreaming, rawMessages])
+
+    // The list is inverted, so the header renders visually below the newest message
+    const StreamingIndicator = useMemo(() => {
+        if (!isStreaming || workingStartAt == null) return null
+        return (
+            <View className="pt-1 pb-2">
+                <WorkingIndicator startedAt={workingStartAt} />
+            </View>
+        )
+    }, [isStreaming, workingStartAt])
+
     const ListFooterComponent = useMemo(() => {
         if (!isLoadingMore) return null
         return (
@@ -796,6 +825,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: keyboardHeight + 16 }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
                     ListFooterComponent={ListFooterComponent}
+                    ListHeaderComponent={StreamingIndicator}
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
                     windowSize={10}
@@ -819,9 +849,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </View>
             )}
 
-            {isStreaming && (
+            {isStreaming && messages.length === 0 && workingStartAt != null && (
                 <View className="px-4 py-2">
-                    <TypingDots />
+                    <WorkingIndicator startedAt={workingStartAt} />
                 </View>
             )}
 
@@ -882,6 +912,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 voiceAvailable={voice.isAvailable}
                 onStartVoice={handleStartVoice}
                 onStopVoice={handleStopVoice}
+                streaming={isStreaming}
+                onStop={abortStreaming}
             />
         </View>
     )

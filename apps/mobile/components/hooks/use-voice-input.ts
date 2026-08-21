@@ -64,9 +64,6 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
         if (result) {
             setTranscript(result)
         }
-        if (event.isFinal && recognizingRef.current) {
-            ExpoSpeechRecognitionModule.stop()
-        }
     })
 
     useSpeechRecognitionEvent("error", (event) => {

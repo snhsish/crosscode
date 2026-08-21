@@ -127,6 +127,25 @@ function ChatInputInner({
         transform: [{ scale: micPulse.value }],
     }))
 
+    const showSend = Boolean(draft.trim()) || !voiceAvailable
+    const showSendRef = useRef(showSend)
+    useEffect(() => {
+        showSendRef.current = showSend
+    }, [showSend])
+
+    const handleActionPressIn = useCallback(() => {
+        if (showSendRef.current) return
+        onStartVoice?.()
+    }, [onStartVoice])
+
+    const handleActionPressOut = useCallback(() => {
+        onStopVoice?.()
+    }, [onStopVoice])
+
+    const handleActionPress = useCallback(() => {
+        if (showSendRef.current) onSend?.()
+    }, [onSend])
+
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
             keyboardHeight.value = withTiming(e.endCoordinates.height, {
@@ -339,27 +358,22 @@ function ChatInputInner({
                                 )}
                             </View>
 
-                            {draft.trim() || !voiceAvailable ? (
-                                <Button
-                                    className="rounded-full"
-                                    size="icon"
-                                    onPress={onSend}
-                                    disabled={sending || !draft.trim()}
-                                >
-                                    <SendIcon size={20} color={THEME[theme].background} />
-                                </Button>
-                            ) : (
-                                <Pressable
-                                    onPressIn={onStartVoice}
-                                    onPressOut={onStopVoice}
-                                    className="w-10 h-10 rounded-full items-center justify-center"
-                                    style={{ backgroundColor: recognizing ? THEME[theme].destructive : THEME[theme].primary }}
-                                >
-                                    <Animated.View style={micAnimatedStyle}>
+                            <Pressable
+                                onPressIn={handleActionPressIn}
+                                onPressOut={handleActionPressOut}
+                                onPress={handleActionPress}
+                                disabled={showSend ? sending || !draft.trim() : false}
+                                className="w-10 h-10 rounded-full items-center justify-center"
+                                style={{ backgroundColor: recognizing && !showSend ? THEME[theme].destructive : THEME[theme].primary }}
+                            >
+                                <Animated.View style={micAnimatedStyle}>
+                                    {showSend ? (
+                                        <SendIcon size={20} color={THEME[theme].background} />
+                                    ) : (
                                         <MicIcon size={20} color={THEME[theme].background} />
-                                    </Animated.View>
-                                </Pressable>
-                            )}
+                                    )}
+                                </Animated.View>
+                            </Pressable>
                         </View>
                     </View>
                     {showAttachmentMenu && (

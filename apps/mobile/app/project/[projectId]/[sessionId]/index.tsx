@@ -446,6 +446,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         const targetSessionId = sessionId
         const targetSession = session
 
+        if (voice.recognizing) {
+            voice.stopRecognition()
+        }
+        voiceSuppressedRef.current = true
+        voice.resetTranscript()
+        voiceInitialDraftRef.current = null
+
         clearDraft(targetSessionId)
         setSending(true)
         setSendError(null)
@@ -504,7 +511,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             setSending(false)
         }
         setSelectedImages([])
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages])
+    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
 
     const getAndSetMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
@@ -607,7 +614,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [keyboardHeight])
 
     const voiceInitialDraftRef = useRef<string | null>(null)
+    const voiceSuppressedRef = useRef(false)
     useEffect(() => {
+        if (voiceSuppressedRef.current) return
         if (voice.recognizing) {
             if (voiceInitialDraftRef.current === null) {
                 voiceInitialDraftRef.current = draft
@@ -624,6 +633,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [voice.transcript, voice.recognizing])
 
     const handleStartVoice = useCallback(async () => {
+        voiceSuppressedRef.current = false
         await voice.startRecognition()
     }, [voice.startRecognition])
 

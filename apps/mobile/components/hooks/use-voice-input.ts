@@ -25,6 +25,9 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     const [isAvailable, setIsAvailable] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const hasRequestedPermission = useRef(false)
+    const recognizingRef = useRef(false)
+    const startingRef = useRef(false)
+    const stopQueuedRef = useRef(false)
 
     useEffect(() => {
         const checkAvailability = async () => {
@@ -39,11 +42,20 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     }, [])
 
     useSpeechRecognitionEvent("start", () => {
+        startingRef.current = false
+        recognizingRef.current = true
         setRecognizing(true)
         setError(null)
+        if (stopQueuedRef.current) {
+            stopQueuedRef.current = false
+            ExpoSpeechRecognitionModule.stop()
+        }
     })
 
     useSpeechRecognitionEvent("end", () => {
+        startingRef.current = false
+        stopQueuedRef.current = false
+        recognizingRef.current = false
         setRecognizing(false)
     })
 
@@ -52,9 +64,15 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
         if (result) {
             setTranscript(result)
         }
+        if (event.isFinal && recognizingRef.current) {
+            ExpoSpeechRecognitionModule.stop()
+        }
     })
 
     useSpeechRecognitionEvent("error", (event) => {
+        startingRef.current = false
+        stopQueuedRef.current = false
+        recognizingRef.current = false
         setRecognizing(false)
         if (event.error === "not-allowed") {
             setError("Microphone permission denied")
@@ -83,10 +101,14 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
     }, [])
 
     const startRecognition = useCallback(async () => {
-        if (recognizing) return
+        if (recognizingRef.current || startingRef.current) return
+
+        startingRef.current = true
+        stopQueuedRef.current = false
 
         const granted = await requestPermission()
         if (!granted) {
+            startingRef.current = false
             setError("Microphone permission denied")
             return
         }
@@ -94,22 +116,30 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
         setTranscript("")
         setError(null)
 
-        ExpoSpeechRecognitionModule.start({
-            lang: "en-US",
-            interimResults: true,
-            continuous: true,
-            volumeChangeEventOptions: {
-                enabled: true,
-                intervalMillis: 100,
-            },
-            iosTaskHint: "dictation",
-        })
-    }, [recognizing, requestPermission])
+        try {
+            ExpoSpeechRecognitionModule.start({
+                lang: "en-US",
+                interimResults: true,
+                continuous: true,
+                volumeChangeEventOptions: {
+                    enabled: true,
+                    intervalMillis: 100,
+                },
+                iosTaskHint: "dictation",
+            })
+        } catch {
+            startingRef.current = false
+        }
+    }, [requestPermission])
 
     const stopRecognition = useCallback(() => {
-        if (!recognizing) return
+        if (startingRef.current) {
+            stopQueuedRef.current = true
+            return
+        }
+        if (!recognizingRef.current) return
         ExpoSpeechRecognitionModule.stop()
-    }, [recognizing])
+    }, [])
 
     const resetTranscript = useCallback(() => {
         setTranscript("")
@@ -117,11 +147,11 @@ export function useVoiceInput(): VoiceInputState & VoiceInputActions {
 
     useEffect(() => {
         return () => {
-            if (recognizing) {
+            if (recognizingRef.current || startingRef.current) {
                 ExpoSpeechRecognitionModule.abort()
             }
         }
-    }, [recognizing])
+    }, [])
 
     return {
         recognizing,

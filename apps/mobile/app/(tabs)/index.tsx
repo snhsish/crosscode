@@ -489,6 +489,24 @@ export default function HomeScreen() {
         initialNumToRender={15}
       />
 
+      {filteredConnections.length > 0 && (
+        <View className="absolute" style={{ bottom: insets.bottom + 24, right: 24 }}>
+          <Pressable
+            onPress={() => router.push("/new-connection")}
+            className="w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg active:opacity-80"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <Plus size={24} color={THEME[theme].primaryForeground} />
+          </Pressable>
+        </View>
+      )}
+
       <Dialog open={renameDialogOpen} onClose={() => setRenameDialogOpen(false)}>
         <DialogHeader
           title="Rename connection"

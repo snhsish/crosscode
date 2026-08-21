@@ -12,8 +12,13 @@ import { authClient } from "@/lib/auth-client"
 export default function DashboardPage() {
   const router = useRouter()
   const [apiKey, setApiKey] = useState<string | null>(null)
-  const [user, setUser] = useState<{ id: string; name: string; email: string; tier?: string } | null>(null)
-  const [subscription, setSubscription] = useState<{ status?: string; renewsAt?: string | null; cancelAtPeriodEnd?: boolean }>({})
+  const [user, setUser] = useState<{ id: string; name: string; email: string } | null>(null)
+  const [subscription, setSubscription] = useState<{
+    tier?: string | null
+    status?: string
+    renewsAt?: string | null
+    cancelAtPeriodEnd?: boolean
+  }>({})
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
@@ -21,6 +26,8 @@ export default function DashboardPage() {
   const [qrStatus, setQrStatus] = useState<"idle" | "pending" | "claimed" | "expired">("idle")
   const [qrGenerating, setQrGenerating] = useState(false)
   const [deviceName, setDeviceName] = useState<string | null>(null)
+  const [portalLoading, setPortalLoading] = useState(false)
+  const [billingError, setBillingError] = useState("")
   const pollRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -74,9 +81,21 @@ export default function DashboardPage() {
   }
 
   const openPortal = async () => {
-    const response = await fetch("/api/billing/portal", { method: "POST" })
-    const data = await response.json()
-    if (response.ok && data.url) window.location.assign(data.url)
+    setPortalLoading(true)
+    setBillingError("")
+    try {
+      const response = await fetch("/api/billing/portal", { method: "POST" })
+      const data = await response.json()
+      if (response.ok && data.url) {
+        window.location.assign(data.url)
+      } else {
+        setBillingError(data.error || "Unable to open billing portal")
+      }
+    } catch {
+      setBillingError("Unable to open billing portal")
+    } finally {
+      setPortalLoading(false)
+    }
   }
 
   const generateLoginQR = async () => {
@@ -133,7 +152,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <LoaderCircle className="animate-spin text-muted-foreground" size={32} />
       </div>
     )
   }
@@ -201,7 +220,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tier:</span>
-              <span className="font-medium capitalize">{user?.tier || "free"}</span>
+              <span className="font-medium capitalize">{subscription.tier || "free"}</span>
             </div>
           </CardContent>
         </Card>
@@ -213,8 +232,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex justify-between">
+              <span className="text-muted-foreground">Plan:</span>
+              <span className="font-medium capitalize">{subscription.tier || "free"}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Status:</span>
-              <span className="font-medium capitalize">{subscription.status || (user?.tier === "free" ? "free" : "active")}</span>
+              <span className="font-medium capitalize">{subscription.status || (subscription.tier && subscription.tier !== "free" ? "active" : "free")}</span>
             </div>
             {subscription.renewsAt && (
               <div className="flex justify-between">
@@ -226,15 +249,19 @@ export default function DashboardPage() {
               <p className="text-sm text-amber-600">Your subscription is scheduled to cancel at the end of this billing period.</p>
             )}
             <div className="flex flex-wrap gap-2">
-              {user?.tier === "free" ? (
+              {(!subscription.tier || subscription.tier === "free") ? (
                 <>
                   <Button onClick={() => openCheckout("starter")}>Subscribe to Starter</Button>
                   <Button variant="outline" onClick={() => openCheckout("builder")}>Subscribe to Builder</Button>
                 </>
               ) : (
-                <Button variant="outline" onClick={openPortal}>Manage billing</Button>
+                <Button variant="outline" onClick={openPortal} disabled={portalLoading}>
+                  {portalLoading && <LoaderCircle className="animate-spin" size={16} />}
+                  {portalLoading ? "Opening portal..." : "Manage billing"}
+                </Button>
               )}
             </div>
+            {billingError && <p className="text-sm text-red-500">{billingError}</p>}
           </CardContent>
         </Card>
 

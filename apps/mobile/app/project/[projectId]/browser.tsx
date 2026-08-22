@@ -322,32 +322,38 @@ export default function BrowserPage() {
             </View>
 
             {!searchMode && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="border-b border-accent/50"
-                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10 }}
-                >
-                    {crumbs.map((crumb, i) => (
-                        <View key={`${crumb.name}-${i}`} className="flex-row items-center">
-                            {i > 0 && <ChevronRightIcon size={14} color={t.mutedForeground} />}
-                            <Pressable
-                                disabled={i === crumbs.length - 1}
-                                className="px-2 py-1 active:bg-accent/50 rounded-md"
-                                onPress={() => crumb.path !== null && setPath(crumb.path)}
-                            >
-                                <Text
-                                    className={`text-sm ${
-                                        i === crumbs.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"
-                                    }`}
-                                    numberOfLines={1}
+                <View className="border-b border-accent/50" style={{ height: 44 }}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{
+                            minHeight: 44,
+                            alignItems: "center",
+                            paddingHorizontal: 12,
+                            paddingVertical: 4,
+                        }}
+                    >
+                        {crumbs.map((crumb, i) => (
+                            <View key={`${crumb.name}-${i}`} className="flex-row items-center">
+                                {i > 0 && <ChevronRightIcon size={14} color={t.mutedForeground} />}
+                                <Pressable
+                                    disabled={i === crumbs.length - 1}
+                                    className="px-2 py-1.5 active:bg-accent/50 rounded-md"
+                                    onPress={() => crumb.path !== null && setPath(crumb.path)}
                                 >
-                                    {crumb.name}
-                                </Text>
-                            </Pressable>
-                        </View>
-                    ))}
-                </ScrollView>
+                                    <Text
+                                        className={`text-sm ${
+                                            i === crumbs.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"
+                                        }`}
+                                        numberOfLines={1}
+                                    >
+                                        {crumb.name}
+                                    </Text>
+                                </Pressable>
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
             )}
 
             {searchMode ? (

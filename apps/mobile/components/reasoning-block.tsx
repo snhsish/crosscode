@@ -1,9 +1,10 @@
 import { memo, useEffect, useRef, useState } from "react"
 import { Pressable, View } from "react-native"
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withRepeat, Easing } from "react-native-reanimated"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
 import { BrainIcon, ChevronDownIcon } from "lucide-react-native"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
+import { ShimmerText } from "./shimmer-text"
 
 interface ReasoningBlockProps {
     text: string
@@ -37,29 +38,12 @@ export const ReasoningBlock = memo(function ReasoningBlock({ text, streaming, st
     }, [streaming, startedAt])
 
     const progress = useSharedValue(0)
-    const shine = useSharedValue(streaming ? 1 : 0)
     const chevron = useSharedValue(0)
-
-    useEffect(() => {
-        if (streaming) {
-            shine.value = withRepeat(
-                withTiming(0.3, { duration: 900, easing: Easing.inOut(Easing.quad) }),
-                -1,
-                true
-            )
-        } else {
-            shine.value = withTiming(1, { duration: 200 })
-        }
-    }, [streaming])
 
     const animatedStyle = useAnimatedStyle(() => ({
         opacity: progress.value,
         maxHeight: progress.value * 4000,
         overflow: "hidden" as const,
-    }))
-
-    const shineStyle = useAnimatedStyle(() => ({
-        opacity: shine.value,
     }))
 
     const chevronStyle = useAnimatedStyle(() => ({
@@ -78,9 +62,11 @@ export const ReasoningBlock = memo(function ReasoningBlock({ text, streaming, st
             <Pressable onPress={toggle} className="flex-row items-center gap-1.5 py-0.5 active:opacity-70">
                 <BrainIcon size={13} color={THEME[theme].mutedForeground} />
                 {streaming ? (
-                    <Animated.View style={shineStyle}>
-                        <Text className="text-xs text-muted-foreground font-medium">Thinking...</Text>
-                    </Animated.View>
+                    <ShimmerText
+                        text="Thinking..."
+                        baseColor={THEME[theme].mutedForeground}
+                        shineColor={THEME[theme].foreground}
+                    />
                 ) : (
                     <>
                         <Text className="text-xs text-muted-foreground font-medium">

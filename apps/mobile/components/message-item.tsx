@@ -207,6 +207,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                     name={part.toolInvocation.toolName}
                     status={part.toolInvocation.state}
                     details={tiDetails.length > 0 ? tiDetails : undefined}
+                    theme={theme}
                 />
             )
         case "tool":
@@ -284,6 +285,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                     key={part.id ?? index}
                     name={part.tool}
                     status={part.state?.status ?? "unknown"}
+                    theme={theme}
                 />
             )
         case "source-url":

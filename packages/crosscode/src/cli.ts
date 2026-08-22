@@ -263,10 +263,14 @@ async function setupNgrokToken(): Promise<string> {
 
 function sanitizeUrlPath(url: string | undefined): string {
     if (!url || url.length === 0) return "/"
-    if (!url.startsWith("/")) return "/"
-    const cleaned = url.split("?")[0].split("#")[0]
+    const withoutHash = url.split("#")[0]
+    const queryIndex = withoutHash.indexOf("?")
+    const rawPath = queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex)
+    const rawQuery = queryIndex === -1 ? "" : withoutHash.slice(queryIndex + 1)
+    if (!rawPath.startsWith("/")) return "/"
+    const cleaned = rawPath
     if (cleaned.includes("..") || cleaned.includes("@")) return "/"
-    return cleaned || "/"
+    return `${cleaned || "/"}${rawQuery ? `?${rawQuery}` : ""}`
 }
 
 async function main() {

@@ -155,7 +155,7 @@ export type BreadcrumbSegment = {
 }
 
 export function buildBreadcrumbs(path: string, rootLabel = "root"): BreadcrumbSegment[] {
-    const segments: BreadcrumbSegment[] = [{ name: rootLabel, path: null }]
+    const segments: BreadcrumbSegment[] = [{ name: rootLabel, path: "" }]
     const parts = path.split("/").filter(Boolean)
     let current = ""
     for (const part of parts) {

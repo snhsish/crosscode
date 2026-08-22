@@ -1,0 +1,49 @@
+# CrossCode
+
+> Control your PC's OpenCode — the terminal AI coding agent — from your phone, from anywhere in the world. Free, open source (MIT), and private: your code never touches CrossCode's servers, because there are none.
+
+CrossCode is a monorepo containing a mobile app (React Native + Expo), a Next.js website/dashboard, a companion CLI (`npx crosscode`), shared types/constants, and a self-hosted WebSocket relay server for paid-tier tunnels. Run `npx crosscode` on your PC to start `opencode serve`, open a tunnel, and scan a QR code with the mobile app to connect instantly — no account or configuration required on the free tier.
+
+## Docs
+
+- [README](https://github.com/snhsish/crosscode/blob/main/README.md): Project overview, quick start, and how it works
+- [CLI Reference](https://github.com/snhsish/crosscode/blob/main/docs/cli.md): All commands, flags, options, config file, log files, and environment variables for `crosscode`
+- [Features](https://github.com/snhsish/crosscode/blob/main/docs/features.md): Full feature list for the CLI, mobile app, accounts, and billing
+- [Development Guide](https://github.com/snhsish/crosscode/blob/main/docs/development.md): Local setup, monorepo structure, and tech stack
+- [Contributing](https://github.com/snhsish/crosscode/blob/main/CONTRIBUTING.md): Branch naming, commit conventions, and PR workflow
+- [License (MIT)](https://github.com/snhsish/crosscode/blob/main/LICENSE)
+
+## Architecture
+
+The monorepo uses pnpm workspaces + Turborepo:
+
+- `apps/mobile`: React Native + Expo mobile app (Expo Router, Zustand, NativeWind)
+- `apps/web`: Next.js website and dashboard (PostgreSQL + Drizzle, Sanity CMS, Dodo Payments)
+- `packages/crosscode`: Companion CLI published to npm as `crosscode`
+- `packages/shared`: Shared types, constants, QR payload schema, plans
+- `packages/tunnel-server`: WebSocket relay service for paid-tier tunnels
+
+Connection flow: Mobile App → HTTPS/SSE via tunnel (Cloudflare / ngrok / CrossCode Tunnel relay) → local proxy → `opencode serve` on your PC.
+
+## Tunnel Server
+
+Self-hosted WebSocket relay for paid users, replacing Cloudflare tunnels with dedicated low-latency connections:
+
+- [Tunnel Server Overview](https://github.com/snhsish/crosscode/blob/main/docs/tunnel-server/README.md): Features, project ID derivation, access control, and security model
+- [Tunnel Server Architecture](https://github.com/snhsish/crosscode/blob/main/docs/tunnel-server/ARCHITECTURE.md): Protocol design, security model, and data flow
+- [Tunnel Server Deployment](https://github.com/snhsish/crosscode/blob/main/docs/tunnel-server/DEPLOYMENT.md): VPS setup, Caddy config, DNS, TLS, and deployment
+- [Tunnel Server Development](https://github.com/snhsish/crosscode/blob/main/docs/tunnel-server/DEVELOPMENT.md): Local development, testing, and debugging
+
+## Key Concepts
+
+- **Zero-knowledge relaying**: Servers only relay traffic; code never leaves your machines.
+- **QR Connect**: The CLI renders a QR code encoding the connection payload; scanning it connects the app instantly.
+- **Tool Call Approvals**: Approve or reject every shell command, file write, or API call before it runs on your PC.
+- **Project IDs**: Stable 8-char hex IDs derived from the git remote URL, giving each repo a persistent tunnel URL.
+- **Tier fallback**: Paid users get the dedicated CrossCode Tunnel automatically, falling back to Cloudflare; free users default to Cloudflare or ngrok.
+
+## Optional
+
+- [npm package](https://www.npmjs.com/package/crosscode): Published CLI package
+- [Website](https://crosscode.site): Downloads and product information
+- [Issue Tracker](https://github.com/snhsish/crosscode/issues): Bug reports and feature requests

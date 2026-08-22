@@ -12,6 +12,8 @@ import Svg, { Defs, LinearGradient, Stop, Text as SvgText } from "react-native-s
 
 const AnimatedLinearGradient = Animated.createAnimatedComponent(LinearGradient)
 
+const TAIL_PAD = 10
+
 interface ShimmerTextProps {
     text: string
     active?: boolean
@@ -77,7 +79,7 @@ export function ShimmerText({
     }
 
     return (
-        <Svg width={width} height={size.height}>
+        <Svg width={width + TAIL_PAD} height={size.height}>
             <Defs>
                 <AnimatedLinearGradient
                     id={gradientId}

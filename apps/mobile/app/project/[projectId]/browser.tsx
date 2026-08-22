@@ -143,8 +143,11 @@ export default function BrowserPage() {
 
     useEffect(() => {
         loadDirectory(path)
+    }, [loadDirectory, path])
+
+    useEffect(() => {
         loadStatuses()
-    }, [loadDirectory, loadStatuses])
+    }, [loadStatuses])
 
     useEffect(() => {
         return () => {

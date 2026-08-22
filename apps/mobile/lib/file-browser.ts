@@ -36,7 +36,7 @@ export function sortEntries(entries: FileEntry[]): FileEntry[] {
 
 export async function listDirectory(url: string, token: string, path?: string): Promise<FileEntry[]> {
     try {
-        const query = path ? `?path=${encodeURIComponent(path)}` : ""
+        const query = `?path=${encodeURIComponent(path || ".")}`
         const res = await fetch(`${url}/file${query}`, {
             method: "GET",
             headers: {
@@ -94,8 +94,13 @@ export async function fetchFileStatuses(url: string, token: string): Promise<Fil
         const data = await res.json()
         if (!data || typeof data !== "object") return {}
 
+        const records: Array<[string, unknown]> = Array.isArray(data)
+            ? data.filter((item) => item && typeof item === "object" && typeof (item as Record<string, unknown>).path === "string")
+                  .map((item) => [(item as Record<string, unknown>).path as string, item])
+            : Object.entries(data as Record<string, unknown>)
+
         const result: FileStatuses = {}
-        for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+        for (const [key, value] of records) {
             let status: unknown = value
             if (value && typeof value === "object") {
                 status = (value as Record<string, unknown>).status

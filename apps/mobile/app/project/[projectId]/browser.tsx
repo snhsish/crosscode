@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { useConnections } from "@/store/connection.store"
+import { useProjects } from "@/store/projects.store"
 import {
     buildBreadcrumbs,
     fetchFileStatuses,
@@ -45,6 +46,12 @@ export default function BrowserPage() {
     const current = useConnections((s) => s.current)
     const connection = connections.find((c) => c.id === current) ?? null
     const connected = !!(connection?.url && connection?.token)
+    const project = useProjects((s) => s.projects.find((p) => p.id === projectId))
+    const rootLabel = useMemo(() => {
+        if (project?.name) return project.name
+        const dir = project?.directory ?? project?.worktree
+        return dir ? dir.split("/").filter(Boolean).pop() ?? "root" : "root"
+    }, [project])
 
     const [path, setPath] = useState("")
     const [entries, setEntries] = useState<FileEntry[]>([])
@@ -234,7 +241,7 @@ export default function BrowserPage() {
         [results.length, theme, t.mutedForeground, router, projectId]
     )
 
-    const crumbs = useMemo(() => buildBreadcrumbs(path), [path])
+    const crumbs = useMemo(() => buildBreadcrumbs(path, rootLabel), [path, rootLabel])
 
     if (!connected) {
         return (

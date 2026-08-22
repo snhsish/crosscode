@@ -15,6 +15,7 @@ import { StatusBar } from "expo-status-bar"
 import { useColorScheme } from "nativewind"
 import * as React from "react"
 import { SafeAreaProvider } from "react-native-safe-area-context"
+import { GestureHandlerRootView } from "react-native-gesture-handler"
 import * as SplashScreen from "expo-splash-screen"
 
 import { NAV_THEME } from "@/lib/theme"
@@ -63,12 +64,14 @@ export default function RootLayout() {
   if (!fontsLoaded || !settingsHydrated) return null
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider value={NAV_THEME[theme]}>
-        <StatusBar style={theme === "dark" ? "light" : "dark"} />
-        <Stack screenOptions={{ headerShown: false }} />
-        <PortalHost />
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeProvider value={NAV_THEME[theme]}>
+          <StatusBar style={theme === "dark" ? "light" : "dark"} />
+          <Stack screenOptions={{ headerShown: false }} />
+          <PortalHost />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   )
 }

@@ -34,6 +34,41 @@ const STATUS_COLORS: Record<FileStatusKind, string> = {
 
 const SEARCH_DEBOUNCE_MS = 350
 
+const SKELETON_ROWS: Array<[number, number]> = [
+    [58, 34],
+    [72, 26],
+    [46, 40],
+    [64, 30],
+    [52, 36],
+    [68, 24],
+    [44, 42],
+]
+
+function SkeletonList() {
+    return (
+        <View className="flex-1" pointerEvents="none">
+            {Array.from({ length: 9 }).map((_, i) => {
+                const [nameWidth, detailWidth] = SKELETON_ROWS[i % SKELETON_ROWS.length]
+                return (
+                    <View key={i} className="flex-row items-center gap-3 px-4 py-3 border-b border-border/50">
+                        <View className="w-10 h-10 rounded-lg bg-accent/60" />
+                        <View className="flex-1 gap-2">
+                            <View
+                                className="h-3 rounded-full bg-accent/80"
+                                style={{ width: `${nameWidth}%` }}
+                            />
+                            <View
+                                className="h-2.5 rounded-full bg-accent/45"
+                                style={{ width: `${detailWidth}%` }}
+                            />
+                        </View>
+                    </View>
+                )
+            })}
+        </View>
+    )
+}
+
 export default function BrowserPage() {
     const insets = useSafeAreaInsets()
     const router = useRouter()
@@ -291,7 +326,7 @@ export default function BrowserPage() {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     className="border-b border-accent/50"
-                    contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
+                    contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10 }}
                 >
                     {crumbs.map((crumb, i) => (
                         <View key={`${crumb.name}-${i}`} className="flex-row items-center">
@@ -344,10 +379,7 @@ export default function BrowserPage() {
                     />
                 )
             ) : loading ? (
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color={t.mutedForeground} />
-                    <Text className="text-xs text-muted-foreground mt-3">Loading...</Text>
-                </View>
+                <SkeletonList />
             ) : error ? (
                 <View className="flex-1 items-center justify-center px-8">
                     <Text className="text-lg font-semibold tracking-tight text-center mb-2">Could not load directory</Text>

@@ -1,5 +1,13 @@
 # crosscode
 
+## 0.6.1
+
+### Patch Changes
+
+- Fix CLI proxy stripping query strings from requests proxied to opencode
+
+  `sanitizeUrlPath` removed everything after `?`, so requests like `GET /file?path=.` arrived at opencode without their params and failed with 400 "Missing key path" schema rejections. This also silently broke message pagination (`?limit=&offset=`) and file search. Query strings are now preserved while path sanitization (traversal and `@` checks) is retained.
+
 ## 0.6.0
 
 ### Minor Changes

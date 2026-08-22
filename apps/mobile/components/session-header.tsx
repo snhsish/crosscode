@@ -1,6 +1,6 @@
 import { memo, useState, useCallback, useRef } from "react"
 import { View, Pressable, Modal } from "react-native"
-import { ArrowLeftIcon, MoreVerticalIcon, ListTodoIcon, FileIcon, ShareIcon, EditIcon, GitBranchIcon } from "lucide-react-native"
+import { ArrowLeftIcon, MoreVerticalIcon, ListTodoIcon, FileIcon, FolderIcon, ShareIcon, EditIcon, GitBranchIcon } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
@@ -126,6 +126,14 @@ function SessionHeaderInner({
                                 >
                                     <FileIcon size={16} color={THEME[theme].mutedForeground} />
                                     <Text className="text-sm text-foreground">Modified files</Text>
+                                </Pressable>
+
+                                <Pressable
+                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
+                                    onPress={() => handleNavigate(`/project/${projectId}/browser`)}
+                                >
+                                    <FolderIcon size={16} color={THEME[theme].mutedForeground} />
+                                    <Text className="text-sm text-foreground">Browse files</Text>
                                 </Pressable>
 
                                 {allowTerminal && (

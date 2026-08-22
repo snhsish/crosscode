@@ -12,7 +12,6 @@ import {
   Mail,
   Moon,
   RotateCcw,
-  Sparkles,
   Sun,
   Terminal,
   User as UserIcon,
@@ -40,7 +39,7 @@ import {
 } from "@/components/settings"
 import React from "react"
 
-const SUPPORT_EMAIL = "crosscode@sish.work"
+const SUPPORT_EMAIL = "support@crosscode.site"
 
 const maskEmail = (email: string) => {
   const [local, domain] = email.split("@")
@@ -49,9 +48,9 @@ const maskEmail = (email: string) => {
   return `${local.slice(0, visible)}${"*".repeat(local.length - visible)}@${domain}`
 }
 const WEB_APP_URL = "https://crosscode.site"
-const PRIVACY_URL = "https://crosscode.sish.works/privacy"
-const TERMS_URL = "https://crosscode.sish.works/terms"
-const SUPPORT_URL = "https://crosscode.sish.works/support"
+const PRIVACY_URL = "https://crosscode.site/legal/privacy"
+const TERMS_URL = "https://crosscode.site/legal/terms"
+const SUPPORT_URL = "https://crosscode.site/support"
 
 export default function UserPage() {
   const insets = useSafeAreaInsets()
@@ -202,7 +201,7 @@ export default function UserPage() {
                 <>
                   <SettingsDivider />
                   <SettingsLinkRow
-                    icon={<Sparkles size={18} color={THEME[theme].primary} />}
+                    icon={<Zap size={18} color={THEME[theme].primary} />}
                     title="Upgrade plan"
                     description="Compare Starter and Builder tiers"
                     onPress={openPricing}

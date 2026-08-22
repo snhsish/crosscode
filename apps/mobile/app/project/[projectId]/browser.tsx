@@ -34,6 +34,41 @@ const STATUS_COLORS: Record<FileStatusKind, string> = {
 
 const SEARCH_DEBOUNCE_MS = 350
 
+const SKELETON_ROWS: Array<[number, number]> = [
+    [58, 34],
+    [72, 26],
+    [46, 40],
+    [64, 30],
+    [52, 36],
+    [68, 24],
+    [44, 42],
+]
+
+function SkeletonList() {
+    return (
+        <View className="flex-1" pointerEvents="none">
+            {Array.from({ length: 9 }).map((_, i) => {
+                const [nameWidth, detailWidth] = SKELETON_ROWS[i % SKELETON_ROWS.length]
+                return (
+                    <View key={i} className="flex-row items-center gap-3 px-4 py-3 border-b border-border/50">
+                        <View className="w-10 h-10 rounded-lg bg-accent/60" />
+                        <View className="flex-1 gap-2">
+                            <View
+                                className="h-3 rounded-full bg-accent/80"
+                                style={{ width: `${nameWidth}%` }}
+                            />
+                            <View
+                                className="h-2.5 rounded-full bg-accent/45"
+                                style={{ width: `${detailWidth}%` }}
+                            />
+                        </View>
+                    </View>
+                )
+            })}
+        </View>
+    )
+}
+
 export default function BrowserPage() {
     const insets = useSafeAreaInsets()
     const router = useRouter()
@@ -108,8 +143,11 @@ export default function BrowserPage() {
 
     useEffect(() => {
         loadDirectory(path)
+    }, [loadDirectory, path])
+
+    useEffect(() => {
         loadStatuses()
-    }, [loadDirectory, loadStatuses])
+    }, [loadStatuses])
 
     useEffect(() => {
         return () => {
@@ -287,32 +325,38 @@ export default function BrowserPage() {
             </View>
 
             {!searchMode && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="border-b border-accent/50"
-                    contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
-                >
-                    {crumbs.map((crumb, i) => (
-                        <View key={`${crumb.name}-${i}`} className="flex-row items-center">
-                            {i > 0 && <ChevronRightIcon size={14} color={t.mutedForeground} />}
-                            <Pressable
-                                disabled={i === crumbs.length - 1}
-                                className="px-2 py-1 active:bg-accent/50 rounded-md"
-                                onPress={() => crumb.path !== null && setPath(crumb.path)}
-                            >
-                                <Text
-                                    className={`text-sm ${
-                                        i === crumbs.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"
-                                    }`}
-                                    numberOfLines={1}
+                <View className="border-b border-accent/50" style={{ height: 44 }}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{
+                            minHeight: 44,
+                            alignItems: "center",
+                            paddingHorizontal: 12,
+                            paddingVertical: 4,
+                        }}
+                    >
+                        {crumbs.map((crumb, i) => (
+                            <View key={`${crumb.name}-${i}`} className="flex-row items-center">
+                                {i > 0 && <ChevronRightIcon size={14} color={t.mutedForeground} />}
+                                <Pressable
+                                    disabled={i === crumbs.length - 1}
+                                    className="px-2 py-1.5 active:bg-accent/50 rounded-md"
+                                    onPress={() => crumb.path !== null && setPath(crumb.path)}
                                 >
-                                    {crumb.name}
-                                </Text>
-                            </Pressable>
-                        </View>
-                    ))}
-                </ScrollView>
+                                    <Text
+                                        className={`text-sm ${
+                                            i === crumbs.length - 1 ? "font-semibold text-foreground" : "text-muted-foreground"
+                                        }`}
+                                        numberOfLines={1}
+                                    >
+                                        {crumb.name}
+                                    </Text>
+                                </Pressable>
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
             )}
 
             {searchMode ? (
@@ -344,10 +388,7 @@ export default function BrowserPage() {
                     />
                 )
             ) : loading ? (
-                <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color={t.mutedForeground} />
-                    <Text className="text-xs text-muted-foreground mt-3">Loading...</Text>
-                </View>
+                <SkeletonList />
             ) : error ? (
                 <View className="flex-1 items-center justify-center px-8">
                     <Text className="text-lg font-semibold tracking-tight text-center mb-2">Could not load directory</Text>

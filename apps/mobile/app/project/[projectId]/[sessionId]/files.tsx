@@ -103,6 +103,13 @@ export default function FilesPage() {
         [setDiff, router, projectId, sessionId]
     )
 
+    const handleFileLongPress = useCallback(
+        (file: FileDiff) => {
+            router.push({ pathname: `/project/${projectId}/viewer`, params: { path: file.file } })
+        },
+        [router, projectId]
+    )
+
     const renderItem = useCallback(
         ({ item, index }: { item: FileDiff; index: number }) => {
             const fileName = item.file.split("/").pop() ?? item.file
@@ -114,6 +121,7 @@ export default function FilesPage() {
                         index === files.length - 1 ? "border-b-0" : ""
                     }`}
                     onPress={() => handleFilePress(item)}
+                    onLongPress={() => handleFileLongPress(item)}
                 >
                     <View className="w-10 h-10 rounded-lg bg-accent/60 items-center justify-center">
                         <FileIcon size={18} color={THEME[theme].mutedForeground} />
@@ -141,7 +149,7 @@ export default function FilesPage() {
                 </Pressable>
             )
         },
-        [files.length, theme, handleFilePress]
+        [files.length, theme, handleFilePress, handleFileLongPress]
     )
 
     return (

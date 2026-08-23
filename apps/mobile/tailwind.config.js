@@ -71,15 +71,17 @@ module.exports = {
     require('tailwindcss-animate'),
     plugin(({ addUtilities }) => {
       addUtilities({
-        '.font-thin': { fontFamily: 'Manrope_200ExtraLight' },
-        '.font-extralight': { fontFamily: 'Manrope_200ExtraLight' },
-        '.font-light': { fontFamily: 'Manrope_300Light' },
+        // Only 3 Manrope weights ship in the bundle (400/600/700);
+        // other weight utilities map to the nearest loaded weight.
+        '.font-thin': { fontFamily: 'Manrope_400Regular' },
+        '.font-extralight': { fontFamily: 'Manrope_400Regular' },
+        '.font-light': { fontFamily: 'Manrope_400Regular' },
         '.font-normal': { fontFamily: 'Manrope_400Regular' },
-        '.font-medium': { fontFamily: 'Manrope_500Medium' },
+        '.font-medium': { fontFamily: 'Manrope_600SemiBold' },
         '.font-semibold': { fontFamily: 'Manrope_600SemiBold' },
         '.font-bold': { fontFamily: 'Manrope_700Bold' },
-        '.font-extrabold': { fontFamily: 'Manrope_800ExtraBold' },
-        '.font-black': { fontFamily: 'Manrope_800ExtraBold' },
+        '.font-extrabold': { fontFamily: 'Manrope_700Bold' },
+        '.font-black': { fontFamily: 'Manrope_700Bold' },
       })
     }),
   ],

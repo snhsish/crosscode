@@ -3,13 +3,12 @@ import "../global.css"
 import { PortalHost } from "@rn-primitives/portal"
 import { ThemeProvider } from "@react-navigation/native"
 import {
+  // Subpath imports keep unused weights out of the bundle (the barrel requires all 7 TTFs).
   Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-  useFonts,
-} from "@expo-google-fonts/manrope"
+} from "@expo-google-fonts/manrope/400Regular"
+import { Manrope_600SemiBold } from "@expo-google-fonts/manrope/600SemiBold"
+import { Manrope_700Bold } from "@expo-google-fonts/manrope/700Bold"
+import { useFonts } from "@expo-google-fonts/manrope/useFonts"
 import { Stack, useRouter, useSegments } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useColorScheme } from "nativewind"
@@ -31,10 +30,8 @@ export default function RootLayout() {
   const theme = colorScheme ?? "dark"
   const [fontsLoaded] = useFonts({
     Manrope_400Regular,
-    Manrope_500Medium,
     Manrope_600SemiBold,
     Manrope_700Bold,
-    Manrope_800ExtraBold,
   })
   const hasCompletedOnboarding = useSettings((state) => state.hasCompletedOnboarding)
   const [settingsHydrated, setSettingsHydrated] = React.useState(useSettings.persist.hasHydrated())

@@ -2,21 +2,19 @@ import { View, ScrollView, Switch, AppState, Linking, Alert } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
-import {
-  ArrowLeft,
-  Bell,
-  CreditCard,
-  ExternalLink,
-  Info,
-  LogOut,
-  Mail,
-  Moon,
-  RotateCcw,
-  Sun,
-  Terminal,
-  User as UserIcon,
-  Zap,
-} from "lucide-react-native"
+import ArrowLeft from "lucide-react-native/dist/esm/icons/arrow-left"
+import Bell from "lucide-react-native/dist/esm/icons/bell"
+import CreditCard from "lucide-react-native/dist/esm/icons/credit-card"
+import ExternalLink from "lucide-react-native/dist/esm/icons/external-link"
+import Info from "lucide-react-native/dist/esm/icons/info"
+import LogOut from "lucide-react-native/dist/esm/icons/log-out"
+import Mail from "lucide-react-native/dist/esm/icons/mail"
+import Moon from "lucide-react-native/dist/esm/icons/moon"
+import RotateCcw from "lucide-react-native/dist/esm/icons/rotate-ccw"
+import Sun from "lucide-react-native/dist/esm/icons/sun"
+import Terminal from "lucide-react-native/dist/esm/icons/terminal"
+import UserIcon from "lucide-react-native/dist/esm/icons/user"
+import Zap from "lucide-react-native/dist/esm/icons/zap"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"

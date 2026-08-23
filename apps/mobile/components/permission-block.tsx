@@ -1,16 +1,14 @@
 import { memo, useCallback, useMemo, useState } from "react"
 import { Pressable, View } from "react-native"
-import {
-    ShieldIcon,
-    TerminalIcon,
-    FileEditIcon,
-    FileIcon,
-    GlobeIcon,
-    EyeIcon,
-    CheckIcon,
-    XIcon,
-    ClockIcon,
-} from "lucide-react-native"
+import ShieldIcon from "lucide-react-native/dist/esm/icons/shield"
+import TerminalIcon from "lucide-react-native/dist/esm/icons/terminal"
+import FileEditIcon from "lucide-react-native/dist/esm/icons/file-pen"
+import FileIcon from "lucide-react-native/dist/esm/icons/file"
+import GlobeIcon from "lucide-react-native/dist/esm/icons/globe"
+import EyeIcon from "lucide-react-native/dist/esm/icons/eye"
+import CheckIcon from "lucide-react-native/dist/esm/icons/check"
+import XIcon from "lucide-react-native/dist/esm/icons/x"
+import ClockIcon from "lucide-react-native/dist/esm/icons/clock"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"

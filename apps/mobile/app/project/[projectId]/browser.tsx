@@ -3,14 +3,12 @@ import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Tex
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useColorScheme } from "nativewind"
-import {
-    ArrowLeftIcon,
-    ChevronRightIcon,
-    FileIcon,
-    FolderIcon,
-    SearchIcon,
-    XIcon,
-} from "lucide-react-native"
+import ArrowLeftIcon from "lucide-react-native/dist/esm/icons/arrow-left"
+import ChevronRightIcon from "lucide-react-native/dist/esm/icons/chevron-right"
+import FileIcon from "lucide-react-native/dist/esm/icons/file"
+import FolderIcon from "lucide-react-native/dist/esm/icons/folder"
+import SearchIcon from "lucide-react-native/dist/esm/icons/search"
+import XIcon from "lucide-react-native/dist/esm/icons/x"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"

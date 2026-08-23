@@ -30,7 +30,7 @@ export function ShimmerText({
     baseColor,
     shineColor,
     fontSize = 12,
-    fontFamily = "Manrope_500Medium",
+            fontFamily = "Manrope_600SemiBold",
     fontWeight = "500",
 }: ShimmerTextProps) {
     const [size, setSize] = useState<{ width: number; height: number } | null>(null)

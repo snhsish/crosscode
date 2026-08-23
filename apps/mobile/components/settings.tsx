@@ -1,7 +1,7 @@
 import { View, Pressable } from "react-native"
 import { Text } from "@/components/ui/text"
 import { Card } from "@/components/ui/card"
-import { ChevronRight } from "lucide-react-native"
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"

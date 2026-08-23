@@ -1,4 +1,3 @@
-import "fast-text-encoding"
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, AssistantMessage, Message, Part } from "@/store/messages.store"

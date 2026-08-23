@@ -7,16 +7,23 @@ const prismGlobal = globalThis as PrismGlobal
 prismGlobal.Prism = Prism
 
 // These grammars are not included in prism-react-renderer's default bundle.
-require("prismjs/components/prism-bash")
-require("prismjs/components/prism-c")
-require("prismjs/components/prism-csharp")
-require("prismjs/components/prism-dart")
-require("prismjs/components/prism-diff")
-require("prismjs/components/prism-java")
-require("prismjs/components/prism-markup-templating")
-require("prismjs/components/prism-php")
-require("prismjs/components/prism-ruby")
-require("prismjs/components/prism-sql")
+// They are loaded lazily on the first code block render instead of at app startup.
+let languagesLoaded = false
+
+export function ensurePrismLanguages() {
+    if (languagesLoaded) return
+    languagesLoaded = true
+    require("prismjs/components/prism-bash")
+    require("prismjs/components/prism-c")
+    require("prismjs/components/prism-csharp")
+    require("prismjs/components/prism-dart")
+    require("prismjs/components/prism-diff")
+    require("prismjs/components/prism-java")
+    require("prismjs/components/prism-markup-templating")
+    require("prismjs/components/prism-php")
+    require("prismjs/components/prism-ruby")
+    require("prismjs/components/prism-sql")
+}
 
 const languageAliases: Record<string, string> = {
     "c#": "csharp",

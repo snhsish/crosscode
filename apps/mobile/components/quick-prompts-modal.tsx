@@ -5,7 +5,9 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { THEME } from "@/lib/theme"
 import { useQuickPromptsStore, PRE_DEFINED_PROMPTS, QuickPrompt } from "@/store/quick-prompts.store"
-import { PlusIcon, XIcon, ZapIcon } from "lucide-react-native"
+import PlusIcon from "lucide-react-native/dist/esm/icons/plus"
+import XIcon from "lucide-react-native/dist/esm/icons/x"
+import ZapIcon from "lucide-react-native/dist/esm/icons/zap"
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window")
 

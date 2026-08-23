@@ -1,7 +1,7 @@
 import { Icon } from "@/components/ui/icon"
 import { cn } from "@/lib/utils"
 import * as SelectPrimitive from "@rn-primitives/select"
-import { ChevronDown } from "lucide-react-native"
+import ChevronDown from "lucide-react-native/dist/esm/icons/chevron-down"
 import * as React from "react"
 import { Platform } from "react-native"
 

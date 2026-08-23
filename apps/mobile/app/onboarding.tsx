@@ -2,14 +2,12 @@ import * as React from "react"
 import { FlatList, Image, Pressable, useWindowDimensions, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
-import {
-  Bell,
-  Code2,
-  FolderKanban,
-  MessageSquareCode,
-  QrCode,
-  type LucideIcon,
-} from "lucide-react-native"
+import Bell from "lucide-react-native/dist/esm/icons/bell"
+import Code2 from "lucide-react-native/dist/esm/icons/code-xml"
+import FolderKanban from "lucide-react-native/dist/esm/icons/folder-kanban"
+import MessageSquareCode from "lucide-react-native/dist/esm/icons/message-square-code"
+import QrCode from "lucide-react-native/dist/esm/icons/qr-code"
+import type { LucideIcon } from "lucide-react-native"
 import { useColorScheme } from "nativewind"
 
 import { Button } from "@/components/ui/button"
@@ -118,7 +116,7 @@ export default function OnboardingScreen() {
               >
                 {index === 0 ? (
                   <Image
-                    source={theme === "dark" ? require("@/assets/onboarding_1_dark.png") : require("@/assets/onboarding_1_light.png")}
+                                        source={theme === "dark" ? require("@/assets/onboarding_1_dark.webp") : require("@/assets/onboarding_1_light.webp")}
                     accessibilityLabel="Welcome to CrossCode"
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="contain"

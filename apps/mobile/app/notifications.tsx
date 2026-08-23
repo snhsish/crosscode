@@ -5,17 +5,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogHeader, DialogFooter } from "@/components/ui/dialog"
-import {
-  ArrowLeft,
-  Bell,
-  BellOff,
-  CheckCheck,
-  CheckCircle2,
-  CircleAlert,
-  CircleHelp,
-  ShieldAlert,
-  Trash2,
-} from "lucide-react-native"
+import ArrowLeft from "lucide-react-native/dist/esm/icons/arrow-left"
+import Bell from "lucide-react-native/dist/esm/icons/bell"
+import BellOff from "lucide-react-native/dist/esm/icons/bell-off"
+import CheckCheck from "lucide-react-native/dist/esm/icons/check-check"
+import CheckCircle2 from "lucide-react-native/dist/esm/icons/circle-check-big"
+import CircleAlert from "lucide-react-native/dist/esm/icons/circle-alert"
+import CircleHelp from "lucide-react-native/dist/esm/icons/circle-help"
+import ShieldAlert from "lucide-react-native/dist/esm/icons/shield-alert"
+import Trash2 from "lucide-react-native/dist/esm/icons/trash-2"
 import { useRouter } from "expo-router"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"

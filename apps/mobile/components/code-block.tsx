@@ -1,9 +1,10 @@
 import { useState } from "react"
 import { Platform, ScrollView, Pressable, View, type TextStyle } from "react-native"
 import * as Clipboard from "expo-clipboard"
-import { CheckIcon, CopyIcon } from "lucide-react-native"
+import CheckIcon from "lucide-react-native/dist/esm/icons/check"
+import CopyIcon from "lucide-react-native/dist/esm/icons/copy"
 import { Highlight, themes } from "prism-react-renderer"
-import { displayLanguage, normalizeLanguage } from "@/lib/prism"
+import { displayLanguage, ensurePrismLanguages, normalizeLanguage } from "@/lib/prism"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
 
@@ -23,6 +24,7 @@ interface CodeBlockProps {
 
 export function CodeBlock({ text, language, theme }: CodeBlockProps) {
     const [copied, setCopied] = useState(false)
+    ensurePrismLanguages()
     const prismTheme = theme === "dark" ? themes.oneDark : themes.github
     const normalizedLanguage = normalizeLanguage(language)
     const label = displayLanguage(language)

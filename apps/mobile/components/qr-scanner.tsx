@@ -3,7 +3,7 @@ import { useRef, useEffect } from "react"
 import { Button } from "./ui/button"
 import { Text } from "./ui/text"
 import { View } from "react-native"
-import { CameraOff } from "lucide-react-native"
+import CameraOff from "lucide-react-native/dist/esm/icons/camera-off"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 

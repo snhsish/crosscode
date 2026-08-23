@@ -1,7 +1,7 @@
 import { Platform, Pressable, View } from "react-native"
 import { memo, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated"
-import { TerminalIcon } from "lucide-react-native"
+import TerminalIcon from "lucide-react-native/dist/esm/icons/terminal"
 import { Text } from "./ui/text"
 import { THEME } from "@/lib/theme"
 

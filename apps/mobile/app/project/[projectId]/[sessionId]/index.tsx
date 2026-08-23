@@ -34,7 +34,7 @@ import { usePermissions } from "@/store/permissions.store"
 import { getPendingPermissions, replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
 import { getAuthHeader } from "@/lib/utils"
-import { notifyAgentStatus } from "@/lib/notifications"
+import { notifyAgentStatus, setActiveChatScreen, clearActiveChatScreen } from "@/lib/notifications"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
 
@@ -281,6 +281,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const onScrollToIndexFailed = useCallback(() => {}, [])
 
     useEventStream(connection?.url, sessionId, connection?.token, projectId)
+
+    useFocusEffect(
+        useCallback(() => {
+            setActiveChatScreen(projectId!, sessionId!)
+            return () => clearActiveChatScreen()
+        }, [projectId, sessionId])
+    )
 
     const attemptSendMessage = useCallback(async (
         connectionUrl: string,

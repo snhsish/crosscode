@@ -14,6 +14,7 @@ import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
 import { connectTunnel, deriveProjectId } from "./tunnel-client"
 import { handleGitRequest } from "./git-handler"
+import { waitForOpencodePort } from "./port-detect"
 
 const children: import("child_process").ChildProcess[] = []
 const logDir = join(homedir(), ".crosscode")
@@ -405,33 +406,6 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         children.push(opencode)
 
         let opencodePort = port
-        let portDetected = false
-        const portPromise = new Promise<number>((resolve) => {
-            const timeout = setTimeout(() => {
-                if (!portDetected) {
-                    logCrosscode(`Port detection timeout, using default port ${port}`)
-                    debug("port detection timeout")
-                    resolve(port)
-                }
-            }, 10000)
-
-            const checkPort = (data: Buffer) => {
-                opencodeLogStream.write(data)
-                const text = data.toString()
-                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
-                if (match && !portDetected) {
-                    portDetected = true
-                    opencodePort = parseInt(match[1], 10)
-                    clearTimeout(timeout)
-                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
-                    debug("opencode port detected", { port: opencodePort })
-                    resolve(opencodePort)
-                }
-            }
-
-            opencode.stdout?.on("data", checkPort)
-            opencode.stderr?.on("data", checkPort)
-        })
 
         opencode.on("spawn", () => {
             spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
@@ -446,7 +420,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         const proxyPort = port + 1
 
-        portPromise.then((detectedPort) => {
+        waitForOpencodePort({ proc: opencode, requestedPort: port, onData: d => opencodeLogStream.write(d) }).then((detectedPort) => {
             opencodePort = detectedPort
             startProxy(detectedPort, proxyPort, sessionToken, port, spinner)
         })
@@ -701,33 +675,6 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         children.push(opencode)
 
         let opencodePort = port
-        let portDetected = false
-        const portPromise = new Promise<number>((resolve) => {
-            const timeout = setTimeout(() => {
-                if (!portDetected) {
-                    logCrosscode(`Port detection timeout, using default port ${port}`)
-                    debug("port detection timeout")
-                    resolve(port)
-                }
-            }, 10000)
-
-            const checkPort = (data: Buffer) => {
-                opencodeLogStream.write(data)
-                const text = data.toString()
-                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
-                if (match && !portDetected) {
-                    portDetected = true
-                    opencodePort = parseInt(match[1], 10)
-                    clearTimeout(timeout)
-                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
-                    debug("opencode port detected", { port: opencodePort })
-                    resolve(opencodePort)
-                }
-            }
-
-            opencode.stdout?.on("data", checkPort)
-            opencode.stderr?.on("data", checkPort)
-        })
 
         opencode.on("spawn", () => {
             spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
@@ -740,7 +687,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             debug("opencode spawn error", { error: err.message })
         })
 
-        portPromise.then((detectedPort) => {
+        waitForOpencodePort({ proc: opencode, requestedPort: port, onData: d => opencodeLogStream.write(d) }).then((detectedPort) => {
             opencodePort = detectedPort
             if (detectedPort !== port) {
                 logCrosscode(`Using detected port ${detectedPort} instead of requested port ${port}`)
@@ -824,33 +771,6 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         children.push(opencode)
 
         let opencodePort = port
-        let portDetected = false
-        const portPromise = new Promise<number>((resolve) => {
-            const timeout = setTimeout(() => {
-                if (!portDetected) {
-                    logCrosscode(`Port detection timeout, using default port ${port}`)
-                    debug("port detection timeout")
-                    resolve(port)
-                }
-            }, 10000)
-
-            const checkPort = (data: Buffer) => {
-                opencodeLogStream.write(data)
-                const text = data.toString()
-                const match = text.match(/opencode server listening on http:\/\/127\.0\.0\.1:(\d+)/)
-                if (match && !portDetected) {
-                    portDetected = true
-                    opencodePort = parseInt(match[1], 10)
-                    clearTimeout(timeout)
-                    logCrosscode(`Detected opencode listening on port ${opencodePort}`)
-                    debug("opencode port detected", { port: opencodePort })
-                    resolve(opencodePort)
-                }
-            }
-
-            opencode.stdout?.on("data", checkPort)
-            opencode.stderr?.on("data", checkPort)
-        })
 
         opencode.on("spawn", () => {
             spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
@@ -865,7 +785,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         const proxyPort = port + 1
 
-        portPromise.then((detectedPort) => {
+        waitForOpencodePort({ proc: opencode, requestedPort: port, onData: d => opencodeLogStream.write(d) }).then((detectedPort) => {
             opencodePort = detectedPort
             if (detectedPort !== port) {
                 logCrosscode(`Using detected port ${detectedPort} instead of requested port ${port}`)

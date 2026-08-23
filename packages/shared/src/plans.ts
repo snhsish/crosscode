@@ -21,7 +21,7 @@ export const paidPlans = {
 
 export const tierTunnelLimits: Record<string, number> = {
   free: 1,
-  starter: 1,
+  starter: 2,
   builder: 5,
   enterprise: Number.POSITIVE_INFINITY,
 }

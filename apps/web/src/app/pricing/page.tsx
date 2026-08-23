@@ -34,7 +34,7 @@ const tiers = [
     tier: null,
     description: "For trying out CrossCode",
     features: [
-      { label: "Cloudflare (ephemeral) tunnel", included: true },
+      { label: "Cloudflare/ngrok tunnel (no connect.crosscode.site tunnel)", included: true },
       { label: "1 active tunnel", included: true },
       { label: "Fair-use traffic", included: true },
       { label: "Best-effort uptime", included: true },
@@ -53,7 +53,7 @@ const tiers = [
     description: "For individual developers",
     features: [
       { label: "Custom VPS tunnel", included: true },
-      { label: "1 active tunnel", included: true },
+      { label: "2 active tunnels", included: true },
       { label: "Unlimited fair-use traffic", included: true, href: "/legal/fair-usage" },
       { label: "Shared infrastructure", included: true },
       { label: "*.tunnel.crosscode.site subdomain", included: true },
@@ -114,8 +114,8 @@ const comparisonFeatures = [
   {
     category: "Tunnel",
     rows: [
-      { label: "Tunnel type", values: ["Cloudflare (ephemeral)", "Custom VPS tunnel", "Custom VPS tunnel", "Custom relay"] },
-      { label: "Active tunnels", values: ["1", "1", "5", "Custom"] },
+      { label: "Tunnel type", values: ["Cloudflare/ngrok (ephemeral)", "Custom VPS tunnel", "Custom VPS tunnel", "Custom relay"] },
+      { label: "Active tunnels", values: ["1", "2", "5", "Custom"] },
       { label: "Traffic", values: ["Fair use", "Unlimited fair use", "Unlimited fair use", "Custom"] },
       { label: "Tunnel uptime", values: ["Best-effort", "Best-effort", "Best-effort", "Custom SLA"] },
     ],
@@ -193,7 +193,7 @@ export default function PricingPage() {
         <div className="container py-12 md:py-20">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-              Simple, transparent pricing
+              Tunnels for every stage of your workflow
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
               Start free and scale as you grow. No hidden fees, no surprises.
@@ -259,9 +259,11 @@ export default function PricingPage() {
                   </div>
                   {tier.tier && (
                     <>
-                      <p className="text-xs text-muted-foreground">
-                        {effectiveCurrency === "inr" ? `≈ $${paidPlans[tier.tier][cycle].usd}/yr` : `India: ₹${paidPlans[tier.tier][cycle].inr}/${cycle === "monthly" ? "mo" : "yr"}`}
-                      </p>
+                      {effectiveCurrency === "inr" && (
+                        <p className="text-xs text-muted-foreground">
+                          {`≈ $${paidPlans[tier.tier][cycle].usd}/yr`}
+                        </p>
+                      )}
                       {cycle === "yearly" && (
                         <p className="mt-1 text-xs font-medium text-primary">
                           Save {discountPercent(tier.tier, effectiveCurrency)}% versus monthly
@@ -341,7 +343,7 @@ export default function PricingPage() {
                   {comparisonFeatures.map((section) => (
                     <React.Fragment key={section.category}>
                       <tr key={section.category} className="border-b bg-muted/50">
-                        <td colSpan={5} className="py-2 pr-4 font-semibold">
+                        <td colSpan={5} className="py-2 pr-4 pl-6 font-semibold">
                           {section.category}
                         </td>
                       </tr>

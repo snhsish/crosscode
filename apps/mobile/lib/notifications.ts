@@ -22,6 +22,16 @@ const CHANNEL_ID = "agent-status"
 let configured = false
 const deliveredKeys = new Set<string>()
 
+let activeChat: { projectId?: string; sessionId?: string } | null = null
+
+export function setActiveChatScreen(projectId: string, sessionId: string) {
+    activeChat = { projectId, sessionId }
+}
+
+export function clearActiveChatScreen() {
+    activeChat = null
+}
+
 const typeByKind: Record<AgentNotificationKind, NotificationType> = {
     completion: "success",
     question: "warning",
@@ -65,6 +75,14 @@ export async function requestNotificationsPermission(): Promise<boolean> {
 
 export async function notifyAgentStatus(input: AgentNotificationInput) {
     if (!useSettings.getState().notifications) return
+
+    if (
+        activeChat &&
+        input.sessionId === activeChat.sessionId &&
+        input.projectId === activeChat.projectId
+    ) {
+        return
+    }
 
     const existing = useNotifications
         .getState()

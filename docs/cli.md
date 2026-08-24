@@ -46,7 +46,7 @@ Authenticates with the CrossCode API.
 crosscode login
 ```
 
-1. Opens browser to `https://crosscode.sish.work/login`
+1. Opens browser to `https://crosscode.site/login`
 2. Log in on the dashboard and copy the API key
 3. Paste the API key in the terminal
 
@@ -137,7 +137,7 @@ All logs are stored in `~/.crosscode/`:
 
 | Variable | Default | Description |
 |---|---|---|
-| `CROSSCODE_WEB_URL` | `https://crosscode.sish.work` | Web dashboard base URL |
+| `CROSSCODE_WEB_URL` | `https://crosscode.site` | Web dashboard base URL |
 | `CROSSCODE_AUTH_URL` | `${CROSSCODE_WEB_URL}/api/auth` | Authentication API URL |
 | `CROSSCODE_TUNNEL_WS_URL` | `wss://tunnel.sish.work/ws` | Tunnel server WebSocket URL |
 

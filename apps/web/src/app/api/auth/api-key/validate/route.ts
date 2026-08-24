@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { user } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { logger } from "@/lib/logger"
+import { effectiveTier } from "@crosscode/shared"
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,12 +25,13 @@ export async function POST(req: NextRequest) {
     }
 
     const u = users[0]
-    logger.info("API", `POST /api/auth/api-key/validate - Valid key for email=${u.email}, tier=${u.tier}`)
+    const tier = effectiveTier(u.tier, u.subscriptionStatus)
+    logger.info("API", `POST /api/auth/api-key/validate - Valid key for email=${u.email}, tier=${tier}`)
 
     return NextResponse.json({
       email: u.email,
       name: u.name,
-      tier: u.tier,
+      tier,
     })
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)

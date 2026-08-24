@@ -10,6 +10,7 @@ import chalk from "chalk"
 import ora from "ora"
 import crypto from "crypto"
 import http from "http"
+import net from "net"
 import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
 import { connectTunnel, deriveProjectId } from "./tunnel-client"
@@ -24,6 +25,18 @@ const MAX_BODY_SIZE = 10 * 1024 * 1024
 const HOP_BY_HOP = new Set(["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
 
 const proxyAgent = new http.Agent({ keepAlive: true, maxSockets: 50 })
+
+function getFreePort(): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const srv = net.createServer()
+        srv.on("error", reject)
+        srv.listen(0, "127.0.0.1", () => {
+            const addr = srv.address() as net.AddressInfo
+            const port = addr.port
+            srv.close(() => resolve(port))
+        })
+    })
+}
 
 if (!existsSync(logDir))
     mkdirSync(logDir, {
@@ -171,8 +184,7 @@ function openBrowser(url: string): void {
     } catch {}
 }
 
-async function validateApiKey(apiKey: string): Promise<{ email: string; name: string; tier: string } | null> {
-    try {
+async function validateApiKey(apiKey: string): Promise<{ email: string; name: string; tier: string } | null> {    try {
         debug("validating API key", { keyPrefix: apiKey.substring(0, 8) + "..." })
         const response = await fetch(`${AUTH_API_URL}/api-key/validate`, {
             method: "POST",
@@ -191,6 +203,22 @@ async function validateApiKey(apiKey: string): Promise<{ email: string; name: st
         debug("API key validation error", { error: err instanceof Error ? err.message : String(err) })
         console.log(chalk.dim(`\n Connection failed: ${err instanceof Error ? err.message : err}`))
         return null
+    }
+}
+
+async function refreshTier(config: Config): Promise<void> {
+    if (!config.auth?.sessionToken) return
+    try {
+        const result = await validateApiKey(config.auth.sessionToken)
+        if (!result) return
+        if (result.tier !== config.auth.tier || result.email !== config.auth.email) {
+            config.auth.tier = result.tier
+            config.auth.email = result.email
+            saveConfig(config)
+            debug("tier refreshed", { tier: result.tier, email: result.email })
+        }
+    } catch (err) {
+        debug("tier refresh failed", { error: err instanceof Error ? err.message : String(err) })
     }
 }
 
@@ -276,6 +304,7 @@ function sanitizeUrlPath(url: string | undefined): string {
 async function main() {
     const args = process.argv.slice(2)
     const config = readConfig()
+    await refreshTier(config)
     const command = args[0]
 
     if (command === "login") {
@@ -344,7 +373,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     const useCloudflared = args.includes("--cloudflared")
     const canUseTunnel = !!(config.auth?.sessionToken)
     const tunnelProvider = useNgrok ? "ngrok" : (useCloudflared ? "cloudflared" : (canUseTunnel ? "tunnel" : "cloudflared"))
-    const port = config.port || 4096
+    const port = config.port || await getFreePort()
 
     let missingDep = false
     let logsVisible = false
@@ -444,7 +473,8 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             debug("opencode spawn error", { error: err.message })
         })
 
-        const proxyPort = port + 1
+        let proxyPort = await getFreePort()
+        while (proxyPort === port) proxyPort = await getFreePort()
 
         portPromise.then((detectedPort) => {
             opencodePort = detectedPort
@@ -651,7 +681,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                             v: 1
                         })
 
-                        if (opencodePort !== 4096) {
+                        if (opencodePort !== port) {
                             console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
                         }
                         console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
@@ -786,7 +816,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                                     v: 1
                                 })
 
-                                if (opencodePort !== 4096) {
+                                if (opencodePort !== port) {
                                     console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
                                 }
                                 console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
@@ -863,7 +893,8 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             debug("opencode spawn error", { error: err.message })
         })
 
-        const proxyPort = port + 1
+        let proxyPort = await getFreePort()
+        while (proxyPort === port) proxyPort = await getFreePort()
 
         portPromise.then((detectedPort) => {
             opencodePort = detectedPort
@@ -1056,7 +1087,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                             v: 1
                         })
 
-                        if (opencodePort !== 4096) {
+                        if (opencodePort !== port) {
                             console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
                         }
                         console.log(chalk.cyanBright("\n Scan with CrossCode App:"))

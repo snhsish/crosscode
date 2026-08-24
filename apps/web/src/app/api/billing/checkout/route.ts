@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
+import { eq } from "drizzle-orm"
 import { getBillingUser } from "@/lib/billing-auth"
 import { appUrl, getDodo, getProductId } from "@/lib/dodo"
+import { db } from "@/lib/db"
+import { user } from "@/lib/db/schema"
 import type { BillingCurrency, BillingCycle, PaidTier } from "@crosscode/shared"
 
 export async function POST(req: NextRequest) {
@@ -16,12 +19,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
     }
 
+    const dodo = getDodo()
+    let customerId = currentUser.dodoCustomerId
+
+    if (!customerId) {
+      const created = await dodo.customers.create({
+        email: currentUser.email,
+        name: currentUser.name,
+      })
+      customerId = created.customer_id
+      await db
+        .update(user)
+        .set({ dodoCustomerId: customerId, updatedAt: new Date() })
+        .where(eq(user.id, currentUser.id))
+    } else {
+      try {
+        await dodo.customers.update(customerId, { name: currentUser.name })
+      } catch {
+        // name sync is best-effort; checkout can still proceed with stored customer
+      }
+    }
+
     const productId = getProductId(tier, cycle)
-    const checkout = await getDodo().checkoutSessions.create({
+    const checkout = await dodo.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
-      customer: currentUser.dodoCustomerId
-        ? { customer_id: currentUser.dodoCustomerId }
-        : { email: currentUser.email, name: currentUser.name },
+      customer: { customer_id: customerId },
       allowed_payment_method_types: ["upi_collect", "credit", "debit"],
       ...(currency === "inr" ? { billing_currency: "INR" } : {}),
       return_url: appUrl("/billing/success"),

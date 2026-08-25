@@ -714,24 +714,55 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const keyExtractor = useCallback((item: Message) => item.id, [])
 
-    const workingStartAt = useMemo(() => {
-        if (!isStreaming) return null
-        const ordered = [...rawMessages].reverse()
-        const streamingMsg = ordered.find((m) => m.role === "assistant" && !m.time?.completed)
-        if (streamingMsg) return streamingMsg.time.created
-        const lastUser = [...ordered].reverse().find((m) => m.role === "user")
-        return lastUser?.time?.created ?? null
-    }, [isStreaming, rawMessages])
+    // Compute the current response "turn": all messages after the last user message.
+    // The group start is anchored to the first assistant message of the turn so the
+    // timer reflects the entire response rather than resetting per message part.
+    const turn = useMemo(() => {
+        const sorted = [...rawMessages].sort(
+            (a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0)
+        )
+        let lastUserIdx = -1
+        for (let i = sorted.length - 1; i >= 0; i--) {
+            if (sorted[i].role === "user") {
+                lastUserIdx = i
+                break
+            }
+        }
+        if (lastUserIdx === -1) return null
+
+        const after = sorted.slice(lastUserIdx + 1)
+        const assistantMsgs = after.filter((m) => m.role === "assistant")
+
+        if (assistantMsgs.length === 0) {
+            const startAt = sorted[lastUserIdx].time?.created ?? null
+            return startAt == null ? null : { startAt, endAt: null as number | null }
+        }
+
+        const startAt = assistantMsgs[0].time?.created ?? null
+        if (startAt == null) return null
+
+        let endAt: number | null = null
+        if (!isStreaming) {
+            let max = 0
+            for (const m of after) {
+                const t = m.time?.completed ?? m.time?.created ?? 0
+                if (t > max) max = t
+            }
+            endAt = max || null
+        }
+
+        return { startAt, endAt }
+    }, [rawMessages, isStreaming])
 
     // The list is inverted, so the header renders visually below the newest message
     const StreamingIndicator = useMemo(() => {
-        if (!isStreaming || workingStartAt == null) return null
+        if (!turn || turn.startAt == null) return null
         return (
             <View className="pt-1 pb-2">
-                <WorkingIndicator startedAt={workingStartAt} />
+                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
             </View>
         )
-    }, [isStreaming, workingStartAt])
+    }, [turn])
 
     const ListFooterComponent = useMemo(() => {
         if (!isLoadingMore) return null
@@ -860,9 +891,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </View>
             )}
 
-            {isStreaming && messages.length === 0 && workingStartAt != null && (
+            {turn && turn.startAt != null && messages.length === 0 && (
                 <View className="px-4 py-2">
-                    <WorkingIndicator startedAt={workingStartAt} />
+                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
                 </View>
             )}
 

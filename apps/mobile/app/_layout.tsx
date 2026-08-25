@@ -19,9 +19,16 @@ import * as SplashScreen from "expo-splash-screen"
 
 import { NAV_THEME } from "@/lib/theme"
 import { useNotificationRouting } from "@/lib/notifications"
+import { registerCrossCodeWidgets, refreshWidgets } from "@/lib/widget-task"
 import { useSettings } from "@/store/settings.store"
+import { useSessions } from "@/store/sessions.store"
+import { useConnections } from "@/store/connection.store"
+import { useOpencodeStats } from "@/store/opencode-stats.store"
+import { useQuestions } from "@/store/questions.store"
 
 SplashScreen.preventAutoHideAsync()
+
+registerCrossCodeWidgets()
 
 export default function RootLayout() {
   const router = useRouter()
@@ -48,6 +55,28 @@ export default function RootLayout() {
       router.replace("/onboarding")
     }
   }, [fontsLoaded, hasCompletedOnboarding, router, segments, settingsHydrated])
+
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const schedule = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        refreshWidgets()
+      }, 800)
+    }
+    const unsubSessions = useSessions.subscribe(schedule)
+    const unsubConnections = useConnections.subscribe(schedule)
+    const unsubStats = useOpencodeStats.subscribe(schedule)
+    const unsubQuestions = useQuestions.subscribe(schedule)
+    refreshWidgets()
+    return () => {
+      if (timer) clearTimeout(timer)
+      unsubSessions()
+      unsubConnections()
+      unsubStats()
+      unsubQuestions()
+    }
+  }, [])
 
   React.useEffect(() => {
     if (fontsLoaded && settingsHydrated) {

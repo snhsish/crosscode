@@ -2,6 +2,15 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
+export interface DailyBucket {
+  inputTokens: number
+  outputTokens: number
+  cost: number
+  responses: number
+}
+
+export const DAILY_HISTORY_LIMIT = 30
+
 export interface ProjectStats {
   projectId: string
   projectName: string
@@ -11,6 +20,22 @@ export interface ProjectStats {
   totalCost: number
   lastResponseAt: string | null
   firstResponseAt: string | null
+  /** Per-day usage keyed by YYYY-MM-DD (UTC), capped at DAILY_HISTORY_LIMIT days. */
+  dailyHistory: Record<string, DailyBucket>
+}
+
+export function todayKey(date = new Date()): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function pruneHistory(history: Record<string, DailyBucket>): Record<string, DailyBucket> {
+  const keys = Object.keys(history).sort()
+  if (keys.length <= DAILY_HISTORY_LIMIT) return history
+  const next: Record<string, DailyBucket> = {}
+  for (const key of keys.slice(keys.length - DAILY_HISTORY_LIMIT)) {
+    next[key] = history[key]
+  }
+  return next
 }
 
 type OpencodeStatsStore = {
@@ -38,6 +63,23 @@ export const useOpencodeStats = create<OpencodeStatsStore>()(
           const existing = state.projects[projectId]
           const now = new Date().toISOString()
 
+          const key = todayKey()
+          const prevBucket = existing?.dailyHistory?.[key] ?? {
+            inputTokens: 0,
+            outputTokens: 0,
+            cost: 0,
+            responses: 0,
+          }
+          const dailyHistory = pruneHistory({
+            ...(existing?.dailyHistory ?? {}),
+            [key]: {
+              inputTokens: prevBucket.inputTokens + inputTokens,
+              outputTokens: prevBucket.outputTokens + outputTokens,
+              cost: prevBucket.cost + cost,
+              responses: prevBucket.responses + 1,
+            },
+          })
+
           const updated: ProjectStats = {
             projectId,
             projectName,
@@ -47,6 +89,7 @@ export const useOpencodeStats = create<OpencodeStatsStore>()(
             totalCost: (existing?.totalCost ?? 0) + cost,
             lastResponseAt: now,
             firstResponseAt: existing?.firstResponseAt ?? now,
+            dailyHistory,
           }
 
           return {

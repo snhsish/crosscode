@@ -382,11 +382,13 @@ export default function HomeScreen() {
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       <View className="px-6 pt-4 pb-3 gap-4">
         <View className="flex-row items-center justify-between">
-          <Image
-            source={theme === "dark" ? require("@/assets/branding-dark-mode.png") : require("@/assets/branding-light-mode.png")}
-            className="h-6 w-6"
-            resizeMode="contain"
-          />
+          <Pressable onPress={() => router.push("/about")} hitSlop={8} className="active:opacity-60">
+            <Image
+              source={theme === "dark" ? require("@/assets/branding-dark-mode.png") : require("@/assets/branding-light-mode.png")}
+              className="h-6 w-6"
+              resizeMode="contain"
+            />
+          </Pressable>
           <View className="flex-row items-center gap-1">
             <Pressable onPress={() => router.push("/notifications")} className="p-2">
               <Bell size={22} color={THEME[theme].mutedForeground} />

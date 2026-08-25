@@ -25,3 +25,16 @@ export const tierTunnelLimits: Record<string, number> = {
   builder: 5,
   enterprise: Number.POSITIVE_INFINITY,
 }
+
+const PAID_TIERS = new Set(["starter", "builder", "enterprise"])
+
+/**
+ * A paid tier only counts as paid while its subscription is active.
+ * Otherwise it falls back to "free". Mirrors the tunnel-server SQL logic
+ * so the tier shown in the CLI matches what the tunnel server enforces.
+ */
+export function effectiveTier(tier: string | null | undefined, subscriptionStatus: string | null | undefined): string {
+  if (!tier) return "free"
+  if (PAID_TIERS.has(tier) && (subscriptionStatus ?? "") !== "active") return "free"
+  return tier
+}

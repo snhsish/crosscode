@@ -43,6 +43,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
+    "react-native-android-widget": "^0.22.1",
     "react-native-css-interop": "^0.2.6",
     "react-native-gesture-handler": "^2.32.0",
     "react-native-marked": "^8.1.0",

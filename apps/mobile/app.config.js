@@ -11,6 +11,43 @@ module.exports = ({ config }) => {
     "expo-router",
     "expo-status-bar",
     [
+      "react-native-android-widget",
+      {
+        widgets: [
+          {
+            name: "SmallWidget",
+            label: "CrossCode Status",
+            description: "Connection status and active session",
+            minWidth: "110dp",
+            minHeight: "40dp",
+            targetCellWidth: 2,
+            targetCellHeight: 1,
+            resizeMode: "horizontal",
+          },
+          {
+            name: "MediumWidget",
+            label: "CrossCode Session",
+            description: "Session status, today's usage and 7-day chart",
+            minWidth: "250dp",
+            minHeight: "110dp",
+            targetCellWidth: 4,
+            targetCellHeight: 2,
+            resizeMode: "horizontal|vertical",
+          },
+          {
+            name: "LargeWidget",
+            label: "CrossCode Projects",
+            description: "Per-project usage with mini charts",
+            minWidth: "250dp",
+            minHeight: "180dp",
+            targetCellWidth: 4,
+            targetCellHeight: 3,
+            resizeMode: "horizontal|vertical",
+          },
+        ],
+      },
+    ],
+    [
       "expo-build-properties",
       {
         android: {

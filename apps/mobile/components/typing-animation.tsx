@@ -47,22 +47,25 @@ function formatElapsedTime(totalSeconds: number): string {
     return `${minutes}m ${seconds}s`
 }
 
-export function WorkingIndicator({ startedAt }: { startedAt: number }) {
+export function WorkingIndicator({ startedAt, endedAt }: { startedAt: number; endedAt?: number | null }) {
     const [now, setNow] = useState(() => Date.now())
+    const done = endedAt != null
+    const active = done ? endedAt! : now
 
     useEffect(() => {
+        if (done) return
         setNow(Date.now())
         const id = setInterval(() => setNow(Date.now()), 1000)
         return () => clearInterval(id)
-    }, [startedAt])
+    }, [done, startedAt])
 
-    const totalSeconds = Math.max(0, Math.floor((now - startedAt) / 1000))
+    const totalSeconds = Math.max(0, Math.floor((active - startedAt) / 1000))
 
     return (
         <View className="flex-row items-center gap-2 px-4 py-1.5">
-            <TypingDots />
+            {done ? null : <TypingDots />}
             <Text className="text-xs text-muted-foreground">
-                Working for {formatElapsedTime(totalSeconds)}
+                {done ? "Worked for " : "Working for "}{formatElapsedTime(totalSeconds)}
             </Text>
         </View>
     )

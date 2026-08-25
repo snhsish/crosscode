@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.6.3
+
+### Patch Changes
+
+- 2c6ec03: Fix Windows dependency detection (false "opencode not found") and add free-tier login tip
+
 ## 0.6.2
 
 ### Patch Changes

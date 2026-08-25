@@ -101,12 +101,17 @@ function censorToken(val: string): string {
 }
 
 function checkDep(name: string): boolean {
+    const finder = process.platform === "win32" ? "where" : "which"
     try {
-        execFileSync("which", [name], { stdio: "ignore" })
+        execFileSync(finder, [name], { stdio: "ignore" })
         return true
     } catch {
         return false
     }
+}
+
+function spawnCmd(cmd: string, args: string[], opts: Parameters<typeof spawn>[2] = {}) {
+    return spawn(cmd, args, { ...opts, shell: process.platform === "win32" })
 }
 
 type Config = {
@@ -415,6 +420,10 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     if (config.auth?.sessionToken) {
         console.log(chalk.green(`\n Logged in as ${config.auth.email}`))
         console.log(chalk.dim(` Tier: ${config.auth.tier || "free"}\n`))
+    } else {
+        console.log(chalk.cyan(" Tip:") + chalk.dim(" run ") +
+            chalk.cyan("npx crosscode login") +
+            chalk.dim(" to use the free built-in CrossCode tunnel.\n"))
     }
 
     let tunnelFailed = false
@@ -426,7 +435,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
         debug("session token generated", { length: sessionToken.length })
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
+        const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
@@ -696,7 +705,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
         debug("session token generated", { length: sessionToken.length })
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
+        const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
@@ -724,7 +733,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("using detected port", { detected: detectedPort, requested: port })
             }
 
-            const ngrok = spawn("ngrok", ["http", `--authtoken=${ngrokToken}`, `${detectedPort}`], {
+            const ngrok = spawnCmd("ngrok", ["http", `--authtoken=${ngrokToken}`, `${detectedPort}`], {
                 stdio: ["ignore", "pipe", "pipe"]
             })
 
@@ -792,7 +801,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
         debug("session token generated", { length: sessionToken.length })
 
-        const opencode = spawn("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
+        const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
             env: { ...process.env, OPENCODE_SERVER_PASSWORD: sessionToken },
             stdio: ["ignore", "pipe", "pipe"]
@@ -968,7 +977,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
 
-                const cf = spawn("cloudflared", [
+                const cf = spawnCmd("cloudflared", [
                     "tunnel",
                     "--no-autoupdate",
                     "--config", "/dev/null",

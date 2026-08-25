@@ -10,7 +10,7 @@
 
 ### Patch Changes
 
-- 2c6ec03: Fix Windows dependency detection (false "opencode not found") and add free-tier login tip
+- 7623a1b: Fix CLI default dashboard URL so tier validation hits the correct API endpoint. The previous default (`crosscode.sish.work`) 301-redirected to the homepage, causing `Unexpected token '<'` JSON parse errors and a stuck `free` tier.
 
 ## 0.6.2
 

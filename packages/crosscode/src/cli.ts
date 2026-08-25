@@ -138,7 +138,7 @@ function saveConfig(config: Config) {
     writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 })
 }
 
-const WEB_URL = process.env.CROSSCODE_WEB_URL || "https://crosscode.sish.work"
+const WEB_URL = process.env.CROSSCODE_WEB_URL || "https://crosscode.site"
 const AUTH_API_URL = process.env.CROSSCODE_AUTH_URL || `${WEB_URL}/api/auth`
 
 function promptInput(prompt: string): Promise<string> {

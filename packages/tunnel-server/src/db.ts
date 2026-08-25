@@ -1,5 +1,6 @@
 import postgres from "postgres"
 import { logger } from "./logger.js"
+import { effectiveTier } from "@crosscode/shared"
 
 const sql = postgres(process.env.DATABASE_URL!, {
   max: 10,
@@ -15,17 +16,16 @@ export async function validateApiKey(apiKey: string): Promise<{ userId: string; 
   logger.debug("Validating API key", { apiKey: apiKey.substring(0, 8) + "..." })
   try {
     const rows = await sql`
-      SELECT id, email,
-        CASE WHEN tier IN ('starter', 'builder', 'enterprise') AND COALESCE(subscription_status, '') != 'active'
-          THEN 'free' ELSE tier END AS tier
+      SELECT id, email, tier, subscription_status
       FROM "user" WHERE api_key = ${apiKey} LIMIT 1
     `
     if (rows.length === 0) {
       logger.warn("API key not found in database", { apiKey: apiKey.substring(0, 8) + "..." })
       return null
     }
-    logger.info("API key validated", { userId: rows[0].id, email: rows[0].email, tier: rows[0].tier })
-    return { userId: rows[0].id, email: rows[0].email, tier: rows[0].tier }
+    const tier = effectiveTier(rows[0].tier, rows[0].subscription_status)
+    logger.info("API key validated", { userId: rows[0].id, email: rows[0].email, tier })
+    return { userId: rows[0].id, email: rows[0].email, tier }
   } catch (err) {
     logger.error("Database error during API key validation", { error: err instanceof Error ? err.message : String(err) })
     throw err

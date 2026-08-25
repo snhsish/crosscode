@@ -14,7 +14,7 @@ or, if using `pnpm`:
 pnpm dlx crosscode
 ```
 
-Scan the QR code with the [CrossCode mobile app](https://crosscode.sish.work) to connect.
+Scan the QR code with the [CrossCode mobile app](https://crosscode.site) to connect.
 
 > Requires `opencode` installed. Tunnel provider (`cloudflared` or `ngrok`) required based on tier.
 
@@ -66,7 +66,7 @@ CrossCode has a free tier and a paid tier:
 crosscode login
 ```
 
-1. Browser opens to `https://crosscode.sish.work/login`.
+1. Browser opens to `https://crosscode.site/login`.
 2. Sign up / log in on the dashboard.
 3. Copy the API key shown on the dashboard.
 4. Paste the API key in the terminal prompt.
@@ -144,7 +144,7 @@ All logs are written to `~/.crosscode/`:
 
 | Variable | Description | Default |
 |---|---|---|
-| `CROSSCODE_WEB_URL` | Web dashboard URL | `https://crosscode.sish.work` |
+| `CROSSCODE_WEB_URL` | Web dashboard URL | `https://crosscode.site` |
 | `CROSSCODE_AUTH_URL` | Auth API URL | `${CROSSCODE_WEB_URL}/api/auth` |
 | `CROSSCODE_TUNNEL_WS_URL` | Tunnel WebSocket URL | `wss://tunnel.sish.work/ws` |
 

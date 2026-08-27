@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+FILE="$1"
+if grep -qi "Co-authored-by: opencode" "$FILE" 2>/dev/null; then
+  sed -i -E 's/Co-authored-by: opencode <opencode@users\.noreply\.github\.com>/Co-authored-by: muse-spark-1.2 <muse-spark@users.noreply.github.com>/Ig' "$FILE"
+  sed -i -E 's/Co-Authored-By: opencode <opencode@users\.noreply\.github\.com>/Co-Authored-By: muse-spark-1.2 <muse-spark@users.noreply.github.com>/g' "$FILE"
+fi

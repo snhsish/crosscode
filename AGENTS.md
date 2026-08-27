@@ -40,3 +40,13 @@ Examples:
 - `feat(mobile): add biometric lock screen`
 - `fix(cli): handle missing cloudflared gracefully`
 - `docs: update README with new setup steps`
+
+### AI Attribution
+
+When an AI assistant authors a commit, add:
+
+```
+Co-authored-by: muse-spark-1.2 <muse-spark@users.noreply.github.com>
+```
+
+Do not use `opencode` as the co-author. The active model is `muse-spark-1.2-contributor-free` via opencode. Git hooks in `.githooks/` will auto-replace any `opencode` trailers.

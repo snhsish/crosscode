@@ -17,6 +17,119 @@ type MessagePart = Part & {
     messageID?: string
 }
 
+export function useGlobalSessionStatus(url?: string, token?: string) {
+    const abortRef = useRef<AbortController | null>(null)
+
+    useEffect(() => {
+        if (!url || !token) return
+
+        const baseUrl = url.replace(/\/+$/, "")
+        const authHeader = getAuthHeader(token)
+        const eventUrl = `${baseUrl}/mobile-event`
+        const setStreaming = useChatStore.getState().setStreaming
+
+        const abort = new AbortController()
+        abortRef.current = abort
+        let buffer = ""
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+        let reconnectAttempts = 0
+        const maxReconnectAttempts = 10
+        const reconnectDelays = [3000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]
+
+        function handleEvent(event: SSEEvent) {
+            const props = event.properties
+            switch (event.type) {
+                case "session.status": {
+                    const sid = props.sessionID as string | undefined
+                    if (!sid) return
+                    const status = props.status as { type: string } | undefined
+                    if (!status) return
+                    if (status.type === "busy") setStreaming(sid, true)
+                    else if (status.type === "idle") setStreaming(sid, false)
+                    break
+                }
+                case "session.idle": {
+                    const sid = props.sessionID as string | undefined
+                    if (sid) setStreaming(sid, false)
+                    break
+                }
+            }
+        }
+
+        function scheduleReconnect() {
+            if (abort.signal.aborted) return
+            if (reconnectAttempts >= maxReconnectAttempts) return
+            reconnectAttempts++
+            const delay = reconnectDelays[Math.min(reconnectAttempts - 1, reconnectDelays.length - 1)]
+            reconnectTimer = setTimeout(() => {
+                if (!abort.signal.aborted) connect()
+            }, delay)
+        }
+
+        async function connect() {
+            try {
+                const response = await fetch(eventUrl, {
+                    method: "POST",
+                    headers: {
+                        Authorization: authHeader,
+                        Accept: "text/event-stream",
+                        "Content-Type": "application/json",
+                    },
+                    signal: abort.signal,
+                    body: JSON.stringify({}),
+                })
+                if (!response.ok) {
+                    scheduleReconnect()
+                    return
+                }
+                const reader = response.body?.getReader()
+                if (!reader) {
+                    scheduleReconnect()
+                    return
+                }
+                reconnectAttempts = 0
+                const decoder = new TextDecoder()
+                while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) break
+                    buffer += decoder.decode(value, { stream: true })
+                    const events = buffer.split("\n\n")
+                    buffer = events.pop() ?? ""
+                    for (const eventBlock of events) {
+                        if (!eventBlock.trim()) continue
+                        let dataLines: string[] = []
+                        for (const line of eventBlock.split("\n")) {
+                            const trimmed = line.trim()
+                            if (trimmed.startsWith("data:")) dataLines.push(trimmed.slice(5).trim())
+                        }
+                        if (dataLines.length > 0) {
+                            const data = dataLines.join("\n")
+                            try {
+                                const parsed = JSON.parse(data)
+                                let sseEvent: SSEEvent
+                                if (parsed.payload && parsed.type === undefined) sseEvent = parsed.payload
+                                else sseEvent = parsed
+                                handleEvent(sseEvent)
+                            } catch {}
+                        }
+                    }
+                }
+                scheduleReconnect()
+            } catch (err) {
+                if ((err as Error).name !== "AbortError") scheduleReconnect()
+            }
+        }
+
+        connect()
+
+        return () => {
+            if (reconnectTimer) clearTimeout(reconnectTimer)
+            abort.abort()
+            abortRef.current = null
+        }
+    }, [url, token])
+}
+
 export function useEventStream(url?: string, sessionId?: string, token?: string, projectId?: string) {
     const abortRef = useRef<AbortController | null>(null)
 

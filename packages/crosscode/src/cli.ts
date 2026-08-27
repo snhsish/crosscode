@@ -13,11 +13,12 @@ import http from "http"
 import net from "net"
 import { encodeQrPayload } from "@crosscode/shared"
 import { onKeypress, cleanupKeypress } from "./keypress"
-import { connectTunnel, deriveProjectId } from "./tunnel-client"
+import { connectTunnel } from "./tunnel-client"
 import { handleGitRequest } from "./git-handler"
 import { waitForOpencodePort } from "./port-detect"
 
 const children: import("child_process").ChildProcess[] = []
+let isShuttingDown = false
 const logDir = join(homedir(), ".crosscode")
 const configFile = join(logDir, "config.json")
 const MAX_LOG_SIZE = 1024 * 1024
@@ -118,6 +119,13 @@ type Config = {
     ngrokToken?: string
     port?: number
     tunnelWsUrl?: string
+    sessionToken?: string
+    projectId?: string
+    cloudflaredTunnel?: {
+        name: string
+        credentialsPath: string
+        url: string
+    }
     auth?: {
         email?: string
         sessionToken?: string
@@ -136,6 +144,81 @@ function readConfig(): Config {
 
 function saveConfig(config: Config) {
     writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 })
+}
+
+// Stable, persistent session identity so the QR/URL stays the same across
+// CLI restarts and network blips. Without this the opencode password + QR
+// token are randomized every run, making it impossible for a returning
+// mobile client to reconnect.
+function ensureSessionToken(config: Config): string {
+    if (!config.sessionToken) {
+        config.sessionToken = crypto.randomBytes(32).toString("hex")
+        saveConfig(config)
+        logCrosscode(`Session token generated (censored: ${censorToken(config.sessionToken)})`)
+    } else {
+        debug("session token reused from config")
+    }
+    return config.sessionToken
+}
+
+function ensureProjectId(config: Config): string {
+    if (!config.projectId) {
+        config.projectId = crypto.randomBytes(4).toString("hex")
+        saveConfig(config)
+        logCrosscode(`Project ID generated: ${config.projectId}`)
+    } else {
+        debug("project ID reused from config", { projectId: config.projectId })
+    }
+    return config.projectId
+}
+
+const cloudflaredTunnelDir = join(logDir, "cloudflared")
+const cfCertPath = join(homedir(), ".cloudflared", "cert.pem")
+
+// Use a persistent named cloudflared tunnel so the public URL is stable
+// (<tunnelId>.cfargotunnel.com) across restarts and reconnects, instead of
+// the random ephemeral quick tunnel that rotates its URL on every (re)start.
+// Returns null when cloudflared isn't logged in yet, falling back to the
+// quick tunnel (which still works but changes URL on restart).
+async function ensureCloudflaredNamedTunnel(config: Config): Promise<{ name: string; credentialsPath: string; url: string } | null> {
+    if (!existsSync(cfCertPath)) {
+        debug("cloudflared not logged in (no cert.pem); falling back to quick tunnel")
+        return null
+    }
+    if (config.cloudflaredTunnel && existsSync(config.cloudflaredTunnel.credentialsPath)) {
+        return config.cloudflaredTunnel
+    }
+    const projectId = ensureProjectId(config)
+    const name = `crosscode-${projectId}`
+    const credentialsPath = join(cloudflaredTunnelDir, `${name}.json`)
+    try {
+        if (!existsSync(cloudflaredTunnelDir)) mkdirSync(cloudflaredTunnelDir, { recursive: true, mode: 0o700 })
+        execFileSync("cloudflared", ["tunnel", "create", "--credentials-file", credentialsPath, name], { stdio: "ignore" })
+    } catch (e) {
+        debug("cloudflared tunnel create failed", { error: (e as Error).message })
+        return null
+    }
+    let url = ""
+    try {
+        const creds = JSON.parse(readFileSync(credentialsPath, "utf-8"))
+        const id = creds.TunnelID || creds.id
+        if (id) url = `https://${id}.cfargotunnel.com`
+    } catch {}
+    config.cloudflaredTunnel = { name, credentialsPath, url }
+    saveConfig(config)
+    logCrosscode(`Cloudflared named tunnel created: ${name} (${url})`)
+    return config.cloudflaredTunnel
+}
+
+function printTunnelQr(url: string, token: string, opencodePort: number, requestedPort: number) {
+    const payload = encodeQrPayload({ url, token, v: 1 })
+    if (opencodePort !== requestedPort) {
+        console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
+    }
+    console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
+    qrcode.generate(payload, { small: true })
+    console.log(chalk.grey(`URL: ${url}`))
+    console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
 }
 
 const WEB_URL = process.env.CROSSCODE_WEB_URL || "https://crosscode.site"
@@ -431,9 +514,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     if (tunnelProvider === "tunnel") {
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = crypto.randomBytes(32).toString("hex")
-        logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
-        debug("session token generated", { length: sessionToken.length })
+        const sessionToken = ensureSessionToken(config)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -632,7 +713,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
-                const projectId = deriveProjectId()
+                const projectId = ensureProjectId(config)
                 logCrosscode(`Project ID: ${projectId}`)
                 debug("connecting to tunnel", { projectId, proxyPort })
 
@@ -653,24 +734,19 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                     config.tunnelWsUrl,
                     (url) => {
                         clearTimeout(tunnelTimeout)
+                        if (tunnelUrl) {
+                            if (tunnelUrl !== url) {
+                                tunnelUrl = url
+                                logCrosscode("Tunnel URL changed: " + tunnelUrl)
+                                console.log(chalk.yellow(`\n Tunnel URL changed: ${tunnelUrl}\n`))
+                            }
+                            return
+                        }
                         tunnelUrl = url
                         spinner.succeed(chalk.green("Tunnel ready"))
                         logCrosscode("Tunnel ready: " + tunnelUrl)
                         debug("tunnel connected", { tunnelUrl })
-
-                        const payload = encodeQrPayload({
-                            url: tunnelUrl,
-                            token: sessionToken,
-                            v: 1
-                        })
-
-                        if (opencodePort !== port) {
-                            console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
-                        }
-                        console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-                        qrcode.generate(payload, { small: true })
-                        console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                        printTunnelQr(tunnelUrl, sessionToken, opencodePort, port)
                     },
                     (err) => {
                         clearTimeout(tunnelTimeout)
@@ -701,9 +777,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = crypto.randomBytes(32).toString("hex")
-        logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
-        debug("session token generated", { length: sessionToken.length })
+        const sessionToken = ensureSessionToken(config)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -765,20 +839,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                                 spinner.succeed(chalk.green("Tunnel ready"))
                                 logCrosscode("ngrok tunnel ready: " + tunnelUrl)
                                 debug("ngrok tunnel ready", { tunnelUrl })
-
-                                const payload = encodeQrPayload({
-                                    url: tunnelUrl,
-                                    token: sessionToken,
-                                    v: 1
-                                })
-
-                                if (opencodePort !== port) {
-                                    console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
-                                }
-                                console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-                                qrcode.generate(payload, { small: true })
-                                console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                                console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                                printTunnelQr(tunnelUrl, sessionToken, opencodePort, port)
                             }
                         } catch (e) {
                             debug("ngrok API parse error", { error: e instanceof Error ? e.message : String(e) })
@@ -797,9 +858,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     } else if (tunnelProvider === "cloudflared" || tunnelFailed) {
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = crypto.randomBytes(32).toString("hex")
-        logCrosscode(`Session token generated (censored: ${censorToken(sessionToken)})`)
-        debug("session token generated", { length: sessionToken.length })
+        const sessionToken = ensureSessionToken(config)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -972,64 +1031,81 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 })
             })
 
-            proxy.listen(proxyPort, "127.0.0.1", () => {
+            proxy.listen(proxyPort, "127.0.0.1", async () => {
                 logCrosscode(`SSE proxy started on port ${proxyPort}`)
                 debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
 
-                const cf = spawnCmd("cloudflared", [
-                    "tunnel",
-                    "--no-autoupdate",
-                    "--config", "/dev/null",
-                    "--url", `http://127.0.0.1:${proxyPort}`
-                ], {
-                    stdio: ["ignore", "pipe", "pipe"]
-                })
+                const namedTunnel = await ensureCloudflaredNamedTunnel(config)
+                if (!namedTunnel) {
+                    logCrosscode("Using ephemeral quick tunnel (URL changes on restart). Run `cloudflared tunnel login` once for a stable, persistent URL.")
+                }
 
-                children.push(cf)
+                function setTunnelUrl(url: string) {
+                    if (tunnelUrl) return
+                    tunnelUrl = url
+                    spinner.succeed(chalk.green("Tunnel ready"))
+                    logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
+                    debug("cloudflare tunnel ready", { tunnelUrl })
+                    printTunnelQr(tunnelUrl, sessionToken, opencodePort, port)
+                }
 
-                cf.on("spawn", () => {
-                    logCrosscode("cloudflared started (PID: " + cf.pid + ")")
-                    debug("cloudflared spawned", { pid: cf.pid })
-                })
-                cf.on("error", (err) => {
-                    logCrosscode("cloudflared error: " + err.message)
-                    debug("cloudflared error", { error: err.message })
-                })
-
-                cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
-
-                cf.stderr?.on("data", (data: Buffer) => {
-                    const text = data.toString()
-
-                    const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.trycloudflare\.com/)
-
-                    if (m && !tunnelUrl) {
-                        tunnelUrl = m[0]
-                        spinner.succeed(chalk.green("Tunnel ready"))
-                        logCrosscode("Cloudflare tunnel ready: " + tunnelUrl)
-                        debug("cloudflare tunnel ready", { tunnelUrl })
-
-                        const payload = encodeQrPayload({
-                            url: tunnelUrl,
-                            token: sessionToken,
-                            v: 1
-                        })
-
-                        if (opencodePort !== port) {
-                            console.log(chalk.yellow(`opencode running on port ${opencodePort}`))
-                        }
-                        console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
-
-                        qrcode.generate(payload, { small: true })
-
-                        console.log(chalk.grey(`URL: ${tunnelUrl}`))
-                        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+                function startCloudflared(): import("child_process").ChildProcess {
+                    let cfArgs: string[]
+                    if (namedTunnel) {
+                        const cfgPath = join(cloudflaredTunnelDir, `${namedTunnel.name}.yml`)
+                        writeFileSync(cfgPath, `url: http://127.0.0.1:${proxyPort}\ntunnel: ${namedTunnel.name}\ncredentials-file: ${namedTunnel.credentialsPath}\n`, { mode: 0o600 })
+                        cfArgs = ["tunnel", "--no-autoupdate", "--config", cfgPath, "run"]
+                    } else {
+                        cfArgs = ["tunnel", "--no-autoupdate", "--config", "/dev/null", "--url", `http://127.0.0.1:${proxyPort}`]
                     }
 
-                    cloudflaredLogStream.write(data)
-                })
+                    const cf = spawnCmd("cloudflared", cfArgs, { stdio: ["ignore", "pipe", "pipe"] })
+                    children.push(cf)
+
+                    cf.on("spawn", () => {
+                        logCrosscode("cloudflared started (PID: " + cf.pid + ")")
+                        debug("cloudflared spawned", { pid: cf.pid })
+                    })
+                    cf.on("error", (err) => {
+                        logCrosscode("cloudflared error: " + err.message)
+                        debug("cloudflared error", { error: err.message })
+                    })
+
+                    cf.stdout?.on("data", d => cloudflaredLogStream.write(d))
+
+                    cf.stderr?.on("data", (data: Buffer) => {
+                        const text = data.toString()
+                        const m = text.match(/https:\/\/[a-zA-Z0-9.-]+\.(trycloudflare|cfargotunnel)\.com/)
+                        if (m && !tunnelUrl) setTunnelUrl(m[0])
+                        cloudflaredLogStream.write(data)
+                    })
+
+                    cf.on("exit", (code) => {
+                        logCrosscode("cloudflared exited (code: " + code + ")")
+                        if (isShuttingDown) return
+                        if (namedTunnel) {
+                            logCrosscode("Restarting cloudflared (named tunnel keeps stable URL)")
+                            console.log(chalk.yellow("\n Cloudflare tunnel dropped — reconnecting (URL unchanged)...\n"))
+                            startCloudflared()
+                        } else {
+                            console.log(chalk.red("\n Cloudflare tunnel exited. The session URL may have changed — restart crosscode to reconnect.\n"))
+                        }
+                    })
+
+                    return cf
+                }
+
+                const cf = startCloudflared()
+
+                if (namedTunnel?.url && !tunnelUrl) {
+                    const urlFallbackTimer = setTimeout(() => {
+                        if (!tunnelUrl) setTunnelUrl(namedTunnel.url)
+                    }, 8000)
+                    cf.on("exit", () => clearTimeout(urlFallbackTimer))
+                }
             })
+
         })
     }
 
@@ -1065,6 +1141,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     }
 
     const shutdown = (source?: string) => {
+        isShuttingDown = true
         console.log(chalk.yellow("\nShutting down..."))
         logCrosscode(`Shutting down... (source: ${source || "unknown"})`)
         debug("shutdown initiated", { source: source || "unknown" })

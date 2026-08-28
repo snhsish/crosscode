@@ -58,6 +58,12 @@ export const sitemapRoutes: MetadataRoute.Sitemap = [
     priority: 0.7,
   },
   {
+    url: "/support",
+    lastModified: new Date(),
+    changeFrequency: "monthly",
+    priority: 0.6,
+  },
+  {
     url: "/privacy",
     lastModified: new Date(),
     changeFrequency: "yearly",

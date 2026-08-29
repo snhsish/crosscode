@@ -14,6 +14,7 @@ export const DAILY_HISTORY_LIMIT = 30
 export interface ProjectStats {
   projectId: string
   projectName: string
+  directory?: string
   responseCount: number
   totalInputTokens: number
   totalOutputTokens: number
@@ -43,6 +44,7 @@ type OpencodeStatsStore = {
   incrementProjectStats: (
     projectId: string,
     projectName: string,
+    directory: string,
     inputTokens: number,
     outputTokens: number,
     cost: number
@@ -58,7 +60,7 @@ export const useOpencodeStats = create<OpencodeStatsStore>()(
     (set, get) => ({
       projects: {},
 
-      incrementProjectStats: (projectId, projectName, inputTokens, outputTokens, cost) => {
+      incrementProjectStats: (projectId, projectName, directory, inputTokens, outputTokens, cost) => {
         set((state) => {
           const existing = state.projects[projectId]
           const now = new Date().toISOString()
@@ -83,6 +85,7 @@ export const useOpencodeStats = create<OpencodeStatsStore>()(
           const updated: ProjectStats = {
             projectId,
             projectName,
+            directory: directory || existing?.directory,
             responseCount: (existing?.responseCount ?? 0) + 1,
             totalInputTokens: (existing?.totalInputTokens ?? 0) + inputTokens,
             totalOutputTokens: (existing?.totalOutputTokens ?? 0) + outputTokens,

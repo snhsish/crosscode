@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react"
 import { useChatStore } from "@/store/chat.store"
 import { useMessages, AssistantMessage, Message, Part } from "@/store/messages.store"
-import { usePermissions, PermissionRequest } from "@/store/permissions.store"
+import { usePermissions } from "@/store/permissions.store"
 import { useOpencodeStats } from "@/store/opencode-stats.store"
 import { useProjects } from "@/store/projects.store"
 import { getAuthHeader } from "@/lib/utils"
 import { notifyAgentStatus } from "@/lib/notifications"
+import { normalizePermission } from "@/lib/permissions"
 
 type SSEEvent = {
     type: string
@@ -406,13 +407,19 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                 }
 
                 case "permission.asked": {
-                    const perm = props as unknown as PermissionRequest
-                    if (!perm || perm.sessionID !== currentSessionId) return
+                    const raw = props as unknown as Record<string, unknown>
+                    const perm = normalizePermission(raw, currentSessionId)
                     const current = usePermissions.getState().permissionsBySession[currentSessionId] ?? []
-                    if (!current.some((p) => p.id === perm.id)) {
+                    const exists =
+                        current.some((p) => p.id === perm.id) ||
+                        (!perm.id &&
+                            current.some(
+                                (p) => p.permission === perm.permission && p.sessionID === currentSessionId
+                            ))
+                    if (!exists) {
                         usePermissions.getState().setPermissions(currentSessionId, [...current, perm])
                         notifyAgentStatus({
-                            key: `${currentSessionId}:permission:${perm.id}`,
+                            key: `${currentSessionId}:permission:${perm.id || perm.permission}`,
                             kind: "permission",
                             title: "Agent needs permission",
                             message: perm.permission || "Review the pending permission request.",
@@ -424,8 +431,10 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                 }
 
                 case "permission.replied": {
-                    const requestID = props.requestID as string | undefined
-                    if (!requestID || props.sessionID !== currentSessionId) return
+                    const requestID =
+                        (props.requestID as string | undefined) ?? (props.id as string | undefined)
+                    if (!requestID) return
+                    if (props.sessionID && props.sessionID !== currentSessionId) return
                     usePermissions.getState().removePermission(currentSessionId, requestID)
                     break
                 }

@@ -408,7 +408,9 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
 
                 case "permission.asked": {
                     const raw = props as unknown as Record<string, unknown>
+                    console.log("[PERM-DEBUG] permission.asked raw:", JSON.stringify(raw))
                     const perm = normalizePermission(raw, currentSessionId)
+                    console.log("[PERM-DEBUG] permission.asked normalized:", JSON.stringify(perm))
                     const current = usePermissions.getState().permissionsBySession[currentSessionId] ?? []
                     const exists =
                         current.some((p) => p.id === perm.id) ||

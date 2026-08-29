@@ -204,6 +204,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
         try {
             const perms = await getPendingPermissions(connection.url, connection.token, sessionId)
+            console.log("[PERM-DEBUG] pollPermissions raw:", JSON.stringify(perms))
             const sessionPerms = perms.filter((p) => !p.sessionID || p.sessionID === sessionId)
             const current = usePermissions.getState().permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS
             if (
@@ -708,6 +709,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         () => pendingPermissions.filter((p) => !matchedPermissionIds.has(p.id)),
         [pendingPermissions, matchedPermissionIds]
     )
+
+    console.log("[PERM-DEBUG] pendingPermissions:", JSON.stringify(pendingPermissions), "orphan:", JSON.stringify(orphanPermissions.map((p) => p.id)))
 
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {

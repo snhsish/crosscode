@@ -33,6 +33,7 @@ import { QuestionRequest } from "@/store/questions.store"
 import { usePermissions } from "@/store/permissions.store"
 import { getPendingPermissions, replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
+import { PermissionBlock } from "@/components/permission-block"
 import { getAuthHeader } from "@/lib/utils"
 import { notifyAgentStatus, setActiveChatScreen, clearActiveChatScreen } from "@/lib/notifications"
 
@@ -675,6 +676,39 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const handleScrollBeginDrag = useCallback(() => Keyboard.dismiss(), [])
 
+    const matchedPermissionIds = useMemo(() => {
+        const ids = new Set<string>()
+        for (const msg of rawMessages) {
+            for (const part of msg.parts ?? []) {
+                if (part.type === "tool-invocation") {
+                    for (const p of pendingPermissions) {
+                        if (
+                            p.tool?.messageID === msg.id &&
+                            p.tool?.callID === part.toolInvocation.toolCallId
+                        ) {
+                            ids.add(p.id)
+                        }
+                    }
+                } else if (part.type === "tool") {
+                    for (const p of pendingPermissions) {
+                        if (p.tool?.messageID === msg.id && p.tool?.callID === part.callID) {
+                            ids.add(p.id)
+                        }
+                    }
+                }
+            }
+        }
+        return ids
+    }, [rawMessages, pendingPermissions])
+
+    // Permissions that are not tied to a specific message tool part (e.g. external
+    // directory access requests) cannot be rendered inline, so surface them as a
+    // dedicated panel so the user can accept/deny and unblock the agent.
+    const orphanPermissions = useMemo(
+        () => pendingPermissions.filter((p) => !matchedPermissionIds.has(p.id)),
+        [pendingPermissions, matchedPermissionIds]
+    )
+
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {
             const hasQuestionTool = item.parts?.some(
@@ -923,6 +957,19 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                             </Pressable>
                         </View>
                     </View>
+                </View>
+            )}
+
+            {orphanPermissions.length > 0 && (
+                <View className="px-4 pb-2 gap-2">
+                    {orphanPermissions.map((perm) => (
+                        <PermissionBlock
+                            key={perm.id}
+                            request={perm}
+                            theme={theme}
+                            onReply={handlePermissionReply}
+                        />
+                    ))}
                 </View>
             )}
 

@@ -240,12 +240,17 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                             if (!info.error && projectId && !countedMessageIds.has(info.id)) {
                                 countedMessageIds.add(info.id)
                                 const assistant = info as AssistantMessage
+                                const project =
+                                    useProjects.getState().projects.find((p) => p.id === projectId)
+                                const directory = project?.directory ?? ""
                                 const projectName =
-                                    useProjects.getState().projects.find((p) => p.id === projectId)?.name ??
-                                    "Unknown project"
+                                    directory
+                                        ? (directory.replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? directory)
+                                        : (project?.name ?? "Unknown project")
                                 useOpencodeStats.getState().incrementProjectStats(
                                     projectId,
                                     projectName,
+                                    directory,
                                     assistant.tokens?.input ?? 0,
                                     assistant.tokens?.output ?? 0,
                                     assistant.cost ?? 0

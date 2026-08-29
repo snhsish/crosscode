@@ -121,11 +121,27 @@ export function OpencodeStatsCard() {
                   className="bg-muted/20 rounded-lg p-3"
                 >
                   <View className="flex-row items-center justify-between mb-2">
-                    <Text className="text-sm font-medium flex-1" numberOfLines={1}>
-                      {project.projectName}
-                    </Text>
+                    <View className="flex-1 mr-2">
+                      <Text className="text-sm font-medium" numberOfLines={1}>
+                        {project.directory
+                          ? (project.directory.replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? project.directory)
+                          : project.projectName}
+                      </Text>
+                      {project.directory && (
+                        <Text className="text-xs text-muted-foreground mt-0.5" numberOfLines={1}>
+                          {project.directory}
+                        </Text>
+                      )}
+                    </View>
                     <Pressable
-                      onPress={() => handleResetProject(project.projectId, project.projectName)}
+                      onPress={() =>
+                        handleResetProject(
+                          project.projectId,
+                          project.directory
+                            ? (project.directory.replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? project.directory)
+                            : project.projectName
+                        )
+                      }
                       className="p-1"
                     >
                       <Trash2 size={14} color={THEME[theme].destructive} />

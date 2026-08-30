@@ -23,7 +23,7 @@ export function Footer() {
   return (
     <footer className="border-t bg-background">
       <div className="container py-12 md:py-16">
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <BrandLogo />
@@ -88,8 +88,18 @@ export function Footer() {
                   Features
                 </Link>
               </li>
+            </ul>
+          </div>
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold">Developers</h3>
+            <ul className="space-y-3">
               <li>
-                <Link href="/#cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                <Link href="/docs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Docs
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs/cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   CLI
                 </Link>
               </li>
@@ -113,6 +123,11 @@ export function Footer() {
           <div className="space-y-4">
             <h3 className="text-sm font-semibold">Community</h3>
             <ul className="space-y-3">
+              <li>
+                <Link href="/support" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Support
+                </Link>
+              </li>
               <li>
                 <a
                   href="https://discord.gg/K6k6ebkJkx"
@@ -156,6 +171,11 @@ export function Footer() {
               <li>
                 <Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                   Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link href="/legal/fair-usage" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                  Fair Usage
                 </Link>
               </li>
             </ul>

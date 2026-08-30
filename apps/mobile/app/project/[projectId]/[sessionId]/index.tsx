@@ -710,8 +710,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         [pendingPermissions, matchedPermissionIds]
     )
 
-    console.log("[PERM-DEBUG] pendingPermissions:", JSON.stringify(pendingPermissions), "orphan:", JSON.stringify(orphanPermissions.map((p) => p.id)))
-
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {
             const hasQuestionTool = item.parts?.some(

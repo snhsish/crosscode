@@ -29,6 +29,9 @@ export function Navbar() {
           <Link href="/docs/cli" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             CLI
           </Link>
+          <Link href="/support" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Support
+          </Link>
           <a
             href="https://github.com/snhsish/crosscode"
             target="_blank"

@@ -15,7 +15,6 @@ import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { useChatStore } from "@/store/chat.store"
 import { useGlobalSessionStatus } from "@/components/hooks/event-stream"
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from "react-native-reanimated"
 import AlertTriangle from "lucide-react-native/dist/esm/icons/triangle-alert"
 import ArrowLeft from "lucide-react-native/dist/esm/icons/arrow-left"
 import ArrowUpDown from "lucide-react-native/dist/esm/icons/arrow-up-down"
@@ -68,18 +67,6 @@ function formatTime(ts: number, now: number) {
   if (hours < 24) return `${hours}h ago`
   if (days < 7) return `${days}d ago`
   return new Date(ts).toLocaleDateString()
-}
-
-function StreamingPulse() {
-  const pulse = useSharedValue(1)
-  React.useEffect(() => {
-    pulse.value = withRepeat(withTiming(1.6, { duration: 900, easing: Easing.out(Easing.ease) }), -1, false)
-  }, [])
-  const style = useAnimatedStyle(() => ({
-    transform: [{ scale: pulse.value }],
-    opacity: 1.2 - pulse.value * 0.6,
-  }))
-  return <Animated.View style={style} className="absolute w-5 h-5 rounded-full bg-emerald-500/30" />
 }
 
 const SessionItem = React.memo(function SessionItem({
@@ -153,12 +140,8 @@ const SessionItem = React.memo(function SessionItem({
           </Text>
         </View>
         {isStreaming && (
-          <View className="flex-row items-center gap-1.5 ml-3 shrink-0 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-            <View className="w-5 h-5 items-center justify-center">
-              <StreamingPulse />
-              <View className="w-2 h-2 rounded-full bg-emerald-500" />
-            </View>
-            <Text className="text-[11px] font-semibold text-emerald-600">Working</Text>
+          <View className="ml-3 shrink-0">
+            <ActivityIndicator size="small" color="#10b981" />
           </View>
         )}
       </Pressable>

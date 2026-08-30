@@ -203,8 +203,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             return
         }
         try {
-            const perms = await getPendingPermissions(connection.url, connection.token)
-            const sessionPerms = perms.filter((p) => p.sessionID === sessionId)
+            const perms = await getPendingPermissions(connection.url, connection.token, sessionId)
+            console.log("[PERM-DEBUG] pollPermissions raw:", JSON.stringify(perms))
+            const sessionPerms = perms.filter((p) => !p.sessionID || p.sessionID === sessionId)
             const current = usePermissions.getState().permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS
             if (
                 sessionPerms.length !== current.length ||
@@ -250,7 +251,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const handlePermissionReply = useCallback(async (requestId: string, reply: "once" | "always" | "reject", message?: string) => {
         if (!connection?.url || !connection?.token) return
-        const success = await replyToPermission(connection.url, connection.token, requestId, reply, message)
+        const success = await replyToPermission(connection.url, connection.token, requestId, reply, message, sessionId)
         if (success) {
             removePermission(sessionId!, requestId)
         }

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FlatList, Image, Modal, Pressable, TextInput, View } from "react-native"
+import { FlatList, Image, Modal, Pressable, RefreshControl, TextInput, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { Text } from "@/components/ui/text"
@@ -256,6 +256,7 @@ export default function HomeScreen() {
   const theme = colorScheme ?? "light"
   const currentConnection = React.useMemo(() => connections.find((c) => c.id === current) ?? null, [connections, current])
 
+  const [refreshing, setRefreshing] = React.useState(false)
   const [searchQuery, setSearchQuery] = React.useState("")
   const [filter, setFilter] = React.useState<FilterType>("all")
   const [sortBy, setSortBy] = React.useState<SortType>("recent")
@@ -264,9 +265,9 @@ export default function HomeScreen() {
 
   const lastHealthCheckRef = React.useRef(0)
 
-  const checkHealth = React.useCallback(async () => {
+  const checkHealth = React.useCallback(async (force = false) => {
     const now = Date.now()
-    if (now - lastHealthCheckRef.current < 30000) return
+    if (!force && now - lastHealthCheckRef.current < 30000) return
     lastHealthCheckRef.current = now
     await Promise.all(connections.map(async (conn) => {
       if (!conn.url || !conn.token) return
@@ -283,6 +284,18 @@ export default function HomeScreen() {
       }
     }))
   }, [connections.length, setConnectionHealth])
+
+  const handleRefresh = React.useCallback(async () => {
+    setRefreshing(true)
+    await checkHealth(true)
+    if (currentConnection?.url && currentConnection?.token) {
+      const project = await getCurrentProject(currentConnection.url, currentConnection.token)
+      if (project) {
+        setProjectForConnection(currentConnection.id, project)
+      }
+    }
+    setRefreshing(false)
+  }, [checkHealth, currentConnection?.id, currentConnection?.url, currentConnection?.token, setProjectForConnection])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -489,6 +502,13 @@ export default function HomeScreen() {
         data={filteredConnections}
         keyExtractor={(c) => c.id}
         contentContainerStyle={filteredConnections.length === 0 ? undefined : { gap: 12, paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={THEME[theme].primary}
+          />
+        }
         ListEmptyComponent={
           <View className="items-center justify-center py-20 gap-4">
             <View className="w-16 h-16 rounded-2xl bg-muted items-center justify-center">

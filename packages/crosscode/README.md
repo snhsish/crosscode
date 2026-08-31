@@ -14,6 +14,12 @@ or, if using `pnpm`:
 pnpm dlx crosscode
 ```
 
+You can also install globally (though `npx crosscode@latest` is recommended so you always get the latest version):
+
+```bash
+npm i -g crosscode
+```
+
 Scan the QR code with the [CrossCode mobile app](https://crosscode.site) to connect.
 
 > Requires `opencode` installed. Tunnel provider (`cloudflared` or `ngrok`) required based on tier.

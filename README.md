@@ -116,6 +116,8 @@ npx crosscode
 npm install -g crosscode
 ```
 
+> **Note:** We recommend `npx crosscode@latest` over global install so you always pull the latest changes without needing to manually update.
+
 ### Windows (WSL2)
 
 Run the same commands inside your WSL terminal. Node.js must be installed in WSL:
@@ -129,7 +131,7 @@ sudo apt-get install -y nodejs
 npx crosscode
 ```
 
-Tip: `npx crosscode` always uses the latest version. If you installed it globally, run `npm update -g crosscode` to upgrade.
+Tip: `npx crosscode@latest` always uses the latest version. If you installed it globally, run `npm update -g crosscode` to upgrade.
 
 ---
 

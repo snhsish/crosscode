@@ -112,7 +112,7 @@ function checkDep(name: string): boolean {
 }
 
 function spawnCmd(cmd: string, args: string[], opts: Parameters<typeof spawn>[2] = {}) {
-    return spawn(cmd, args, { ...opts, shell: process.platform === "win32" })
+    return spawn(cmd, args, { ...opts, shell: false })
 }
 
 type Config = {

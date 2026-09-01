@@ -261,12 +261,13 @@ function promptInput(prompt: string): Promise<string> {
 }
 
 function openBrowser(url: string): void {
+    if (!url.startsWith("https://") && !url.startsWith("http://")) return
     const platform = process.platform
     try {
         if (platform === "darwin") {
             execFileSync("open", [url])
         } else if (platform === "win32") {
-            execFileSync("cmd", ["/c", "start", url])
+            execFileSync("cmd", ["/c", "start", "", url])
         } else {
             execFileSync("xdg-open", [url])
         }

@@ -1,6 +1,5 @@
 import WebSocket from "ws"
 import http from "http"
-import crypto from "crypto"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 
 const TUNNEL_WS_URL = process.env.CROSSCODE_TUNNEL_WS_URL || "wss://connect.crosscode.site/ws"
@@ -209,8 +208,4 @@ export function connectTunnel(
     abortAllInFlight()
     ws?.close()
   }
-}
-
-export function deriveProjectId(): string {
-  return crypto.randomBytes(4).toString("hex")
 }

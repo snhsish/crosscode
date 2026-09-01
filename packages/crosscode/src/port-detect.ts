@@ -1,4 +1,4 @@
-import { ChildProcess, execFileSync } from "child_process"
+import { ChildProcess, execFile } from "child_process"
 import http from "http"
 
 const PORT_PATTERNS = [
@@ -20,11 +20,19 @@ function probePort(port: number): Promise<boolean> {
     })
 }
 
-function getListeningPorts(pid?: number): number[] {
+function execAsync(cmd: string, args: string[]): Promise<string> {
+    return new Promise((resolve) => {
+        execFile(cmd, args, { encoding: "utf8", timeout: 5000 }, (err, stdout) => {
+            resolve(err ? "" : stdout)
+        })
+    })
+}
+
+async function getListeningPorts(pid?: number): Promise<number[]> {
     if (!pid) return []
     try {
         if (process.platform === "win32") {
-            const out = execFileSync("netstat", ["-ano"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+            const out = await execAsync("netstat", ["-ano"])
             const ports: number[] = []
             for (const line of out.split("\n")) {
                 const cols = line.trim().split(/\s+/)
@@ -35,16 +43,16 @@ function getListeningPorts(pid?: number): number[] {
             }
             return [...new Set(ports)]
         }
-        const out = execFileSync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+        const out = await execAsync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-a", "-p", String(pid)])
         const ports: number[] = []
         for (const match of out.matchAll(/:(\d+)\s+\(LISTEN\)/g)) {
             ports.push(parseInt(match[1], 10))
         }
-        return [...new Set(ports)]
+        if (ports.length > 0) return [...new Set(ports)]
     } catch {}
     try {
         if (process.platform === "linux") {
-            const out = execFileSync("ss", ["-tlnp"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+            const out = await execAsync("ss", ["-tlnp"])
             const ports: number[] = []
             for (const line of out.split("\n")) {
                 if (!line.includes(`pid=${pid},`)) continue
@@ -108,8 +116,8 @@ export function waitForOpencodePort(opts: {
             if (alive) return finish(requestedPort)
         }, 250)
 
-        const timeout = setTimeout(() => {
-            const ports = getListeningPorts(proc.pid).filter((p) => p > 0 && p <= 65535)
+        const timeout = setTimeout(async () => {
+            const ports = (await getListeningPorts(proc.pid)).filter((p) => p > 0 && p <= 65535)
             if (ports.length > 0) return finish(ports[0])
             finish(fromLogs() ?? requestedPort)
         }, timeoutMs)

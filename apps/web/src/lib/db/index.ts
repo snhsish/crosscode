@@ -13,7 +13,7 @@ if (connectionString) {
 export const client = postgres(connectionString, {
   max: 10,
   idle_timeout: 20,
-  connect_timeout: 10,
+  connect_timeout: 30,
   keep_alive: 60,
   connection: {
     statement_timeout: 30000,

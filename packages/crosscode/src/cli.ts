@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { spawn, execFileSync } from "child_process"
+import { spawn, execFile, execFileSync } from "child_process"
 import { createWriteStream, mkdirSync, existsSync, readFileSync, writeFileSync, statSync, renameSync, unlinkSync } from "fs"
 import { readFile } from "fs/promises"
 import { join } from "path"
@@ -193,7 +193,12 @@ async function ensureCloudflaredNamedTunnel(config: Config): Promise<{ name: str
     const credentialsPath = join(cloudflaredTunnelDir, `${name}.json`)
     try {
         if (!existsSync(cloudflaredTunnelDir)) mkdirSync(cloudflaredTunnelDir, { recursive: true, mode: 0o700 })
-        execFileSync("cloudflared", ["tunnel", "create", "--credentials-file", credentialsPath, name], { stdio: "ignore" })
+        await new Promise<void>((resolve, reject) => {
+            execFile("cloudflared", ["tunnel", "create", "--credentials-file", credentialsPath, name], { stdio: "ignore" }, (err) => {
+                if (err) reject(err)
+                else resolve()
+            })
+        })
     } catch (e) {
         debug("cloudflared tunnel create failed", { error: (e as Error).message })
         return null
@@ -381,14 +386,156 @@ async function setupNgrokToken(): Promise<string> {
 
 function sanitizeUrlPath(url: string | undefined): string {
     if (!url || url.length === 0) return "/"
-    const withoutHash = url.split("#")[0]
-    const queryIndex = withoutHash.indexOf("?")
-    const rawPath = queryIndex === -1 ? withoutHash : withoutHash.slice(0, queryIndex)
-    const rawQuery = queryIndex === -1 ? "" : withoutHash.slice(queryIndex + 1)
+    let decoded: string
+    try {
+        decoded = decodeURIComponent(url.split("#")[0])
+    } catch {
+        return "/"
+    }
+    const queryIndex = decoded.indexOf("?")
+    const rawPath = queryIndex === -1 ? decoded : decoded.slice(0, queryIndex)
+    const rawQuery = queryIndex === -1 ? "" : decoded.slice(queryIndex + 1)
     if (!rawPath.startsWith("/")) return "/"
-    const cleaned = rawPath
-    if (cleaned.includes("..") || cleaned.includes("@")) return "/"
+    const cleaned = rawPath.replace(/\/+/g, "/")
+    if (cleaned.includes("..") || cleaned.includes("@") || cleaned.includes("\\")) return "/"
     return `${cleaned || "/"}${rawQuery ? `?${rawQuery}` : ""}`
+}
+
+function createOpencodeProxy(targetPort: number, sessionToken: string, logPrefix: string): http.Server {
+    return http.createServer(async (req, res) => {
+        const safePath = sanitizeUrlPath(req.url)
+        const targetUrl = `http://127.0.0.1:${targetPort}${safePath}`
+        const authHeader = req.headers["authorization"]
+
+        debug(`${logPrefix} request received`, {
+            method: req.method,
+            url: req.url,
+            safePath,
+            hasAuth: !!authHeader,
+            auth: censorAuth(authHeader),
+        })
+
+        if (req.method === "OPTIONS") {
+            debug("handling CORS preflight")
+            res.writeHead(204, {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Max-Age": "86400",
+            })
+            res.end()
+            return
+        }
+
+        if (req.url === "/mobile-event" && req.method === "POST") {
+            debug("handling SSE request")
+            res.writeHead(200, {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            })
+
+            let sseAuth = authHeader || ""
+            if (sseAuth && !sseAuth.startsWith("Basic ")) {
+                sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
+                debug("converted SSE auth to Basic format")
+            }
+
+            const sseReq = http.get(`http://127.0.0.1:${targetPort}/event`, {
+                headers: {
+                    "Accept": "text/event-stream",
+                    "Authorization": sseAuth,
+                },
+            }, (sseRes) => {
+                debug("SSE upstream connected", { status: sseRes.statusCode })
+                sseRes.on("data", (chunk) => { res.write(chunk) })
+                sseRes.on("end", () => { debug("SSE upstream ended"); res.end() })
+            })
+
+            sseReq.on("error", (err) => {
+                debug("SSE upstream error", { error: err.message })
+                res.end()
+            })
+
+            req.on("close", () => {
+                debug("SSE client disconnected")
+                sseReq.destroy()
+            })
+
+            return
+        }
+
+        if (await handleGitRequest(req, res, { worktree: process.cwd(), sessionToken })) {
+            return
+        }
+
+        const forwardHeaders: Record<string, string | string[]> = {}
+        for (const [key, value] of Object.entries(req.headers)) {
+            if (!HOP_BY_HOP.has(key.toLowerCase())) forwardHeaders[key] = value
+        }
+        forwardHeaders["host"] = `127.0.0.1:${targetPort}`
+
+        if (authHeader && !authHeader.startsWith("Basic ")) {
+            forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${authHeader}`).toString("base64")}`
+            debug("converted auth to Basic format")
+        }
+
+        debug("forwarding to opencode", {
+            targetUrl,
+            method: req.method,
+            hasAuth: !!forwardHeaders["authorization"],
+            auth: censorAuth(forwardHeaders["authorization"] as string),
+        })
+
+        const proxyReq = http.request(targetUrl, {
+            method: req.method,
+            headers: forwardHeaders,
+            agent: proxyAgent,
+        }, (proxyRes) => {
+            debug("opencode responded", { status: proxyRes.statusCode, method: req.method, path: safePath })
+            res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
+            proxyRes.pipe(res)
+        })
+
+        proxyReq.on("error", (err) => {
+            debug("proxy request error", { error: err.message })
+            res.writeHead(502)
+            res.end("Bad Gateway")
+        })
+
+        let bodySize = 0
+        let bodyTooLarge = false
+
+        req.on("data", (chunk) => {
+            bodySize += chunk.length
+            if (bodySize > MAX_BODY_SIZE) {
+                bodyTooLarge = true
+                debug("request body too large", { size: bodySize, max: MAX_BODY_SIZE })
+                req.destroy()
+                proxyReq.destroy()
+                if (!res.headersSent) {
+                    res.writeHead(413)
+                    res.end("Request body too large")
+                }
+                return
+            }
+            proxyReq.write(chunk)
+        })
+
+        req.on("end", () => {
+            if (!bodyTooLarge) proxyReq.end()
+        })
+
+        req.on("error", (err) => {
+            debug("request stream error", { error: err.message })
+            proxyReq.destroy()
+            if (!res.headersSent) {
+                res.writeHead(500)
+                res.end("Internal Server Error")
+            }
+        })
+    })
 }
 
 async function main() {
@@ -552,145 +699,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("using detected port", { detected: targetPort, requested: requestedPort })
             }
 
-            const proxy = http.createServer(async (req, res) => {
-                const safePath = sanitizeUrlPath(req.url)
-                const targetUrl = `http://127.0.0.1:${targetPort}${safePath}`
-                const authHeader = req.headers["authorization"]
-
-                debug("proxy request received", {
-                    method: req.method,
-                    url: req.url,
-                    safePath,
-                    hasAuth: !!authHeader,
-                    auth: censorAuth(authHeader),
-                })
-
-                if (req.method === "OPTIONS") {
-                    debug("handling CORS preflight")
-                    res.writeHead(204, {
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                        "Access-Control-Max-Age": "86400",
-                    })
-                    res.end()
-                    return
-                }
-
-                if (req.url === "/mobile-event" && req.method === "POST") {
-                    debug("handling SSE request")
-                    res.writeHead(200, {
-                        "Content-Type": "text/event-stream",
-                        "Cache-Control": "no-cache",
-                        "Connection": "keep-alive",
-                        "Access-Control-Allow-Origin": "*",
-                    })
-
-                    let sseAuth = authHeader || ""
-                    if (sseAuth && !sseAuth.startsWith("Basic ")) {
-                        sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
-                        debug("converted SSE auth to Basic format")
-                    }
-
-                    const sseReq = http.get(`http://127.0.0.1:${targetPort}/event`, {
-                        headers: {
-                            "Accept": "text/event-stream",
-                            "Authorization": sseAuth,
-                        },
-                    }, (sseRes) => {
-                        debug("SSE upstream connected", { status: sseRes.statusCode })
-                        sseRes.on("data", (chunk) => {
-                            res.write(chunk)
-                        })
-                        sseRes.on("end", () => {
-                            debug("SSE upstream ended")
-                            res.end()
-                        })
-                    })
-
-                    sseReq.on("error", (err) => {
-                        debug("SSE upstream error", { error: err.message })
-                        res.end()
-                    })
-
-                    req.on("close", () => {
-                        debug("SSE client disconnected")
-                        sseReq.destroy()
-                    })
-
-                    return
-                }
-
-                if (await handleGitRequest(req, res, { worktree: process.cwd(), sessionToken })) {
-                    return
-                }
-
-                const forwardHeaders: Record<string, string | string[]> = {}
-                for (const [key, value] of Object.entries(req.headers)) {
-                    if (!HOP_BY_HOP.has(key.toLowerCase())) forwardHeaders[key] = value
-                }
-                forwardHeaders["host"] = `127.0.0.1:${targetPort}`
-                
-                const authVal = req.headers["authorization"]
-                if (authVal && !authVal.startsWith("Basic ")) {
-                    forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${authVal}`).toString("base64")}`
-                    debug("converted auth to Basic format")
-                }
-
-                let bodySize = 0
-                const bodyChunks: Buffer[] = []
-                
-                req.on("data", (chunk) => {
-                    bodySize += chunk.length
-                    if (bodySize > MAX_BODY_SIZE) {
-                        debug("request body too large", { size: bodySize, max: MAX_BODY_SIZE })
-                        req.destroy()
-                        res.writeHead(413)
-                        res.end("Request body too large")
-                        return
-                    }
-                    bodyChunks.push(chunk)
-                })
-
-                req.on("end", () => {
-                    const body = bodyChunks.length > 0 ? Buffer.concat(bodyChunks) : null
-                    
-                    debug("forwarding to opencode", {
-                        targetUrl,
-                        method: req.method,
-                        hasAuth: !!forwardHeaders["authorization"],
-                        auth: censorAuth(forwardHeaders["authorization"] as string),
-                        bodySize: body?.length ?? 0,
-                    })
-
-                    const proxyReq = http.request(targetUrl, {
-                        method: req.method,
-                        headers: forwardHeaders,
-                        agent: proxyAgent,
-                    }, (proxyRes) => {
-                        debug("opencode responded", { status: proxyRes.statusCode, method: req.method, path: safePath })
-                        res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
-                        proxyRes.pipe(res)
-                    })
-
-                    proxyReq.on("error", (err) => {
-                        debug("proxy request error", { error: err.message })
-                        res.writeHead(502)
-                        res.end("Bad Gateway")
-                    })
-
-                    if (body) proxyReq.write(body)
-                    proxyReq.end()
-                })
-
-                req.on("error", (err) => {
-                    debug("request stream error", { error: err.message })
-                    if (!res.headersSent) {
-                        res.writeHead(500)
-                        res.end("Internal Server Error")
-                    }
-                })
-            })
+            const proxy = createOpencodeProxy(targetPort, sessionToken, "tunnel")
 
             proxy.listen(proxyPort, "127.0.0.1", () => {
                 logCrosscode(`SSE proxy started on port ${proxyPort}`)
@@ -714,7 +723,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
-                const projectId = ensureProjectId(config)
+                const projectId = deriveProjectId()
                 logCrosscode(`Project ID: ${projectId}`)
                 debug("connecting to tunnel", { projectId, proxyPort })
 
@@ -892,145 +901,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("using detected port", { detected: detectedPort, requested: port })
             }
 
-            const proxy = http.createServer(async (req, res) => {
-                const safePath = sanitizeUrlPath(req.url)
-                const targetUrl = `http://127.0.0.1:${detectedPort}${safePath}`
-                const authHeader = req.headers["authorization"]
-
-                debug("cf-proxy request received", {
-                    method: req.method,
-                    url: req.url,
-                    safePath,
-                    hasAuth: !!authHeader,
-                    auth: censorAuth(authHeader),
-                })
-
-                if (req.method === "OPTIONS") {
-                    debug("handling CORS preflight")
-                    res.writeHead(204, {
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-                        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                        "Access-Control-Max-Age": "86400",
-                    })
-                    res.end()
-                    return
-                }
-
-                if (req.url === "/mobile-event" && req.method === "POST") {
-                    debug("handling SSE request")
-                    res.writeHead(200, {
-                        "Content-Type": "text/event-stream",
-                        "Cache-Control": "no-cache",
-                        "Connection": "keep-alive",
-                        "Access-Control-Allow-Origin": "*",
-                    })
-
-                    let sseAuth = authHeader || ""
-                    if (sseAuth && !sseAuth.startsWith("Basic ")) {
-                        sseAuth = `Basic ${Buffer.from(`:${sseAuth}`).toString("base64")}`
-                        debug("converted SSE auth to Basic format")
-                    }
-
-                    const sseReq = http.get(`http://127.0.0.1:${detectedPort}/event`, {
-                        headers: {
-                            "Accept": "text/event-stream",
-                            "Authorization": sseAuth,
-                        },
-                    }, (sseRes) => {
-                        debug("SSE upstream connected", { status: sseRes.statusCode })
-                        sseRes.on("data", (chunk) => {
-                            res.write(chunk)
-                        })
-                        sseRes.on("end", () => {
-                            debug("SSE upstream ended")
-                            res.end()
-                        })
-                    })
-
-                    sseReq.on("error", (err) => {
-                        debug("SSE upstream error", { error: err.message })
-                        res.end()
-                    })
-
-                    req.on("close", () => {
-                        debug("SSE client disconnected")
-                        sseReq.destroy()
-                    })
-
-                    return
-                }
-
-                if (await handleGitRequest(req, res, { worktree: process.cwd(), sessionToken })) {
-                    return
-                }
-
-                const forwardHeaders: Record<string, string | string[]> = {}
-                for (const [key, value] of Object.entries(req.headers)) {
-                    if (!HOP_BY_HOP.has(key.toLowerCase())) forwardHeaders[key] = value
-                }
-                forwardHeaders["host"] = `127.0.0.1:${detectedPort}`
-                
-                if (req.headers["authorization"] && !req.headers["authorization"].startsWith("Basic ")) {
-                    const token = req.headers["authorization"]
-                    forwardHeaders["authorization"] = `Basic ${Buffer.from(`:${token}`).toString("base64")}`
-                    debug("converted auth to Basic format")
-                }
-
-                let bodySize = 0
-                const bodyChunks: Buffer[] = []
-                
-                req.on("data", (chunk) => {
-                    bodySize += chunk.length
-                    if (bodySize > MAX_BODY_SIZE) {
-                        debug("request body too large", { size: bodySize, max: MAX_BODY_SIZE })
-                        req.destroy()
-                        res.writeHead(413)
-                        res.end("Request body too large")
-                        return
-                    }
-                    bodyChunks.push(chunk)
-                })
-
-                req.on("end", () => {
-                    const body = bodyChunks.length > 0 ? Buffer.concat(bodyChunks) : null
-                    
-                    debug("forwarding to opencode", {
-                        targetUrl,
-                        method: req.method,
-                        hasAuth: !!forwardHeaders["authorization"],
-                        auth: censorAuth(forwardHeaders["authorization"] as string),
-                        bodySize: body?.length ?? 0,
-                    })
-
-                    const proxyReq = http.request(targetUrl, {
-                        method: req.method,
-                        headers: forwardHeaders,
-                        agent: proxyAgent,
-                    }, (proxyRes) => {
-                        debug("opencode responded", { status: proxyRes.statusCode, method: req.method, path: safePath })
-                        res.writeHead(proxyRes.statusCode || 500, proxyRes.headers)
-                        proxyRes.pipe(res)
-                    })
-
-                    proxyReq.on("error", (err) => {
-                        debug("proxy request error", { error: err.message })
-                        res.writeHead(502)
-                        res.end("Bad Gateway")
-                    })
-
-                    if (body) proxyReq.write(body)
-                    proxyReq.end()
-                })
-
-                req.on("error", (err) => {
-                    debug("request stream error", { error: err.message })
-                    if (!res.headersSent) {
-                        res.writeHead(500)
-                        res.end("Internal Server Error")
-                    }
-                })
-            })
+            const proxy = createOpencodeProxy(detectedPort, sessionToken, "cf-proxy")
 
             proxy.listen(proxyPort, "127.0.0.1", async () => {
                 logCrosscode(`SSE proxy started on port ${proxyPort}`)

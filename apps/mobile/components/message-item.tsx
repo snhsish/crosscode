@@ -299,19 +299,21 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
                 </Text>
             )
         case "file":
-            if (part.mime.startsWith("image/")) {
+            if (part.mime?.startsWith("image/") && part.url) {
                 return (
-                    <Image
-                        key={part.id ?? index}
-                        source={{ uri: part.url }}
-                        className="w-full h-40 rounded-xl"
-                        resizeMode="cover"
-                    />
+                    <View key={part.id ?? index} className="w-full h-40 rounded-xl overflow-hidden">
+                        <Image
+                            source={{ uri: part.url }}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            style={{ width: "100%", height: "100%" }}
+                        />
+                    </View>
                 )
             }
             return (
                 <Text key={part.id ?? index} className="text-xs text-muted-foreground">
-                    File: <Text className="underline">{part.filename ?? part.url}</Text>
+                    File: <Text className="underline">{part.filename ?? part.url ?? "unknown"}</Text>
                 </Text>
             )
         case "step-start":

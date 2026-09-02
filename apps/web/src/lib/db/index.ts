@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/postgres-js"
-import postgres from "postgres"
+import { neon } from "@neondatabase/serverless"
+import { drizzle } from "drizzle-orm/neon-http"
 import * as schema from "./schema"
 import { logger } from "../logger"
 
@@ -10,17 +10,10 @@ if (connectionString) {
   logger.warn("DB", "DATABASE_URL not set at build time (expected - available at runtime)")
 }
 
-export const client = postgres(connectionString, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 30,
-  keep_alive: 60,
-  connection: {
-    statement_timeout: 30000,
-  },
-  onnotice: () => {},
-})
+export const sql = neon(connectionString)
 
-logger.info("DB", "Connection pool configured (lazy connect)")
+logger.info("DB", "Neon HTTP driver configured")
 
-export const db = drizzle(client, { schema })
+export const db = drizzle(sql, { schema })
+
+export { sql as client }

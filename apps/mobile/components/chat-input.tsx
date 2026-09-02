@@ -278,11 +278,14 @@ function ChatInputInner({
                             <View className="flex-row gap-2 px-2 pt-2 pb-1">
                                 {images.map((img, index) => (
                                     <View key={img.uri} className="relative">
-                                        <Image
-                                            source={{ uri: img.uri }}
-                                            className="w-16 h-16 rounded-xl"
-                                            resizeMode="cover"
-                                        />
+                                        <View className="w-16 h-16 rounded-xl overflow-hidden">
+                                            <Image
+                                                source={{ uri: img.uri }}
+                                                contentFit="cover"
+                                                cachePolicy="memory-disk"
+                                                style={{ width: "100%", height: "100%" }}
+                                            />
+                                        </View>
                                         <Pressable
                                             onPress={() => removeImage(index)}
                                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-destructive items-center justify-center"

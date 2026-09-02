@@ -39,7 +39,8 @@ async function checkDatabase() {
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    logger.error("Auth", `Database check failed: ${msg}`)
+    const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined
+    logger.error("Auth", `Database check failed: ${msg}${cause ? ` (cause: ${cause})` : ""}`)
   }
 }
 

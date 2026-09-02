@@ -14,12 +14,11 @@ async function checkDatabase() {
     await client`SELECT 1`
     logger.info("Auth", "Database connection OK")
 
-    const result = await client`
+    const tables = await client`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'verification'
     `
-    const tables = Array.isArray(result) ? result : (result as unknown as { rows: unknown[] }).rows ?? []
 
     if (tables.length === 0) {
       logger.info("Auth", "Creating verification table...")
@@ -39,8 +38,11 @@ async function checkDatabase() {
     }
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined
-    logger.error("Auth", `Database check failed: ${msg}${cause ? ` (cause: ${cause})` : ""}`)
+    const extra =
+      err instanceof Error && (err as unknown as { cause?: unknown }).cause
+        ? ` cause=${String((err as unknown as { cause: unknown }).cause)} errors=${JSON.stringify((err as unknown as { cause: { errors?: unknown[] } }).cause?.errors ?? (err as unknown as { errors?: unknown[] }).errors ?? [])}`
+        : ""
+    logger.error("Auth", `Database check failed: ${msg}${extra}`)
   }
 }
 

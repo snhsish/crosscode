@@ -1,48 +1,56 @@
-import { neon } from "@neondatabase/serverless"
-import { drizzle, type NeonHttpDatabase } from "drizzle-orm/neon-http"
+import postgres from "postgres"
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "./schema"
 import { logger } from "../logger"
 
-const connectionString = process.env.DATABASE_URL || ""
+const rawConnectionString = process.env.DATABASE_URL || ""
+const connectionString = rawConnectionString.replace(/[?&]channel_binding=require/, "")
+
 if (connectionString) {
   logger.info("DB", `Connecting to ${connectionString.replace(/\/\/.*@/, "//***@")}`)
 } else {
   logger.info("DB", "DATABASE_URL not set at build time (expected - available at runtime)")
 }
 
-// neon() and drizzle() both fail if called at build time when DATABASE_URL is missing.
-// Lazily initialize both on first property access / tagged-template call at runtime.
-
-let _sql: ReturnType<typeof neon> | null = null
+let _client: ReturnType<typeof postgres> | null = null
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _db: NeonHttpDatabase<typeof schema> | null = null
+let _db: PostgresJsDatabase<typeof schema> | null = null
 
-function ensureInit(): { sql: ReturnType<typeof neon>; db: NeonHttpDatabase<typeof schema> } {
-  if (!_sql) {
-    _sql = neon(connectionString)
-    _db = drizzle(_sql, { schema })
-    logger.info("DB", "Neon HTTP driver connected")
+function ensureInit(): { client: ReturnType<typeof postgres>; db: PostgresJsDatabase<typeof schema> } {
+  if (!_client) {
+    _client = postgres(connectionString, {
+      max: 10,
+      idle_timeout: 20,
+      connect_timeout: 30,
+      max_lifetime: 60 * 30,
+      fetch_types: false,
+      onnotice: () => {},
+    })
+    _db = drizzle(_client, { schema })
+    logger.info("DB", "Postgres pool configured (lazy connect)")
   }
-  return { sql: _sql, db: _db! }
+  return { client: _client, db: _db! }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const sql: ReturnType<typeof neon> = new Proxy((() => {}) as any, {
+export const client: ReturnType<typeof postgres> = new Proxy((() => {}) as any, {
   apply(_target, _thisArg, args: unknown[]) {
-    const { sql } = ensureInit()
+    const { client } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (sql as any)(...args)
+    return (client as any)(...args)
   },
   get(_target, prop) {
-    const { sql } = ensureInit()
+    const { client } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const value = (sql as any)[prop]
-    return typeof value === "function" ? value.bind(sql) : value
+    const value = (client as any)[prop]
+    return typeof value === "function" ? value.bind(client) : value
   },
 })
 
+export const sql = client
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const db: NeonHttpDatabase<typeof schema> = new Proxy({} as any, {
+export const db: PostgresJsDatabase<typeof schema> = new Proxy({} as any, {
   get(_target, prop) {
     const { db } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,5 +58,3 @@ export const db: NeonHttpDatabase<typeof schema> = new Proxy({} as any, {
     return typeof value === "function" ? value.bind(db) : value
   },
 })
-
-export { sql as client }

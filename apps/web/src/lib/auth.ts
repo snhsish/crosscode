@@ -14,11 +14,12 @@ async function checkDatabase() {
     await client`SELECT 1`
     logger.info("Auth", "Database connection OK")
 
-    const tables = await client`
+    const result = await client`
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name = 'verification'
     `
+    const tables = Array.isArray(result) ? result : (result as unknown as { rows: unknown[] }).rows ?? []
 
     if (tables.length === 0) {
       logger.info("Auth", "Creating verification table...")

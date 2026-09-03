@@ -115,17 +115,28 @@ function spawnCmd(cmd: string, args: string[], opts: Parameters<typeof spawn>[2]
     return spawn(cmd, args, { ...opts, shell: false })
 }
 
+type CloudflaredTunnel = {
+    name: string
+    credentialsPath: string
+    url: string
+}
+
+type ProjectConfig = {
+    path?: string
+    sessionToken?: string
+    projectId?: string
+    cloudflaredTunnel?: CloudflaredTunnel
+    port?: number
+}
+
 type Config = {
     ngrokToken?: string
     port?: number
     tunnelWsUrl?: string
     sessionToken?: string
     projectId?: string
-    cloudflaredTunnel?: {
-        name: string
-        credentialsPath: string
-        url: string
-    }
+    cloudflaredTunnel?: CloudflaredTunnel
+    projects?: Record<string, ProjectConfig>
     auth?: {
         email?: string
         sessionToken?: string
@@ -146,30 +157,74 @@ function saveConfig(config: Config) {
     writeFileSync(configFile, JSON.stringify(config, null, 2), { mode: 0o600 })
 }
 
-// Stable, persistent session identity so the QR/URL stays the same across
-// CLI restarts and network blips. Without this the opencode password + QR
-// token are randomized every run, making it impossible for a returning
-// mobile client to reconnect.
-function ensureSessionToken(config: Config): string {
-    if (!config.sessionToken) {
-        config.sessionToken = crypto.randomBytes(32).toString("hex")
-        saveConfig(config)
-        logCrosscode(`Session token generated (censored: ${censorToken(config.sessionToken)})`)
-    } else {
-        debug("session token reused from config")
-    }
-    return config.sessionToken
+function getProjectKey(): string {
+    const cwd = process.cwd()
+    const hash = crypto.createHash("sha256").update(cwd).digest("hex").slice(0, 16)
+    return process.env.CROSSCODE_PROJECT_KEY || hash
 }
 
-function ensureProjectId(config: Config): string {
-    if (!config.projectId) {
-        config.projectId = crypto.randomBytes(4).toString("hex")
-        saveConfig(config)
-        logCrosscode(`Project ID generated: ${config.projectId}`)
-    } else {
-        debug("project ID reused from config", { projectId: config.projectId })
+function getProjectConfig(config: Config): ProjectConfig {
+    const key = getProjectKey()
+    if (!config.projects) config.projects = {}
+    if (!config.projects[key]) {
+        const legacy: ProjectConfig = {}
+        let migrated = false
+        if (config.projectId && !Object.values(config.projects).some((p) => p.projectId === config.projectId)) {
+            legacy.projectId = config.projectId
+            migrated = true
+        }
+        if (config.sessionToken && !Object.values(config.projects).some((p) => p.sessionToken === config.sessionToken)) {
+            legacy.sessionToken = config.sessionToken
+            migrated = true
+        }
+        if (config.cloudflaredTunnel && !Object.values(config.projects).some((p) => p.cloudflaredTunnel?.name === config.cloudflaredTunnel?.name)) {
+            legacy.cloudflaredTunnel = config.cloudflaredTunnel
+            migrated = true
+        }
+        config.projects[key] = { path: process.cwd(), ...legacy }
+        if (migrated) {
+            saveConfig(config)
+            logCrosscode(`Migrated legacy global identity to project ${process.cwd()} (key: ${key})`)
+        }
+    } else if (!config.projects[key].path) {
+        config.projects[key].path = process.cwd()
     }
-    return config.projectId
+    return config.projects[key]
+}
+
+function saveProjectConfig(config: Config) {
+    const key = getProjectKey()
+    if (config.projects?.[key]) config.projects[key].path = process.cwd()
+    saveConfig(config)
+}
+
+// Stable, persistent per-project session identity so the QR/URL stays the
+// same across CLI restarts and network blips, without leaking the same
+// identity across different project directories. Without this the opencode
+// password + QR token are randomized every run, making it impossible for a
+// returning mobile client to reconnect.
+function ensureSessionToken(config: Config, project?: ProjectConfig): string {
+    const target = project ?? getProjectConfig(config)
+    if (!target.sessionToken) {
+        target.sessionToken = crypto.randomBytes(32).toString("hex")
+        saveProjectConfig(config)
+        logCrosscode(`Session token generated for ${process.cwd()} (censored: ${censorToken(target.sessionToken)})`)
+    } else {
+        debug("session token reused from project config", { cwd: process.cwd() })
+    }
+    return target.sessionToken
+}
+
+function ensureProjectId(config: Config, project?: ProjectConfig): string {
+    const target = project ?? getProjectConfig(config)
+    if (!target.projectId) {
+        target.projectId = crypto.randomBytes(4).toString("hex")
+        saveProjectConfig(config)
+        logCrosscode(`Project ID generated for ${process.cwd()}: ${target.projectId}`)
+    } else {
+        debug("project ID reused from project config", { projectId: target.projectId, cwd: process.cwd() })
+    }
+    return target.projectId
 }
 
 const cloudflaredTunnelDir = join(logDir, "cloudflared")
@@ -180,15 +235,16 @@ const cfCertPath = join(homedir(), ".cloudflared", "cert.pem")
 // the random ephemeral quick tunnel that rotates its URL on every (re)start.
 // Returns null when cloudflared isn't logged in yet, falling back to the
 // quick tunnel (which still works but changes URL on restart).
-async function ensureCloudflaredNamedTunnel(config: Config): Promise<{ name: string; credentialsPath: string; url: string } | null> {
+async function ensureCloudflaredNamedTunnel(config: Config, project?: ProjectConfig): Promise<{ name: string; credentialsPath: string; url: string } | null> {
     if (!existsSync(cfCertPath)) {
         debug("cloudflared not logged in (no cert.pem); falling back to quick tunnel")
         return null
     }
-    if (config.cloudflaredTunnel && existsSync(config.cloudflaredTunnel.credentialsPath)) {
-        return config.cloudflaredTunnel
+    const target = project ?? getProjectConfig(config)
+    if (target.cloudflaredTunnel && existsSync(target.cloudflaredTunnel.credentialsPath)) {
+        return target.cloudflaredTunnel
     }
-    const projectId = ensureProjectId(config)
+    const projectId = ensureProjectId(config, target)
     const name = `crosscode-${projectId}`
     const credentialsPath = join(cloudflaredTunnelDir, `${name}.json`)
     try {
@@ -209,10 +265,10 @@ async function ensureCloudflaredNamedTunnel(config: Config): Promise<{ name: str
         const id = creds.TunnelID || creds.id
         if (id) url = `https://${id}.cfargotunnel.com`
     } catch {}
-    config.cloudflaredTunnel = { name, credentialsPath, url }
-    saveConfig(config)
+    target.cloudflaredTunnel = { name, credentialsPath, url }
+    saveProjectConfig(config)
     logCrosscode(`Cloudflared named tunnel created: ${name} (${url})`)
-    return config.cloudflaredTunnel
+    return target.cloudflaredTunnel
 }
 
 function printTunnelQr(url: string, token: string, opencodePort: number, requestedPort: number) {
@@ -610,7 +666,8 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     const useCloudflared = args.includes("--cloudflared")
     const canUseTunnel = !!(config.auth?.sessionToken)
     const tunnelProvider = useNgrok ? "ngrok" : (useCloudflared ? "cloudflared" : (canUseTunnel ? "tunnel" : "cloudflared"))
-    const port = config.port || await getFreePort()
+    const project = getProjectConfig(config)
+    const port = project.port || await getFreePort()
 
     let missingDep = false
     let logsVisible = false
@@ -662,7 +719,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     if (tunnelProvider === "tunnel") {
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = ensureSessionToken(config)
+        const sessionToken = ensureSessionToken(config, project)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -723,7 +780,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
-                const projectId = deriveProjectId()
+                const projectId = ensureProjectId(config, project)
                 logCrosscode(`Project ID: ${projectId}`)
                 debug("connecting to tunnel", { projectId, proxyPort })
 
@@ -787,7 +844,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = ensureSessionToken(config)
+        const sessionToken = ensureSessionToken(config, project)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -868,7 +925,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     } else if (tunnelProvider === "cloudflared" || tunnelFailed) {
         const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
 
-        const sessionToken = ensureSessionToken(config)
+        const sessionToken = ensureSessionToken(config, project)
 
         const opencode = spawnCmd("opencode", ["serve", "--print-logs", "--log-level", "DEBUG", "--port", String(port), "--hostname", "127.0.0.1"], {
             cwd: process.cwd(),
@@ -908,7 +965,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
                 debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
                 spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
 
-                const namedTunnel = await ensureCloudflaredNamedTunnel(config)
+                const namedTunnel = await ensureCloudflaredNamedTunnel(config, project)
                 if (!namedTunnel) {
                     logCrosscode("Using ephemeral quick tunnel (URL changes on restart). Run `cloudflared tunnel login` once for a stable, persistent URL.")
                 }

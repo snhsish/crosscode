@@ -104,8 +104,6 @@ export const db: PostgresJsDatabase<typeof schema> = new Proxy({} as any, {
     const { db } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (db as any)[prop]
-    if (typeof value !== "function") return value
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (...args: any[]) => withRetry(() => value.bind(db)(...args), `db.${String(prop)}`)
+    return typeof value === "function" ? value.bind(db) : value
   },
 })

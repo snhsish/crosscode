@@ -4,7 +4,13 @@ import * as schema from "./schema"
 import { logger } from "../logger"
 
 const rawConnectionString = process.env.DATABASE_URL || ""
-const connectionString = rawConnectionString.replace(/[?&]channel_binding=require/, "")
+let connectionString = rawConnectionString.replace(/[?&]channel_binding=require/, "")
+
+if (connectionString.includes(".neon.tech") && !connectionString.includes("-pooler")) {
+  const pooled = connectionString.replace(/([a-z0-9-]+)\.c-/, "$1-pooler.c-")
+  logger.info("DB", `Using pooled endpoint: ${pooled.replace(/\/\/.*@/, "//***@")}`)
+  connectionString = pooled
+}
 
 if (connectionString) {
   logger.info("DB", `Connecting to ${connectionString.replace(/\/\/.*@/, "//***@")}`)
@@ -25,6 +31,8 @@ function ensureInit(): { client: ReturnType<typeof postgres>; db: PostgresJsData
       max_lifetime: 60 * 30,
       fetch_types: false,
       onnotice: () => {},
+      transform: { undefined: null },
+      debug: false,
     })
     _db = drizzle(_client, { schema })
     logger.info("DB", "Postgres pool configured (lazy connect)")
@@ -32,18 +40,40 @@ function ensureInit(): { client: ReturnType<typeof postgres>; db: PostgresJsData
   return { client: _client, db: _db! }
 }
 
+async function withRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await fn()
+    } catch (err: unknown) {
+      lastErr = err
+      const msg = err instanceof Error ? err.message : String(err)
+      const code = (err as { code?: string })?.code
+      if (code !== "ETIMEDOUT" && !msg.includes("ETIMEDOUT") && !msg.includes("fetch failed") && !msg.includes("AggregateError")) break
+      if (attempt < 3) {
+        const delay = attempt * 2000
+        logger.warn("DB", `${label} attempt ${attempt} failed (${code || msg.slice(0, 80)}), retrying in ${delay}ms`)
+        await new Promise((r) => setTimeout(r, delay))
+      }
+    }
+  }
+  throw lastErr
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const client: ReturnType<typeof postgres> = new Proxy((() => {}) as any, {
   apply(_target, _thisArg, args: unknown[]) {
     const { client } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (client as any)(...args)
+    return withRetry(() => (client as any)(...args), "client.query")
   },
   get(_target, prop) {
     const { client } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (client as any)[prop]
-    return typeof value === "function" ? value.bind(client) : value
+    if (typeof value !== "function") return value
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (...a: any[]) => withRetry(() => value.bind(client)(...a), `client.${String(prop)}`)
   },
 })
 
@@ -55,6 +85,8 @@ export const db: PostgresJsDatabase<typeof schema> = new Proxy({} as any, {
     const { db } = ensureInit()
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (db as any)[prop]
-    return typeof value === "function" ? value.bind(db) : value
+    if (typeof value !== "function") return value
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (...args: any[]) => withRetry(() => value.bind(db)(...args), `db.${String(prop)}`)
   },
 })

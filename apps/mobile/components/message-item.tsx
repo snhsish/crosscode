@@ -1,5 +1,5 @@
 import { memo, useState, useRef, useCallback } from "react"
-import { View, Pressable, Modal, Dimensions } from "react-native"
+import { View, Pressable, Modal, Dimensions, Image as RNImage } from "react-native"
 import { Image } from "expo-image"
 import * as Clipboard from "expo-clipboard"
 import TriangleAlertIcon from "lucide-react-native/dist/esm/icons/triangle-alert"
@@ -73,6 +73,72 @@ function getErrorLabel(name?: string): string {
         case "NetworkError": return "Network Error"
         default: return "Error"
     }
+}
+
+function FileImage({ uri, mime }: { uri: string; mime?: string }) {
+    const [stage, setStage] = useState<"expo" | "native" | "failed">(uri.startsWith("data:") ? "native" : "expo")
+    const [fullscreen, setFullscreen] = useState(false)
+    const isDataUrl = uri.startsWith("data:")
+
+    if (stage === "failed") {
+        return (
+            <View className="w-full min-h-40 rounded-xl items-center justify-center bg-muted p-2 gap-1">
+                <Text className="text-xs text-muted-foreground">Image couldn't be displayed</Text>
+                <Text className="text-[10px] text-muted-foreground/70">
+                    {mime ?? "?"} · {uri.length} chars · {uri.slice(0, 48)}
+                </Text>
+            </View>
+        )
+    }
+    const viewer =
+        stage === "expo" ? (
+            <Image
+                source={{ uri }}
+                contentFit="cover"
+                cachePolicy={isDataUrl ? "memory" : "memory-disk"}
+                transition={0}
+                style={{ width: "100%", height: "100%" }}
+                onError={(e) => {
+                    console.log(`[FileImage] expo failed mime=${mime} len=${uri.length} head=${uri.slice(0, 48)} error=${e.error}`)
+                    setStage("native")
+                }}
+            />
+        ) : (
+            <RNImage
+                source={{ uri }}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="cover"
+                onError={(e) => {
+                    console.log(`[FileImage] native failed mime=${mime} len=${uri.length} head=${uri.slice(0, 48)} error=${e.nativeEvent?.error}`)
+                    setStage("failed")
+                }}
+            />
+        )
+    return (
+        <>
+            <Pressable onPress={() => setFullscreen(true)} className="w-full h-40 rounded-xl overflow-hidden bg-muted">
+                {viewer}
+            </Pressable>
+            <Modal visible={fullscreen} transparent animationType="fade" onRequestClose={() => setFullscreen(false)}>
+                <Pressable className="flex-1 bg-black/90 items-center justify-center p-4" onPress={() => setFullscreen(false)}>
+                    {stage === "expo" ? (
+                        <Image
+                            source={{ uri }}
+                            contentFit="contain"
+                            cachePolicy={isDataUrl ? "memory" : "memory-disk"}
+                            style={{ width: "100%", height: "80%" }}
+                        />
+                    ) : (
+                        <RNImage
+                            source={{ uri }}
+                            style={{ width: "100%", height: "80%" }}
+                            resizeMode="contain"
+                        />
+                    )}
+                </Pressable>
+            </Modal>
+        </>
+    )
 }
 
 function getErrorHint(name?: string): string | undefined {
@@ -300,16 +366,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
             )
         case "file":
             if (part.mime?.startsWith("image/") && part.url) {
-                return (
-                    <View key={part.id ?? index} className="w-full h-40 rounded-xl overflow-hidden">
-                        <Image
-                            source={{ uri: part.url }}
-                            contentFit="cover"
-                            cachePolicy="memory-disk"
-                            style={{ width: "100%", height: "100%" }}
-                        />
-                    </View>
-                )
+                return <FileImage key={part.id ?? index} uri={part.url} mime={part.mime} />
             }
             return (
                 <Text key={part.id ?? index} className="text-xs text-muted-foreground">

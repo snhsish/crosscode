@@ -232,18 +232,36 @@ function ChatInputInner({
             mediaTypes: ["images"],
             allowsMultipleSelection: true,
             selectionLimit: remaining,
-            base64: true,
-            quality: 0.8,
+            quality: 1,
         })
 
         if (!result.canceled && result.assets.length > 0) {
-            const newImages: ImageAttachment[] = result.assets.map((asset) => ({
-                uri: asset.uri,
-                mime: asset.mimeType ?? "image/jpeg",
-                fileName: asset.fileName ?? undefined,
-                base64: asset.base64 ?? undefined,
-            }))
-            onImagesChange((prev: ImageAttachment[]) => [...prev, ...newImages].slice(0, MAX_IMAGES))
+            const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator")
+            const resized = await Promise.all(
+                result.assets.map(async (asset) => {
+                    try {
+                        const out = await manipulateAsync(
+                            asset.uri,
+                            [{ resize: { width: 1024 } }],
+                            { compress: 0.7, format: SaveFormat.JPEG, base64: true }
+                        )
+                        return {
+                            uri: out.uri,
+                            mime: "image/jpeg",
+                            fileName: asset.fileName ?? undefined,
+                            base64: out.base64 ?? undefined,
+                        } as ImageAttachment
+                    } catch {
+                        return {
+                            uri: asset.uri,
+                            mime: asset.mimeType ?? "image/jpeg",
+                            fileName: asset.fileName ?? undefined,
+                            base64: undefined,
+                        } as ImageAttachment
+                    }
+                })
+            )
+            onImagesChange((prev: ImageAttachment[]) => [...prev, ...resized].slice(0, MAX_IMAGES))
         }
         hideAttachmentMenu()
     }, [images.length, onImagesChange, hideAttachmentMenu])

@@ -160,6 +160,10 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
         const reconnectDelays = [3000, 5000, 10000, 15000, 20000, 30000, 45000, 60000, 90000, 120000]
 
         let pendingMessages: Message[] | null = null
+        // Phone-local file:// uris salvaged from optimistic messages. Server echoes
+        // user images back as data: URLs or server-local paths which often fail to
+        // render on device — replay the local uri instead, exactly like chat input.
+        let localFileUriBackup: string[] = []
         let flushScheduled = false
         const countedMessageIds = new Set<string>()
         let lastCompleted: {
@@ -201,19 +205,51 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
 
                     const existing = getOrCreatePending()
                     const existingIdx = existing.findIndex(m => m.id === info.id)
-                    const previous = existingIdx >= 0 ? existing[existingIdx] : undefined
+                    const infoParts = ((info as unknown as { parts?: Part[] }).parts ?? []) as Part[]
+
+                    const swapInLocalUris = (parts: Part[]): Part[] => {
+                        if (localFileUriBackup.length === 0) return parts
+                        return parts.map((p) => {
+                            if (p.type === "file" && localFileUriBackup.length > 0) {
+                                const localUri = localFileUriBackup.shift()!
+                                return { ...p, url: localUri } as Part
+                            }
+                            return p
+                        })
+                    }
 
                     if (existingIdx >= 0) {
                         const existingMsg = existing[existingIdx]
-                        existing[existingIdx] = { ...info, parts: existingMsg.parts } as Message
+                        const baseParts = (existingMsg.parts?.length ? existingMsg.parts : infoParts) as Part[]
+                        existing[existingIdx] = { ...info, parts: swapInLocalUris([...baseParts]) } as Message
                     } else {
-                        existing.push({ ...info, parts: [] } as Message)
+                        existing.push({ ...info, parts: swapInLocalUris([...infoParts]) } as Message)
                     }
 
                     if (info.role === "user") {
                         for (let i = 0; i < existing.length; i++) {
                             if (existing[i].id.startsWith("local-") && existing[i].role === "user") {
+                                const removed = existing[i]
+                                for (const p of removed.parts ?? []) {
+                                    if (p.type === "file" && p.url) localFileUriBackup.push(p.url)
+                                }
                                 existing.splice(i, 1)
+                                // New server message may already be in the list with
+                                // unrenderable urls — swap salvaged local uris into it.
+                                for (let j = existing.length - 1; j >= 0; j--) {
+                                    if (existing[j].id === info.id && localFileUriBackup.length > 0) {
+                                        const msg = existing[j]
+                                        const parts = (msg.parts ?? []).map((p) => {
+                                            if (p.type === "file" && localFileUriBackup.length > 0) {
+                                                const localUri = localFileUriBackup.shift()!
+                                                return { ...p, url: localUri } as Part
+                                            }
+                                            return p
+                                        })
+                                        existing[j] = { ...msg, parts } as Message
+                                        break
+                                    }
+                                }
                                 break
                             }
                         }
@@ -271,13 +307,36 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                     const delta = props.delta as string | undefined
 
                     const existing = getOrCreatePending()
-                    const msgIdx = existing.findIndex(m => m.id === part.messageID)
+                    let msgIdx = existing.findIndex(m => m.id === part.messageID)
 
-                    if (msgIdx < 0) return
+                    if (msgIdx < 0) {
+                        // Part arrived before its message (common for user file parts).
+                        // Create a placeholder instead of dropping it.
+                        let incoming = part as Part
+                        if (incoming.type === "file" && localFileUriBackup.length > 0) {
+                            incoming = { ...incoming, url: localFileUriBackup.shift()! } as Part
+                        }
+                        existing.push({
+                            id: part.messageID,
+                            sessionID: currentSessionId,
+                            role: "user",
+                            time: { created: Date.now() },
+                            agent: "build",
+                            model: { providerID: "...", modelID: "..." },
+                            parts: [incoming],
+                        } as unknown as Message)
+                        scheduleFlush()
+                        break
+                    }
+
+                    let effectivePart = part
+                    if (part.type === "file" && localFileUriBackup.length > 0) {
+                        effectivePart = { ...part, url: localFileUriBackup.shift()! } as MessagePart
+                    }
 
                     const msg = existing[msgIdx]
                     const parts = msg.parts ?? []
-                    const partIdx = parts.findIndex(p => p.id === part.id)
+                    const partIdx = parts.findIndex(p => p.id === effectivePart.id)
 
                     let newParts: Part[]
                     if (partIdx >= 0) {
@@ -285,16 +344,16 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                         const existingPart = newParts[partIdx]
 
                         if (isDelta && delta) {
-                            if (part.type === "text" && existingPart.type === "text") {
+                            if (effectivePart.type === "text" && existingPart.type === "text") {
                                 newParts[partIdx] = { ...existingPart, text: existingPart.text + delta }
-                            } else if (part.type === "reasoning" && existingPart.type === "reasoning") {
+                            } else if (effectivePart.type === "reasoning" && existingPart.type === "reasoning") {
                                 newParts[partIdx] = { ...existingPart, text: existingPart.text + delta }
                             }
                         } else {
-                            newParts[partIdx] = part as Part
+                            newParts[partIdx] = effectivePart as Part
                         }
                     } else {
-                        newParts = [...parts, part as Part]
+                        newParts = [...parts, effectivePart as Part]
                     }
 
                     existing[msgIdx] = { ...msg, parts: newParts } as Message

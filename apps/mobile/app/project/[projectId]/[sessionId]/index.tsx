@@ -312,6 +312,23 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                             url: `data:${img.mime};base64,${img.base64}`,
                             filename: img.fileName,
                         })
+                    } else if (img.uri) {
+                        try {
+                            const res = await fetch(img.uri)
+                            const blob = await res.blob()
+                            const dataUrl = await new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader()
+                                reader.onload = () => resolve(reader.result as string)
+                                reader.onerror = () => reject(new Error("read failed"))
+                                reader.readAsDataURL(blob)
+                            })
+                            parts.push({
+                                type: "file",
+                                mime: img.mime,
+                                url: dataUrl,
+                                filename: img.fileName,
+                            })
+                        } catch {}
                     }
                 }
             }
@@ -437,6 +454,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 retryable: true,
             })
         } else {
+            if (data.images && data.images.length > 0) setSelectedImages(data.images)
             finalizeSendError(
                 data.targetSessionId, data.localId, data.text,
                 result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
@@ -476,15 +494,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         voice.resetTranscript()
         voiceInitialDraftRef.current = null
 
+        const imagesToSend = selectedImages
         clearDraft(targetSessionId)
+        setSelectedImages([])
         setSending(true)
         setSendError(null)
 
         const localId = `local-${now}`
 
         const userParts: Part[] = [{ type: "text", text }]
-        if (selectedImages.length > 0) {
-            for (const img of selectedImages) {
+        if (imagesToSend.length > 0) {
+            for (const img of imagesToSend) {
                 userParts.push({
                     type: "file",
                     mime: img.mime,
@@ -508,17 +528,16 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const result = await attemptSendMessage(
             connection.url, connection.token, targetSessionId,
-            text, selectedAgent, modelId, providerId, selectedImages,
+            text, selectedAgent, modelId, providerId, imagesToSend,
         )
 
         if (result.ok) {
             setSending(false)
-            setSelectedImages([])
             return
         }
 
         if (result.retryable) {
-            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: selectedImages }
+            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend }
             setSending(false)
             setSendError({
                 title: "Failed to send message",
@@ -526,6 +545,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 retryable: true,
             })
         } else {
+            setSelectedImages(imagesToSend)
             finalizeSendError(
                 targetSessionId, localId, text,
                 result.errorName ?? "UnknownError", result.errorText ?? "Unknown error",
@@ -533,7 +553,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )
             setSending(false)
         }
-        setSelectedImages([])
     }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
 
     const getAndSetMessages = useCallback(async () => {

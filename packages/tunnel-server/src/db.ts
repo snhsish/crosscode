@@ -1,8 +1,32 @@
+import dns from "node:dns"
 import postgres from "postgres"
 import { logger } from "./logger.js"
 import { effectiveTier } from "@crosscode/shared"
 
-const sql = postgres(process.env.DATABASE_URL!, {
+try {
+  dns.setDefaultResultOrder("ipv4first")
+} catch {}
+const origLookup = dns.lookup
+// @ts-ignore
+dns.lookup = function patchedLookup(hostname: string, opts: unknown, cb: unknown) {
+  const callback = (typeof opts === "function" ? opts : cb) as (err: unknown, addr: unknown, fam: unknown) => void
+  const options = typeof opts === "object" && opts !== null ? (opts as Record<string, unknown>) : {}
+  if (typeof hostname === "string" && hostname.includes("neon.tech")) {
+    const ipv4Opts = { ...options, family: 4, all: true } as unknown as Parameters<typeof dns.lookup>[1]
+    return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, ipv4Opts, (err: unknown, addrs: unknown) => {
+      if (!err && Array.isArray(addrs) && addrs.length > 0) return callback(null, addrs, 4)
+      return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, options as never, callback as never)
+    })
+  }
+  return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, opts as never, cb as never)
+} as unknown as typeof dns.lookup
+
+const rawUrl = process.env.DATABASE_URL || ""
+const dbUrl = rawUrl.includes(".neon.tech") && !rawUrl.includes("-pooler")
+  ? rawUrl.replace(/([a-z0-9-]+)\.c-/, "$1-pooler.c-").replace(/[?&]channel_binding=require/, "")
+  : rawUrl.replace(/[?&]channel_binding=require/, "")
+
+const sql = postgres(dbUrl, {
   max: 10,
   idle_timeout: 20,
   connect_timeout: 30,
@@ -14,22 +38,34 @@ const sql = postgres(process.env.DATABASE_URL!, {
 
 export async function validateApiKey(apiKey: string): Promise<{ userId: string; email: string; tier: string } | null> {
   logger.debug("Validating API key", { apiKey: apiKey.substring(0, 8) + "..." })
-  try {
-    const rows = await sql`
-      SELECT id, email, tier, subscription_status
-      FROM "user" WHERE api_key = ${apiKey} LIMIT 1
-    `
-    if (rows.length === 0) {
-      logger.warn("API key not found in database", { apiKey: apiKey.substring(0, 8) + "..." })
-      return null
+  let lastErr: unknown
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const rows = await sql`
+        SELECT id, email, tier, subscription_status
+        FROM "user" WHERE api_key = ${apiKey} LIMIT 1
+      `
+      if (rows.length === 0) {
+        logger.warn("API key not found in database", { apiKey: apiKey.substring(0, 8) + "..." })
+        return null
+      }
+      const tier = effectiveTier(rows[0].tier, rows[0].subscription_status)
+      logger.info("API key validated", { userId: rows[0].id, email: rows[0].email, tier })
+      return { userId: rows[0].id, email: rows[0].email, tier }
+    } catch (err) {
+      lastErr = err
+      const e = err as { code?: string; errors?: unknown[]; message?: string }
+      const detail = `${e?.code || e?.message || String(err)}${e?.errors ? ` errors=[${(e.errors as { code?: string }[]).map((x) => x?.code).join(",")}]` : ""}`
+      if (attempt < 3 && (detail.includes("ETIMEDOUT") || detail.includes("AggregateError"))) {
+        logger.warn("API key validation retry", { attempt, detail })
+        await new Promise((r) => setTimeout(r, attempt * 2000))
+        continue
+      }
+      logger.error("Database error during API key validation", { error: detail })
+      throw err
     }
-    const tier = effectiveTier(rows[0].tier, rows[0].subscription_status)
-    logger.info("API key validated", { userId: rows[0].id, email: rows[0].email, tier })
-    return { userId: rows[0].id, email: rows[0].email, tier }
-  } catch (err) {
-    logger.error("Database error during API key validation", { error: err instanceof Error ? err.message : String(err) })
-    throw err
   }
+  throw lastErr
 }
 
 export type PushEventKind = "completion" | "question" | "permission" | "error"

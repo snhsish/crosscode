@@ -1,7 +1,12 @@
+import dns from "node:dns"
 import postgres from "postgres"
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "./schema"
 import { logger } from "../logger"
+
+try {
+  dns.setDefaultResultOrder("ipv4first")
+} catch {}
 
 const rawConnectionString = process.env.DATABASE_URL || ""
 let connectionString = rawConnectionString.replace(/[?&]channel_binding=require/, "")

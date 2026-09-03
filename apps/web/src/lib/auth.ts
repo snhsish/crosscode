@@ -37,12 +37,16 @@ async function checkDatabase() {
       logger.info("Auth", "Verification table exists")
     }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    const extra =
-      err instanceof Error && (err as unknown as { cause?: unknown }).cause
-        ? ` cause=${String((err as unknown as { cause: unknown }).cause)} errors=${JSON.stringify((err as unknown as { cause: { errors?: unknown[] } }).cause?.errors ?? (err as unknown as { errors?: unknown[] }).errors ?? [])}`
-        : ""
-    logger.error("Auth", `Database check failed: ${msg}${extra}`)
+    const codes = (err: unknown): string => {
+      const e = err as { code?: string; errors?: unknown[]; cause?: unknown }
+      const c = e?.code ? ` code=${e.code}` : ""
+      const errs = (e?.errors as unknown[]) ?? (e?.cause as { errors?: unknown[] })?.errors ?? []
+      const details = Array.isArray(errs) && errs.length ? ` errors=[${errs.map((x) => (x as { code?: string; message?: string })?.code || (x as { message?: string })?.message || String(x)).join(",")}]` : ""
+      const cause = e?.cause ? ` cause=${String((e.cause as { message?: string })?.message || e.cause).slice(0,120)}` : ""
+      return `${c}${cause}${details}`
+    }
+    const msg = err instanceof Error ? err.message || String(err) : String(err)
+    logger.error("Auth", `Database check failed: ${msg || "(empty)"}${codes(err)}`)
   }
 }
 

@@ -7,6 +7,20 @@ import { logger } from "../logger"
 try {
   dns.setDefaultResultOrder("ipv4first")
 } catch {}
+const origLookup = dns.lookup
+// @ts-ignore
+dns.lookup = function patchedLookup(hostname: string, opts: unknown, cb: unknown) {
+  const callback = (typeof opts === "function" ? opts : cb) as (err: unknown, addr: unknown, fam: unknown) => void
+  const options = typeof opts === "object" && opts !== null ? (opts as Record<string, unknown>) : {}
+  if (typeof hostname === "string" && hostname.includes("neon.tech")) {
+    const ipv4Opts = { ...options, family: 4, all: true } as unknown as Parameters<typeof dns.lookup>[1]
+    return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, ipv4Opts, (err: unknown, addrs: unknown) => {
+      if (!err && Array.isArray(addrs) && addrs.length > 0) return callback(null, addrs, 4)
+      return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, options as never, callback as never)
+    })
+  }
+  return (origLookup as unknown as (h: string, o: unknown, c: unknown) => void)(hostname, opts as never, cb as never)
+} as unknown as typeof dns.lookup
 
 const rawConnectionString = process.env.DATABASE_URL || ""
 let connectionString = rawConnectionString.replace(/[?&]channel_binding=require/, "")

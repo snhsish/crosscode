@@ -100,6 +100,9 @@ export function FeedbackForm() {
         fav: data.get("fav"),
         missing: data.get("missing"),
         keepUsing: data.get("keepUsing"),
+        projectName: data.get("projectName"),
+        projectDesc: data.get("projectDesc"),
+        projectLink: data.get("projectLink"),
         testimonial: data.get("testimonial"),
         testimonialOptIn: true,
       }),
@@ -224,6 +227,15 @@ export function FeedbackForm() {
             </select>
           </label>
           <Input name="testimonial" placeholder="One-line testimonial (may be shown publicly)" maxLength={2000} />
+        </div>
+        <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-4 sm:p-5">
+          <p className="text-base font-semibold">I built a project</p>
+          <p className="mb-3 mt-0.5 text-xs text-muted-foreground">Shipped something with CrossCode? Show it off. Leave empty if not.</p>
+          <div className="space-y-3">
+            <Input name="projectName" placeholder="Project name" maxLength={100} />
+            <textarea name="projectDesc" rows={2} placeholder="What does it do?" maxLength={2000} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+            <Input name="projectLink" type="url" placeholder="Link e.g. https://github.com/you/project" maxLength={500} />
+          </div>
         </div>
       </div>
       <Button type="submit" disabled={loading} className="w-full">

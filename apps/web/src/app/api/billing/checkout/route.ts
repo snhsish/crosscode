@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
     const checkout = await dodo.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { customer_id: customerId },
-      allowed_payment_method_types: ["upi_collect", "credit", "debit"],
-      ...(currency === "inr" ? { billing_currency: "INR" } : {}),
+      allowed_payment_method_types: ["upi_collect", "upi_intent", "credit", "debit"],
+      ...(currency === "inr" ? { billing_currency: "INR", billing_address: { country: "IN" } } : {}),
       return_url: appUrl("/billing/success"),
       cancel_url: appUrl("/billing/cancelled"),
       metadata: {

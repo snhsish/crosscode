@@ -102,6 +102,9 @@ export async function POST(request: Request) {
       fav: String(body?.fav ?? "").slice(0, 2000) || null,
       missing: String(body?.missing ?? "").slice(0, 2000) || null,
       keepUsing: ["yes", "maybe", "no"].includes(body?.keepUsing) ? body.keepUsing : null,
+      projectName: String(body?.projectName ?? "").slice(0, 100) || null,
+      projectDesc: String(body?.projectDesc ?? "").slice(0, 2000) || null,
+      projectLink: String(body?.projectLink ?? "").slice(0, 500) || null,
       testimonial: String(body?.testimonial ?? "").slice(0, 2000) || null,
       testimonialOptIn: Boolean(body?.testimonialOptIn),
     })

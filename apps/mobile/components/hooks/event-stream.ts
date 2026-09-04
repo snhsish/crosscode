@@ -465,25 +465,22 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                     break
                 }
 
+                case "permission.updated":
                 case "permission.asked": {
                     const raw = props as unknown as Record<string, unknown>
-                    console.log("[PERM-DEBUG] permission.asked raw:", JSON.stringify(raw))
                     const perm = normalizePermission(raw, currentSessionId)
-                    console.log("[PERM-DEBUG] permission.asked normalized:", JSON.stringify(perm))
+                    if (!perm.id) break
+                    if (perm.sessionID && perm.sessionID !== currentSessionId) break
+                    perm.sessionID = currentSessionId
                     const current = usePermissions.getState().permissionsBySession[currentSessionId] ?? []
-                    const exists =
-                        current.some((p) => p.id === perm.id) ||
-                        (!perm.id &&
-                            current.some(
-                                (p) => p.permission === perm.permission && p.sessionID === currentSessionId
-                            ))
+                    const exists = current.some((p) => p.id === perm.id)
                     if (!exists) {
                         usePermissions.getState().setPermissions(currentSessionId, [...current, perm])
                         notifyAgentStatus({
                             key: `${currentSessionId}:permission:${perm.id || perm.permission}`,
                             kind: "permission",
                             title: "Agent needs permission",
-                            message: perm.permission || "Review the pending permission request.",
+                            message: perm.title || perm.permission || "Review the pending permission request.",
                             projectId,
                             sessionId: currentSessionId,
                         })
@@ -493,7 +490,9 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
 
                 case "permission.replied": {
                     const requestID =
-                        (props.requestID as string | undefined) ?? (props.id as string | undefined)
+                        (props.permissionID as string | undefined) ??
+                        (props.requestID as string | undefined) ??
+                        (props.id as string | undefined)
                     if (!requestID) return
                     if (props.sessionID && props.sessionID !== currentSessionId) return
                     usePermissions.getState().removePermission(currentSessionId, requestID)

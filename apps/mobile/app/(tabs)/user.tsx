@@ -10,6 +10,7 @@ import Info from "lucide-react-native/dist/esm/icons/info"
 import LogOut from "lucide-react-native/dist/esm/icons/log-out"
 import Mail from "lucide-react-native/dist/esm/icons/mail"
 import Moon from "lucide-react-native/dist/esm/icons/moon"
+import RefreshCw from "lucide-react-native/dist/esm/icons/refresh-cw"
 import RotateCcw from "lucide-react-native/dist/esm/icons/rotate-ccw"
 import Sun from "lucide-react-native/dist/esm/icons/sun"
 import Terminal from "lucide-react-native/dist/esm/icons/terminal"
@@ -25,6 +26,7 @@ import { useAuth } from "@/store/auth.store"
 import { getAccountNotificationSettings, registerPushDevice, updateAccountNotificationSettings } from "@/lib/account-notifications"
 import { createBillingPortal } from "@/lib/billing"
 import { requestNotificationsPermission } from "@/lib/notifications"
+import { checkAndApplyUpdate, getUpdateInfo } from "@/lib/updates"
 import { TunnelUsageCard } from "@/components/TunnelUsageCard"
 import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
 import {
@@ -161,6 +163,33 @@ export default function UserPage() {
   const version = Constants.expoConfig?.version ?? "1.0.0"
   const buildNumber = Constants.expoConfig?.ios?.buildNumber ?? Constants.expoConfig?.android?.versionCode ?? undefined
   const versionDisplay = buildNumber ? `${version} (${buildNumber})` : version
+  const updateInfo = getUpdateInfo()
+  const [checkingUpdate, setCheckingUpdate] = React.useState(false)
+  const [updateMessage, setUpdateMessage] = React.useState<string | undefined>(undefined)
+
+  const handleCheckForUpdate = React.useCallback(async () => {
+    if (checkingUpdate) return
+    setCheckingUpdate(true)
+    setUpdateMessage("Checking for updates…")
+    try {
+      const outcome = await checkAndApplyUpdate()
+      if (outcome === "up-to-date") setUpdateMessage("You're up to date")
+      else if (outcome === "unavailable-in-dev") setUpdateMessage("Updates are unavailable in development")
+      else if (outcome === "disabled") setUpdateMessage("Updates are not enabled for this build")
+    } catch {
+      setUpdateMessage("Update check failed. Try again later.")
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }, [checkingUpdate])
+
+  const updateDetails = [
+    updateInfo.channel ? `Channel: ${updateInfo.channel}` : undefined,
+    updateInfo.runtimeVersion ? `Runtime: ${updateInfo.runtimeVersion}` : undefined,
+    updateInfo.updateId ? `Update: ${updateInfo.updateId.slice(0, 8)}` : undefined,
+    updateInfo.isEmbeddedLaunch ? "Embedded" : undefined,
+    updateMessage,
+  ].filter(Boolean).join(" • ")
 
   const switchControl = (value: boolean, onChange: (v: boolean) => void) => (
     <Switch
@@ -306,6 +335,14 @@ export default function UserPage() {
 
         {/* About */}
         <SettingsSection title="About">
+          <SettingsLinkRow
+            icon={<RefreshCw size={18} color={THEME[theme].primary} />}
+            title={checkingUpdate ? "Checking…" : "Check for updates"}
+            description={updateDetails || undefined}
+            disabled={checkingUpdate}
+            onPress={handleCheckForUpdate}
+          />
+          <SettingsDivider />
           <SettingsRow
             icon={<Info size={18} color={THEME[theme].primary} />}
             title="Version"

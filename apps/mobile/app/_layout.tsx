@@ -16,6 +16,7 @@ import * as React from "react"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import * as SplashScreen from "expo-splash-screen"
+import * as Updates from "expo-updates"
 
 import { NAV_THEME } from "@/lib/theme"
 import { useNotificationRouting } from "@/lib/notifications"
@@ -42,7 +43,14 @@ export default function RootLayout() {
   })
   const hasCompletedOnboarding = useSettings((state) => state.hasCompletedOnboarding)
   const [settingsHydrated, setSettingsHydrated] = React.useState(useSettings.persist.hasHydrated())
+  const { isUpdatePending } = Updates.useUpdates()
   useNotificationRouting()
+
+  React.useEffect(() => {
+    if (isUpdatePending) {
+      Updates.reloadAsync()
+    }
+  }, [isUpdatePending])
 
   React.useEffect(() => {
     const unsubscribe = useSettings.persist.onFinishHydration(() => setSettingsHydrated(true))

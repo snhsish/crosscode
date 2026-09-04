@@ -59,6 +59,14 @@ module.exports = ({ config }) => {
     ],
   ];
 
+  config.updates = {
+    ...(config.updates || {}),
+    url: "https://u.expo.dev/3a001439-9712-4716-9865-47413eac1995",
+    checkAutomatically: "ON_LOAD",
+    fallbackToCacheTimeout: 0,
+  };
+  config.runtimeVersion = config.runtimeVersion || { policy: "appVersion" };
+
   if (buildProfile === 'development') {
     config.name = 'CrossCode Dev';
     config.slug = 'crosscode-dev';

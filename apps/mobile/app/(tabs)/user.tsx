@@ -27,6 +27,7 @@ import { getAccountNotificationSettings, registerPushDevice, updateAccountNotifi
 import { createBillingPortal } from "@/lib/billing"
 import { requestNotificationsPermission } from "@/lib/notifications"
 import { checkAndApplyUpdate, getUpdateInfo } from "@/lib/updates"
+import { requestPaywall } from "@/lib/paywall"
 import { TunnelUsageCard } from "@/components/TunnelUsageCard"
 import { OpencodeStatsCard } from "@/components/OpencodeStatsCard"
 import {
@@ -122,7 +123,11 @@ export default function UserPage() {
 
   const openLink = (url: string) => Linking.openURL(url)
 
-  const openPricing = () => openLink(`${serverUrl ?? WEB_APP_URL}/pricing`)
+  const openPricing = () => {
+    void requestPaywall("manual").then((shown) => {
+      if (!shown) openLink(`${serverUrl ?? WEB_APP_URL}/pricing`)
+    })
+  }
 
   const handleNotificationsChange = React.useCallback(async (value: boolean) => {
     setNotifications(value)
@@ -268,6 +273,26 @@ export default function UserPage() {
             </View>
           )}
         </SettingsSection>
+
+        {isLoggedIn && user?.tier === "free" ? (
+          <View className="gap-2">
+            <SettingsSectionLabel>Plan</SettingsSectionLabel>
+            <View className="gap-0 overflow-hidden rounded-xl border border-primary/30 bg-primary/5">
+              <View className="flex-row items-center gap-3 px-4 py-3">
+                <View className="h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <Zap size={18} color={THEME[theme].primary} />
+                </View>
+                <View className="min-w-0 flex-1">
+                  <Text className="text-sm font-semibold">Free · 1 tunnel</Text>
+                  <Text className="mt-0.5 text-xs text-muted-foreground">Upgrade for 2–5 parallel tunnels</Text>
+                </View>
+                <Button size="sm" className="rounded-full" onPress={() => requestPaywall("usage_nudge")}>
+                  <Text>Upgrade</Text>
+                </Button>
+              </View>
+            </View>
+          </View>
+        ) : null}
 
         {/* Preferences */}
         <SettingsSection title="Preferences">

@@ -8,6 +8,10 @@ import Clock from "lucide-react-native/dist/esm/icons/clock"
 import { useTunnelStats } from "@/hooks/useTunnelStats"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
+import { useAuth } from "@/store/auth.store"
+import { isPaidTier } from "@/lib/entitlement"
+import { requestPaywall } from "@/lib/paywall"
+import { Button } from "@/components/ui/button"
 import React from "react"
 
 function formatDuration(connectedAt: string): string {
@@ -38,6 +42,7 @@ export function TunnelUsageCard() {
   const theme = colorScheme ?? "dark"
   const { stats, loading, error, refresh } = useTunnelStats()
   const [refreshing, setRefreshing] = React.useState(false)
+  const tier = useAuth((s) => s.user?.tier ?? "free")
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -154,6 +159,20 @@ export function TunnelUsageCard() {
               <View className="items-center py-4">
                 <Text className="text-sm text-muted-foreground">No active tunnels</Text>
               </View>
+            )}
+
+            {!isPaidTier(tier) && (
+              <Button
+                variant="outline"
+                className="mt-1 h-10 rounded-full border-primary/30"
+                onPress={() => requestPaywall("usage_nudge")}
+              >
+                <Text className="text-sm font-semibold text-primary">
+                  {stats.totalClients >= 1
+                    ? "At your Free limit — upgrade for more tunnels"
+                    : "Need more tunnels? Upgrade"}
+                </Text>
+              </Button>
             )}
           </View>
         ) : null}

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState } from "react"
 import { View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useConnections } from "@/store/connection.store"
+import { useAuth } from "@/store/auth.store"
+import { isAtTunnelLimit, requestPaywall } from "@/lib/paywall"
 import { Text } from "@/components/ui/text"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -17,6 +19,7 @@ export default function Connect() {
     const router = useRouter()
     const insets = useSafeAreaInsets()
     const addConnection = useConnections((s) => s.addConnection)
+    const connections = useConnections((s) => s.connections)
     const [name, setName] = useState(`Connection ${new Date().toLocaleString()}`)
     const [testing, setTesting] = useState<boolean>(false)
     const [tested, setTested] = useState<{ msg: string, error: boolean } | null>(null)
@@ -55,6 +58,11 @@ export default function Connect() {
     }, [url, token])
 
     function save() {
+        const tier = useAuth.getState().user?.tier ?? "free"
+        if (isAtTunnelLimit(tier, connections.length)) {
+            void requestPaywall("connection_limit")
+            return
+        }
         addConnection({
             url,
             name,

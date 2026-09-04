@@ -9,6 +9,8 @@ import { useFocusEffect, useRouter } from "expo-router"
 import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { useAllowsMultipleConnections } from "@/lib/entitlement"
+import { useAuth } from "@/store/auth.store"
+import { isAtTunnelLimit, requestPaywall } from "@/lib/paywall"
 import { cn, formatDirectory, getAuthHeader } from "@/lib/utils"
 import { getCurrentProject } from "@/lib/projects"
 import AlertTriangle from "lucide-react-native/dist/esm/icons/triangle-alert"
@@ -248,6 +250,16 @@ export default function HomeScreen() {
   const setCurrent = useConnections((s) => s.setCurrent)
   const setConnectionHealth = useConnections((s) => s.setConnectionHealth)
   const allowMultiple = useAllowsMultipleConnections()
+  const tier = useAuth((s) => s.user?.tier ?? "free")
+  const atLimit = isAtTunnelLimit(tier, connections.length)
+
+  const handleAddConnection = React.useCallback(() => {
+    if (atLimit) {
+      void requestPaywall("connection_limit")
+      return
+    }
+    router.push("/new-connection")
+  }, [atLimit, router])
   const projects = useProjects((s) => s.projects)
   const setProjectForConnection = useProjects((s) => s.setProjectForConnection)
   const removeConnection = useConnections((s) => s.removeConnection)
@@ -524,7 +536,7 @@ export default function HomeScreen() {
             </View>
             <Button
               size="sm"
-              onPress={() => router.push("/new-connection")}
+              onPress={handleAddConnection}
               className="mt-2 rounded-full"
             >
               <Plus size={16} color={THEME[theme].primaryForeground} />
@@ -553,10 +565,29 @@ export default function HomeScreen() {
         initialNumToRender={15}
       />
 
+      {atLimit && filteredConnections.length > 0 && (
+        <View className="px-6 pb-2">
+          <Pressable
+            onPress={() => requestPaywall("usage_nudge")}
+            className="flex-row items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3 active:opacity-80"
+          >
+            <View className="flex-1">
+              <Text className="text-sm font-semibold text-foreground">
+                {connections.length}/{tier === "free" ? 1 : connections.length} tunnels used — need more?
+              </Text>
+              <Text className="text-xs text-muted-foreground">Upgrade to run more projects in parallel</Text>
+            </View>
+            <View className="rounded-full bg-primary px-3 py-1.5">
+              <Text className="text-xs font-semibold text-primary-foreground">Upgrade</Text>
+            </View>
+          </Pressable>
+        </View>
+      )}
+
       {filteredConnections.length > 0 && (
         <View className="absolute" style={{ bottom: insets.bottom + 24, right: 24 }}>
           <Pressable
-            onPress={() => router.push("/new-connection")}
+            onPress={handleAddConnection}
             className="w-14 h-14 rounded-full bg-primary items-center justify-center shadow-lg active:opacity-80"
             style={{
               shadowColor: "#000",

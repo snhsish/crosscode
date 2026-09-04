@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { useSettings } from "@/store/settings.store"
+import { requestPaywall } from "@/lib/paywall"
 
 type Slide = {
   title: string
@@ -151,6 +152,16 @@ export default function OnboardingScreen() {
         <Button size="lg" className="rounded-full" onPress={goToNextSlide} accessibilityLabel={isLastSlide ? "Get started" : "Next slide"}>
           <Text>{isLastSlide ? "Get Started" : "Next"}</Text>
         </Button>
+        {isLastSlide && (
+          <Pressable
+            onPress={() => requestPaywall("onboarding")}
+            accessibilityRole="button"
+            accessibilityLabel="Compare plans"
+            className="mt-3 items-center rounded-full py-2 active:opacity-60"
+          >
+            <Text className="text-sm font-medium text-primary">Free includes 1 tunnel · Compare plans</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   )

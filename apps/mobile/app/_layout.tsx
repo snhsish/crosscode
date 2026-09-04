@@ -21,6 +21,7 @@ import * as Updates from "expo-updates"
 import { NAV_THEME } from "@/lib/theme"
 import { useNotificationRouting } from "@/lib/notifications"
 import { registerCrossCodeWidgets, refreshWidgets } from "@/lib/widget-task"
+import { PaywallHost } from "@/components/PaywallHost"
 import { useSettings } from "@/store/settings.store"
 import { useSessions } from "@/store/sessions.store"
 import { useConnections } from "@/store/connection.store"
@@ -103,6 +104,7 @@ export default function RootLayout() {
         <ThemeProvider value={NAV_THEME[theme]}>
           <StatusBar style={theme === "dark" ? "light" : "dark"} />
           <Stack screenOptions={{ headerShown: false }} />
+          <PaywallHost />
           <PortalHost />
         </ThemeProvider>
       </SafeAreaProvider>

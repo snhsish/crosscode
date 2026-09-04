@@ -29,6 +29,15 @@ import { useRef, useEffect, useState } from "react"
 import { BackHandler } from "react-native"
 import { SelectedModel } from "@/store/chat.store"
 import { QuickPromptsModal } from "@/components/quick-prompts-modal"
+import { MentionAutocomplete, MentionSuggestion } from "@/components/mention-autocomplete"
+import {
+    SendMention,
+    ResolvedMention,
+    applyMention,
+    detectMentionTrigger,
+    fetchFileSuggestions,
+    filterSubagents,
+} from "@/lib/mentions"
 
 export type ImageAttachment = {
     uri: string
@@ -61,13 +70,13 @@ const DISABLED_ACTIONS = new Set(["camera", "files", "video"])
 
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
-type Agent = { name: string; [key: string]: unknown }
+type Agent = { name: string; mode?: string; hidden?: boolean; description?: string; [key: string]: unknown }
 
 interface ChatInputProps {
     draft: string
     setDraft: (sessionId: string, text: string) => void
     sending: boolean
-    onSend: () => void
+    onSend: (mentions: SendMention[]) => void
     selectedAgent: string
     onAgentChange: (agent: string) => void
     agents: Agent[]
@@ -161,9 +170,89 @@ function ChatInputInner({
         showSendRef.current = showSend
     }, [showSend])
 
+    const selectionRef = useRef({ start: 0, end: 0 })
+    const [selection, setSelection] = useState<{ start: number; end: number } | undefined>(undefined)
+    const [mentionTrigger, setMentionTrigger] = useState<{ start: number; query: string } | null>(null)
+    const [resolvedMentions, setResolvedMentions] = useState<ResolvedMention[]>([])
+    const [fileResults, setFileResults] = useState<string[]>([])
+    const [filesLoading, setFilesLoading] = useState(false)
+
+    const handleSelectionChange = useCallback((e: { nativeEvent: { selection: { start: number; end: number } } }) => {
+        const next = e.nativeEvent.selection
+        selectionRef.current = next
+        setSelection(next)
+    }, [])
+
+    const handleDraftChange = useCallback((t: string) => {
+        setDraft(sessionId, t)
+        setResolvedMentions((prev) => (prev.length === 0 ? prev : prev.filter((m) => t.includes(m.token))))
+        const cursor = selectionRef.current.start
+        setMentionTrigger(detectMentionTrigger(t, cursor))
+    }, [sessionId, setDraft])
+
+    useEffect(() => {
+        if (!mentionTrigger || !connectionUrl || !connectionToken) {
+            setFileResults([])
+            setFilesLoading(false)
+            return
+        }
+        setFilesLoading(true)
+        const controller = new AbortController()
+        const timer = setTimeout(async () => {
+            const results = await fetchFileSuggestions(connectionUrl, connectionToken, mentionTrigger.query, {
+                signal: controller.signal,
+            })
+            setFileResults(results)
+            setFilesLoading(false)
+        }, 200)
+        return () => {
+            clearTimeout(timer)
+            controller.abort()
+        }
+    }, [mentionTrigger, connectionUrl, connectionToken])
+
+    const subagentSuggestions = useMemo(
+        () => filterSubagents(agents, mentionTrigger?.query ?? ""),
+        [agents, mentionTrigger],
+    )
+
+    const dismissMentions = useCallback(() => {
+        setMentionTrigger(null)
+        setFileResults([])
+    }, [])
+
+    const handleMentionSelect = useCallback((suggestion: MentionSuggestion) => {
+        if (!mentionTrigger) return
+        const insert = suggestion.kind === "agent" ? `@${suggestion.name}` : `@${suggestion.path}`
+        const cursor = selectionRef.current.start
+        const next = applyMention(draft, mentionTrigger.start, cursor, insert)
+        setDraft(sessionId, next.text)
+        setSelection({ start: next.cursor, end: next.cursor })
+        selectionRef.current = { start: next.cursor, end: next.cursor }
+        setResolvedMentions((prev) => [
+            ...prev,
+            suggestion.kind === "agent"
+                ? { kind: "agent", token: insert, agent: suggestion.name }
+                : { kind: "file", token: insert, path: suggestion.path },
+        ])
+        dismissMentions()
+    }, [mentionTrigger, draft, sessionId, setDraft, dismissMentions])
+
+    useEffect(() => {
+        if (!mentionTrigger) return
+        const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+            dismissMentions()
+            return true
+        })
+        return () => sub.remove()
+    }, [mentionTrigger, dismissMentions])
+
     const handleActionPress = useCallback(() => {
         if (showSendRef.current) {
-            onSend?.()
+            const present = resolvedMentions.filter((m) => draft.includes(m.token))
+            onSend?.(present.map((m): SendMention => ({ kind: m.kind, path: m.path, agent: m.agent })))
+            setResolvedMentions([])
+            dismissMentions()
             return
         }
         if (recognizing) {
@@ -171,7 +260,7 @@ function ChatInputInner({
         } else {
             onStartVoice?.()
         }
-    }, [onSend, onStartVoice, onStopVoice, recognizing])
+    }, [onSend, onStartVoice, onStopVoice, recognizing, resolvedMentions, draft, dismissMentions])
 
     useEffect(() => {
         const showListener = Keyboard.addListener(Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow", (e) => {
@@ -314,12 +403,23 @@ function ChatInputInner({
                                 ))}
                             </View>
                         )}
+                        <MentionAutocomplete
+                            visible={mentionTrigger !== null}
+                            loading={filesLoading}
+                            agents={subagentSuggestions}
+                            files={fileResults}
+                            onSelect={handleMentionSelect}
+                            theme={theme}
+                        />
                         <Textarea
                             placeholder={recognizing ? "Listening..." : `Ask anything... "Fix broken tests"`}
                             style={{ borderWidth: 0, backgroundColor: "transparent" }}
                             className="w-full"
                             value={draft}
-                            onChangeText={(t) => setDraft(sessionId, t)}
+                            onChangeText={handleDraftChange}
+                            onSelectionChange={handleSelectionChange}
+                            selection={selection}
+                            onBlur={dismissMentions}
                             blurOnSubmit={false}
                             returnKeyType="default"
                         />

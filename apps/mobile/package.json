@@ -28,6 +28,7 @@
     "expo-image": "~57.0.2",
     "expo-image-manipulator": "~57.0.10",
     "expo-image-picker": "^57.0.8",
+    "expo-insights": "~57.0.16",
     "expo-linking": "^57.0.5",
     "expo-notifications": "~57.0.10",
     "expo-router": "^57.0.11",

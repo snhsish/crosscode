@@ -803,7 +803,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         if (!isStreaming) {
             let max = 0
             for (const m of after) {
-                const t = m.time?.completed ?? m.time?.created ?? 0
+                const t = (m.role === "assistant" ? m.time?.completed : undefined) ?? m.time?.created ?? 0
                 if (t > max) max = t
             }
             endAt = max || null

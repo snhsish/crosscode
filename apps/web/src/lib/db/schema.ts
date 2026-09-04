@@ -113,6 +113,7 @@ export const betaFeedback = pgTable("beta_feedback", {
   appVersion: text("app_version").notNull(),
   deviceModel: text("device_model").notNull(),
   androidVersion: text("android_version").notNull(),
+  pcOs: text("pc_os"),
   flowsTested: text("flows_tested").notNull(),
   ratingOverall: integer("rating_overall").notNull(),
   ratingUx: integer("rating_ux").notNull(),

@@ -91,6 +91,7 @@ export function FeedbackForm() {
         appVersion: BETA_APP_VERSION,
         deviceModel: data.get("deviceModel"),
         androidVersion: data.get("androidVersion"),
+        pcOs: data.get("pcOs"),
         flowsTested: data.getAll("flows"),
         ratingOverall: Number(data.get("ratingOverall")),
         ratingUx: Number(data.get("ratingUx")),
@@ -136,6 +137,7 @@ export function FeedbackForm() {
         <Input name="deviceModel" required placeholder="Device e.g. Pixel 8 *" maxLength={100} />
         <Input name="androidVersion" required placeholder="Android e.g. 14 *" maxLength={50} />
       </div>
+      <Input name="pcOs" required placeholder="PC OS running npx crosscode e.g. Windows 11 *" maxLength={100} />
       <div>
         <p className="mb-2 text-sm font-medium">Flows tested *</p>
         <div className="grid gap-2 sm:grid-cols-2">

@@ -48,6 +48,7 @@ export async function POST(request: Request) {
     const appVersion = body?.appVersion?.trim().slice(0, 50)
     const deviceModel = body?.deviceModel?.trim().slice(0, 100)
     const androidVersion = body?.androidVersion?.trim().slice(0, 50)
+    const pcOs = body?.pcOs?.trim().slice(0, 100)
     const flowsTested: string[] = Array.isArray(body?.flowsTested)
       ? body.flowsTested.filter((f: unknown) => FLOWS.includes(String(f)))
       : []
@@ -60,6 +61,9 @@ export async function POST(request: Request) {
     }
     if (!appVersion || !deviceModel || !androidVersion) {
       return NextResponse.json({ error: "Device and app version are required" }, { status: 400 })
+    }
+    if (!pcOs) {
+      return NextResponse.json({ error: "PC operating system is required" }, { status: 400 })
     }
     if (flowsTested.length === 0) {
       return NextResponse.json({ error: "Select at least one flow you tested" }, { status: 400 })
@@ -89,6 +93,7 @@ export async function POST(request: Request) {
       appVersion,
       deviceModel,
       androidVersion,
+      pcOs,
       flowsTested: JSON.stringify(flowsTested),
       ratingOverall,
       ratingUx,

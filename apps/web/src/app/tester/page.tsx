@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BETA_APP_VERSION } from "@/lib/beta"
 import { Check, X } from "lucide-react"
 import Link from "next/link"
+import type { ReactNode } from "react"
 
 const SETUP = [
   "Real Android device (not an emulator)",
@@ -13,10 +14,18 @@ const SETUP = [
   "Internet on both phone and PC (any network works)",
 ] as const
 
-const STEPS = [
+const STEPS: { title: string; body: ReactNode }[] = [
+  {
+    title: "Read the GitHub README",
+    body: (
+      <>
+        Read the <a href="https://github.com/snhsish/crosscode" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">README on GitHub</a> end to end and set up from it alone. If anything feels like rocket science, note it in your review.
+      </>
+    ),
+  },
   {
     title: "Install the beta build",
-    body: "Install from the closed track link we sent you. Open Settings or About in the app and confirm the version matches the build above.",
+    body: "Install from the Expo link we sent you. Open Settings or About in the app and confirm the version matches the build above.",
   },
   {
     title: "Pair with your PC",

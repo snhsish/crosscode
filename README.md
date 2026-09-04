@@ -1,3 +1,5 @@
+[![CrossCode](assets/gh-banner.png)](https://crosscode.site)
+
 # CrossCode
 
 Control your PC's [OpenCode](https://opencode.ai) (the terminal AI coding agent) from your phone, from anywhere in the world. Free, open source, and private. Your code never touches CrossCode's servers, because there are none.

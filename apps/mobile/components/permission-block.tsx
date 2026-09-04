@@ -13,7 +13,6 @@ import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { THEME } from "@/lib/theme"
-import { cn } from "@/lib/utils"
 import { PermissionRequest } from "@/store/permissions.store"
 
 interface PermissionBlockProps {
@@ -39,6 +38,10 @@ function getPermissionIcon(permission: string) {
         case "grep":
         case "list":
             return EyeIcon
+        case "external_directory":
+            return FileIcon
+        case "doom_loop":
+            return ShieldIcon
         default:
             return ShieldIcon
     }
@@ -66,13 +69,22 @@ function getPermissionLabel(permission: string): string {
             return "List Directory"
         case "task":
             return "Run Task"
+        case "external_directory":
+            return "External Directory Access"
+        case "doom_loop":
+            return "Repeated Action"
         default:
             return permission
     }
 }
 
-function extractDetails(metadata: Record<string, unknown>): { label: string; value: string }[] {
+function extractDetails(request: PermissionRequest): { label: string; value: string }[] {
+    const metadata = request.metadata ?? {}
     const details: { label: string; value: string }[] = []
+
+    if (typeof request.title === "string" && request.title.length > 0) {
+        details.push({ label: "Request", value: request.title })
+    }
 
     if (typeof metadata.command === "string") {
         details.push({ label: "Command", value: metadata.command })
@@ -95,6 +107,12 @@ function extractDetails(metadata: Record<string, unknown>): { label: string; val
     if (typeof metadata.directory === "string") {
         details.push({ label: "Directory", value: metadata.directory })
     }
+    if (typeof metadata.path === "string") {
+        details.push({ label: "Path", value: metadata.path })
+    }
+    if (typeof metadata.file === "string") {
+        details.push({ label: "File", value: metadata.file })
+    }
 
     return details
 }
@@ -110,7 +128,7 @@ export const PermissionBlock = memo(function PermissionBlock({
 
     const IconComponent = getPermissionIcon(request.permission)
     const label = getPermissionLabel(request.permission)
-    const details = useMemo(() => extractDetails(request.metadata), [request.metadata])
+    const details = useMemo(() => extractDetails(request), [request])
 
     const handleReply = useCallback(
         async (reply: "once" | "always" | "reject") => {
@@ -125,23 +143,23 @@ export const PermissionBlock = memo(function PermissionBlock({
         [submitting, request.id, message, onReply]
     )
 
-    const hasAlwaysOption = request.always.length > 0
+    const hasAlwaysOption = true
 
     return (
-        <View className="rounded-2xl border border-amber-500/30 bg-card overflow-hidden shadow-sm">
-            <View className="flex-row items-center gap-2 px-4 py-3 bg-amber-500/10 border-b border-amber-500/20">
-                <IconComponent size={16} color={theme === "dark" ? "#fbbf24" : "#d97706"} />
-                <Text className="text-sm font-semibold text-foreground flex-1">
+        <View className="rounded-2xl border border-primary/20 bg-card overflow-hidden shadow-sm">
+            <View className="flex-row items-center gap-2 px-4 py-2.5 bg-primary/5 border-b border-primary/10">
+                <IconComponent size={14} color={THEME[theme].primary} />
+                <Text className="text-[13px] font-semibold text-foreground flex-1">
                     {label}
                 </Text>
-                <View className="px-2 py-0.5 rounded-full bg-amber-500/20">
-                    <Text className="text-[10px] font-medium text-amber-600 dark:text-amber-400 uppercase">
+                <View className="px-2 py-0.5 rounded-full bg-accent">
+                    <Text className="text-[10px] font-medium text-muted-foreground uppercase">
                         Approval Required
                     </Text>
                 </View>
             </View>
 
-            <View className="p-4 gap-3">
+            <View className="px-4 py-3 gap-2.5">
                 {details.length > 0 && (
                     <View className="gap-2">
                         {details.map((detail, i) => (
@@ -149,9 +167,9 @@ export const PermissionBlock = memo(function PermissionBlock({
                                 <Text className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
                                     {detail.label}
                                 </Text>
-                                <View className="rounded-lg bg-accent/50 px-3 py-2">
+                                <View className="rounded-lg bg-muted px-2.5 py-1.5">
                                     <Text
-                                        className="text-sm text-foreground font-mono"
+                                        className="text-[13px] text-foreground font-mono"
                                         numberOfLines={4}
                                     >
                                         {detail.value}
@@ -169,7 +187,7 @@ export const PermissionBlock = memo(function PermissionBlock({
                         </Text>
                         <View className="gap-1">
                             {request.patterns.map((pattern, i) => (
-                                <View key={i} className="rounded-md bg-accent/30 px-2.5 py-1.5">
+                                <View key={i} className="rounded-md bg-muted px-2 py-1">
                                     <Text className="text-xs text-foreground font-mono">
                                         {pattern}
                                     </Text>
@@ -195,40 +213,44 @@ export const PermissionBlock = memo(function PermissionBlock({
                 )}
             </View>
 
-            <View className="px-4 pb-4 gap-2">
-                <View className="flex-row gap-2">
+            <View className="px-4 pb-3 gap-1.5">
+                <View className="flex-row gap-1.5">
                     <Button
-                        className="flex-1 rounded-xl bg-emerald-600 active:bg-emerald-700"
+                        size="sm"
+                        className="flex-1 rounded-xl"
                         onPress={() => handleReply("once")}
                         disabled={submitting}
                     >
-                        <CheckIcon size={14} color="#fff" />
-                        <Text className="text-sm font-medium text-white">
+                        <CheckIcon size={12} color={THEME[theme].primaryForeground} />
+                        <Text className="text-xs font-medium">
                             {submitting ? "..." : "Allow"}
                         </Text>
                     </Button>
 
                     {hasAlwaysOption && (
                         <Button
-                            className="flex-1 rounded-xl bg-blue-600 active:bg-blue-700"
+                            size="sm"
+                            variant="secondary"
+                            className="flex-1 rounded-xl"
                             onPress={() => handleReply("always")}
                             disabled={submitting}
                         >
-                            <ClockIcon size={14} color="#fff" />
-                            <Text className="text-sm font-medium text-white">
+                            <ClockIcon size={12} color={THEME[theme].secondaryForeground} />
+                            <Text className="text-xs font-medium">
                                 {submitting ? "..." : "Always"}
                             </Text>
                         </Button>
                     )}
 
                     <Button
+                        size="sm"
                         variant="destructive"
                         className="flex-1 rounded-xl"
                         onPress={() => handleReply("reject")}
                         disabled={submitting}
                     >
-                        <XIcon size={14} color="#fff" />
-                        <Text className="text-sm font-medium text-white">
+                        <XIcon size={12} color="#fff" />
+                        <Text className="text-xs font-medium">
                             {submitting ? "..." : "Reject"}
                         </Text>
                     </Button>
@@ -240,7 +262,7 @@ export const PermissionBlock = memo(function PermissionBlock({
                         className="items-center py-1"
                         disabled={submitting}
                     >
-                        <Text className="text-xs text-muted-foreground">
+                        <Text className="text-[11px] text-muted-foreground">
                             Add a message
                         </Text>
                     </Pressable>

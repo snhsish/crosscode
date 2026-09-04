@@ -31,7 +31,7 @@ import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
 import { QuestionRequest } from "@/store/questions.store"
 import { usePermissions } from "@/store/permissions.store"
-import { getPendingPermissions, replyToPermission } from "@/lib/permissions"
+import { replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
 import { PermissionBlock } from "@/components/permission-block"
 import { getAuthHeader } from "@/lib/utils"
@@ -145,11 +145,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const pendingPermissions = usePermissions(
         useCallback((s) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS, [sessionId])
     )
-    const setPermissions = usePermissions((s) => s.setPermissions)
     const removePermission = usePermissions((s) => s.removePermission)
 
     const questionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const permissionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const appStateRef = useRef(AppState.currentState)
 
     const pollQuestions = useCallback(async () => {
@@ -195,34 +193,6 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             sub.remove()
         }
     }, [pollQuestions])
-
-    const pollPermissions = useCallback(async () => {
-        if (!connection?.url || !connection?.token) return
-        if (appStateRef.current !== "active") {
-            permissionPollRef.current = setTimeout(pollPermissions, 5000)
-            return
-        }
-        try {
-            const perms = await getPendingPermissions(connection.url, connection.token, sessionId)
-            console.log("[PERM-DEBUG] pollPermissions raw:", JSON.stringify(perms))
-            const sessionPerms = perms.filter((p) => !p.sessionID || p.sessionID === sessionId)
-            const current = usePermissions.getState().permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS
-            if (
-                sessionPerms.length !== current.length ||
-                sessionPerms.some((p, i) => p.id !== current[i]?.id)
-            ) {
-                setPermissions(sessionId!, sessionPerms)
-            }
-        } catch {}
-        permissionPollRef.current = setTimeout(pollPermissions, 5000)
-    }, [connection?.url, connection?.token, sessionId, setPermissions])
-
-    useEffect(() => {
-        pollPermissions()
-        return () => {
-            if (permissionPollRef.current) clearTimeout(permissionPollRef.current)
-        }
-    }, [pollPermissions])
 
     const failedSendRef = useRef<{
         text: string
@@ -696,38 +666,41 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const handleScrollBeginDrag = useCallback(() => Keyboard.dismiss(), [])
 
-    const matchedPermissionIds = useMemo(() => {
-        const ids = new Set<string>()
-        for (const msg of rawMessages) {
-            for (const part of msg.parts ?? []) {
-                if (part.type === "tool-invocation") {
-                    for (const p of pendingPermissions) {
-                        if (
-                            p.tool?.messageID === msg.id &&
-                            p.tool?.callID === part.toolInvocation.toolCallId
-                        ) {
-                            ids.add(p.id)
-                        }
-                    }
-                } else if (part.type === "tool") {
-                    for (const p of pendingPermissions) {
-                        if (p.tool?.messageID === msg.id && p.tool?.callID === part.callID) {
-                            ids.add(p.id)
-                        }
-                    }
-                }
-            }
+    const permissionsByMessageId = useMemo(() => {
+        const map = new Map<string, PermissionRequest[]>()
+        for (const p of pendingPermissions) {
+            const mid = p.tool?.messageID
+            if (!mid) continue
+            const arr = map.get(mid)
+            if (arr) arr.push(p)
+            else map.set(mid, [p])
         }
-        return ids
-    }, [rawMessages, pendingPermissions])
+        return map
+    }, [pendingPermissions])
 
-    // Permissions that are not tied to a specific message tool part (e.g. external
-    // directory access requests) cannot be rendered inline, so surface them as a
-    // dedicated panel so the user can accept/deny and unblock the agent.
-    const orphanPermissions = useMemo(
-        () => pendingPermissions.filter((p) => !matchedPermissionIds.has(p.id)),
-        [pendingPermissions, matchedPermissionIds]
-    )
+    // Permissions that cannot be rendered inline (no linked message/part yet,
+    // e.g. external directory access requests) surface as a dedicated panel so
+    // the user can accept/deny and unblock the agent. A permission lives in
+    // exactly one home: inline when its host part is loaded, otherwise panel.
+    const orphanPermissions = useMemo(() => {
+        const partCallIdsByMessage = new Map<string, Set<string>>()
+        for (const msg of rawMessages) {
+            const set = new Set<string>()
+            for (const part of msg.parts ?? []) {
+                if (part.type === "tool-invocation") set.add(part.toolInvocation.toolCallId)
+                else if (part.type === "tool" && part.callID) set.add(part.callID)
+            }
+            partCallIdsByMessage.set(msg.id, set)
+        }
+        return pendingPermissions.filter((p) => {
+            const mid = p.tool?.messageID
+            if (!mid) return true
+            const callIds = partCallIdsByMessage.get(mid)
+            if (!callIds) return true
+            if (!p.tool?.callID) return true
+            return !callIds.has(p.tool.callID)
+        })
+    }, [rawMessages, pendingPermissions])
 
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {
@@ -736,17 +709,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     (p.type === "tool-invocation" && p.toolInvocation.toolName === "question") ||
                     (p.type === "tool" && p.tool === "question")
             )
-            const hasPermissionTool = item.parts?.some(
-                (p) => {
-                    if (p.type === "tool-invocation") {
-                        return p.toolInvocation.state === "call"
-                    }
-                    if (p.type === "tool") {
-                        return p.state?.status === "pending" || p.state?.status === "call"
-                    }
-                    return false
-                }
-            )
+            const messagePermissions = permissionsByMessageId.get(item.id) ?? EMPTY_PERMISSIONS
             const isStreamingMsg = isStreaming && item.role === "assistant" && !item.time?.completed
             return (
                 <MessageItem
@@ -757,13 +720,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     pendingQuestions={hasQuestionTool ? pendingQuestions : EMPTY_QUESTIONS}
                     onQuestionReply={handleQuestionReply}
                     onQuestionReject={handleQuestionReject}
-                    pendingPermissions={hasPermissionTool ? pendingPermissions : EMPTY_PERMISSIONS}
+                    pendingPermissions={messagePermissions}
                     onPermissionReply={handlePermissionReply}
                     streaming={isStreamingMsg}
                 />
             )
         },
-        [theme, projectId, sessionId, pendingQuestions, pendingPermissions, handleQuestionReply, handleQuestionReject, handlePermissionReply, isStreaming]
+        [theme, projectId, sessionId, pendingQuestions, permissionsByMessageId, handleQuestionReply, handleQuestionReject, handlePermissionReply, isStreaming]
     )
 
     const keyExtractor = useCallback((item: Message) => item.id, [])

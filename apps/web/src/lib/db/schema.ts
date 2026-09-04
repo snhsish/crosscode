@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core"
+import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core"
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -93,6 +93,38 @@ export const accountNotificationSettings = pgTable("account_notification_setting
   agentErrorInterruption: boolean("agent_error_interruption").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})
+
+export const betaTester = pgTable("beta_tester", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  playEmail: text("play_email"),
+  deviceModel: text("device_model"),
+  androidVersion: text("android_version"),
+  status: text("status").notNull().default("invited"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+})
+
+export const betaFeedback = pgTable("beta_feedback", {
+  id: text("id").primaryKey(),
+  testerId: text("tester_id").references(() => betaTester.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  appVersion: text("app_version").notNull(),
+  deviceModel: text("device_model").notNull(),
+  androidVersion: text("android_version").notNull(),
+  pcOs: text("pc_os"),
+  flowsTested: text("flows_tested").notNull(),
+  ratingOverall: integer("rating_overall").notNull(),
+  ratingUx: integer("rating_ux").notNull(),
+  ratingPerf: integer("rating_perf").notNull(),
+  bugs: text("bugs"),
+  fav: text("fav"),
+  missing: text("missing"),
+  keepUsing: text("keep_using"),
+  testimonial: text("testimonial"),
+  testimonialOptIn: boolean("testimonial_opt_in").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 })
 
 export const pushDevice = pgTable("push_device", {

@@ -8,6 +8,20 @@
       "when": 1787071226446,
       "tag": "0000_dodo_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788539059992,
+      "tag": "0001_nasty_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788541556882,
+      "tag": "0002_foamy_silver_sable",
+      "breakpoints": true
     }
   ]
 }

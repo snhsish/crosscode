@@ -1,0 +1,1 @@
+ALTER TABLE "beta_feedback" ADD COLUMN "pc_os" text;

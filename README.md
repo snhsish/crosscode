@@ -34,6 +34,9 @@ We recommend logging in. It gives you a stable, dedicated URL so you don't have 
 
 CrossCode needs a running `opencode serve` on your machine. Install OpenCode first.
 
+<details>
+<summary><strong>Show install instructions for macOS, Linux, and Windows</strong></summary>
+
 ### macOS
 
 ```bash
@@ -91,6 +94,8 @@ Verify the install on any OS:
 ```bash
 opencode --version
 ```
+
+</details>
 
 ---
 

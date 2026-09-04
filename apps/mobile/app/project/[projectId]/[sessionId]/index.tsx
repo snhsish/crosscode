@@ -35,6 +35,7 @@ import { replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
 import { PermissionBlock } from "@/components/permission-block"
 import { getAuthHeader } from "@/lib/utils"
+import { MentionFilePart, SendMention, resolveSendMentions } from "@/lib/mentions"
 import { notifyAgentStatus, setActiveChatScreen, clearActiveChatScreen } from "@/lib/notifications"
 
 const EMPTY_QUESTIONS: QuestionRequest[] = []
@@ -201,6 +202,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         modelId?: string
         providerId?: string
         images?: ImageAttachment[]
+        mentions?: SendMention[]
     } | null>(null)
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
@@ -270,6 +272,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         modelId?: string,
         providerId?: string,
         images?: ImageAttachment[],
+        mentionFiles: MentionFilePart[] = [],
+        agentOverride?: string,
     ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
         try {
             const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
@@ -302,7 +306,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     }
                 }
             }
-            const body: Record<string, unknown> = { parts, agent }
+            for (const file of mentionFiles) {
+                parts.push({
+                    type: "file",
+                    mime: file.mime,
+                    url: file.url,
+                    filename: file.filename,
+                })
+            }
+            const body: Record<string, unknown> = { parts, agent: agentOverride ?? agent }
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
@@ -398,6 +410,20 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setSendError({ title, hint, retryable: true })
     }, [getMessagesBySession, setMessages, setDraft, upsertMessages, selectedAgent])
 
+    const validSubagents = useMemo(
+        () => new Set(agents.filter((a) => a.mode === "subagent" && !a.hidden).map((a) => a.name)),
+        [agents],
+    )
+
+    const resolveMentions = useCallback(async (
+        mentions?: SendMention[],
+    ): Promise<{ files: MentionFilePart[]; agent?: string }> => {
+        if (!connection?.url || !connection?.token || !mentions || mentions.length === 0) {
+            return { files: [] }
+        }
+        return resolveSendMentions(connection.url, connection.token, mentions, validSubagents)
+    }, [connection?.url, connection?.token, validSubagents])
+
     const handleRetry = useCallback(async () => {
         const data = failedSendRef.current
         if (!data || !connection?.url || !connection?.token) return
@@ -405,9 +431,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setSendError(null)
         setSending(true)
 
+        const retryMentions = await resolveMentions(data.mentions)
         const result = await attemptSendMessage(
             connection.url, connection.token, data.targetSessionId,
             data.text, selectedAgent, data.modelId, data.providerId, data.images,
+            retryMentions.files,
+            retryMentions.agent,
         )
 
         if (result.ok) {
@@ -444,7 +473,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         } catch {}
     }, [connection, sessionId, isStreaming])
 
-    const sendMessage = useCallback(async () => {
+    const sendMessage = useCallback(async (mentions: SendMention[] = []) => {
         if (!connection?.url || sending) return
 
         const text = draft.trim()
@@ -484,12 +513,23 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             }
         }
 
+        const sendMentions = await resolveMentions(mentions)
+        for (const file of sendMentions.files) {
+            userParts.push({
+                type: "file",
+                mime: file.mime,
+                url: file.url,
+                filename: file.filename,
+            })
+        }
+        const effectiveAgent = sendMentions.agent ?? selectedAgent
+
         const userMsg: Message = {
             id: localId,
             sessionID: targetSessionId,
             role: "user",
             time: { created: now },
-            agent: selectedAgent,
+            agent: effectiveAgent,
             model: { providerID: providerId ?? "...", modelID: modelId ?? "..." },
             parts: userParts,
         }
@@ -499,6 +539,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         const result = await attemptSendMessage(
             connection.url, connection.token, targetSessionId,
             text, selectedAgent, modelId, providerId, imagesToSend,
+            sendMentions.files, sendMentions.agent,
         )
 
         if (result.ok) {
@@ -507,7 +548,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
 
         if (result.retryable) {
-            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend }
+            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend, mentions }
             setSending(false)
             setSendError({
                 title: "Failed to send message",

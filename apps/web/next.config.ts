@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [{ protocol: "https", hostname: "cdn.sanity.io" }],
   },
+  async redirects() {
+    return [
+      {
+        source: "/beta/feedback",
+        destination: "/tester/feedback",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 const withMDX = createMDX({});

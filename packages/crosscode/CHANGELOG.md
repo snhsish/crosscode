@@ -1,5 +1,11 @@
 # crosscode
 
+## 0.6.9
+
+### Patch Changes
+
+- 89d4fa0: fix(cli): use ensureProjectId for tunnel project id
+
 ## 0.6.8
 
 ### Patch Changes

@@ -12,6 +12,7 @@ export type PermissionRequest = {
     patterns: string[]
     metadata: Record<string, unknown>
     always: string[]
+    title?: string
     tool?: PermissionTool
 }
 

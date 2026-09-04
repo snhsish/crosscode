@@ -103,20 +103,26 @@ export function PaywallSheet() {
           <Text className="mt-1 text-sm text-muted-foreground">{copy.description}</Text>
 
           <View className="mt-4 flex-row rounded-full bg-muted/50 p-1">
-            {(["monthly", "yearly"] as BillingCycle[]).map((c) => (
-              <Pressable
-                key={c}
-                onPress={() => setCycle(c)}
-                className={cn(
-                  "flex-1 items-center rounded-full py-2",
-                  cycle === c && "bg-card shadow-sm"
-                )}
-              >
-                <Text className={cn("text-sm font-medium capitalize", cycle === c ? "text-foreground" : "text-muted-foreground")}>
-                  {c === "yearly" ? "Yearly · save ~17%" : "Monthly"}
-                </Text>
-              </Pressable>
-            ))}
+            {(["monthly", "yearly"] as BillingCycle[]).map((c) => {
+              const selected = cycle === c
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setCycle(c)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  className="flex-1 items-center rounded-full py-2"
+                  style={{ backgroundColor: selected ? THEME[theme].card : "transparent" }}
+                >
+                  <Text
+                    className="text-sm font-medium capitalize"
+                    style={{ color: selected ? THEME[theme].foreground : THEME[theme].mutedForeground }}
+                  >
+                    {c === "yearly" ? "Yearly · save ~17%" : "Monthly"}
+                  </Text>
+                </Pressable>
+              )
+            })}
           </View>
 
           <View className="mt-3 gap-2">

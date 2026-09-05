@@ -102,10 +102,10 @@ export async function shouldShowPaywall(trigger: PaywallTrigger): Promise<boolea
   return true
 }
 
-export async function requestPaywall(trigger: PaywallTrigger): Promise<boolean> {
+export async function requestPaywall(trigger: PaywallTrigger, opts?: { force?: boolean }): Promise<boolean> {
   const tier = useAuth.getState().user?.tier ?? "free"
   if (tier === "builder" || tier === "enterprise") return false
-  if (!(await shouldShowPaywall(trigger))) return false
+  if (!opts?.force && !(await shouldShowPaywall(trigger))) return false
   await pushStamp(SHOWS_KEY, Date.now())
   usePaywall.getState().show(trigger)
   return true

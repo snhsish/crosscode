@@ -10,6 +10,7 @@ import { useConnections } from "@/store/connection.store"
 import { useProjects } from "@/store/projects.store"
 import { useAllowsMultipleConnections } from "@/lib/entitlement"
 import { useAuth } from "@/store/auth.store"
+import { usePaywall } from "@/store/paywall.store"
 import { isAtTunnelLimit, requestPaywall } from "@/lib/paywall"
 import { cn, formatDirectory, getAuthHeader } from "@/lib/utils"
 import { getCurrentProject } from "@/lib/projects"
@@ -26,6 +27,8 @@ import User from "lucide-react-native/dist/esm/icons/user"
 import Wifi from "lucide-react-native/dist/esm/icons/wifi"
 import WifiOff from "lucide-react-native/dist/esm/icons/wifi-off"
 import X from "lucide-react-native/dist/esm/icons/x"
+import Zap from "lucide-react-native/dist/esm/icons/zap"
+import ChevronRight from "lucide-react-native/dist/esm/icons/chevron-right"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { Input } from "@/components/ui/input"
@@ -506,6 +509,29 @@ export default function HomeScreen() {
             )}
           </View>
         )}
+
+        {atLimit && (
+          <Pressable
+            onPress={() => usePaywall.getState().show("usage_nudge")}
+            className="flex-row items-center gap-2.5 rounded-xl border border-border bg-muted/50 px-3 py-2.5 active:bg-muted/70"
+          >
+            <View className="w-8 h-8 rounded-lg bg-primary/10 items-center justify-center shrink-0">
+              <Zap size={16} color={THEME[theme].primary} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-[13px] font-semibold text-foreground" numberOfLines={1}>
+                {connections.length}/{tier === "free" ? 1 : connections.length} tunnels used
+              </Text>
+              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                Upgrade for more parallel projects
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1 shrink-0">
+              <Text className="text-[13px] font-medium text-primary">Upgrade</Text>
+              <ChevronRight size={16} color={THEME[theme].primary} />
+            </View>
+          </Pressable>
+        )}
       </View>
 
       <FlatList
@@ -513,7 +539,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         data={filteredConnections}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={filteredConnections.length === 0 ? undefined : { gap: 12, paddingBottom: 32 }}
+        contentContainerStyle={filteredConnections.length === 0 ? undefined : { gap: 12, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -564,25 +590,6 @@ export default function HomeScreen() {
         windowSize={10}
         initialNumToRender={15}
       />
-
-      {atLimit && filteredConnections.length > 0 && (
-        <View className="px-6 pb-2">
-          <Pressable
-            onPress={() => requestPaywall("usage_nudge")}
-            className="flex-row items-center gap-3 rounded-2xl border border-primary/30 bg-primary/5 p-3 active:opacity-80"
-          >
-            <View className="flex-1">
-              <Text className="text-sm font-semibold text-foreground">
-                {connections.length}/{tier === "free" ? 1 : connections.length} tunnels used — need more?
-              </Text>
-              <Text className="text-xs text-muted-foreground">Upgrade to run more projects in parallel</Text>
-            </View>
-            <View className="rounded-full bg-primary px-3 py-1.5">
-              <Text className="text-xs font-semibold text-primary-foreground">Upgrade</Text>
-            </View>
-          </Pressable>
-        </View>
-      )}
 
       {filteredConnections.length > 0 && (
         <View className="absolute" style={{ bottom: insets.bottom + 24, right: 24 }}>

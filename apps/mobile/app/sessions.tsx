@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ActivityIndicator, Modal, Pressable, RefreshControl, SectionList, TextInput, View } from "react-native"
+import { ActivityIndicator, Modal, Pressable, RefreshControl, SectionList, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "nativewind"
@@ -23,9 +23,8 @@ import Filter from "lucide-react-native/dist/esm/icons/funnel"
 import GitBranch from "lucide-react-native/dist/esm/icons/git-branch"
 import MessageCircle from "lucide-react-native/dist/esm/icons/message-circle"
 import Plus from "lucide-react-native/dist/esm/icons/plus"
-import Search from "lucide-react-native/dist/esm/icons/search"
 import Trash2 from "lucide-react-native/dist/esm/icons/trash-2"
-import X from "lucide-react-native/dist/esm/icons/x"
+import { GlassSearchBar } from "@/components/ui/glass"
 
 type FilterType = "all" | "agents" | "subagents"
 type SortType = "recent" | "oldest" | "name"
@@ -323,21 +322,7 @@ export default function SessionsScreen() {
         </View>
 
         <View className="flex-row items-center gap-2">
-          <View className="flex-1 flex-row items-center bg-muted/50 rounded-lg px-3 h-10">
-            <Search size={18} color={THEME[theme].mutedForeground} />
-            <TextInput
-              className="flex-1 text-sm text-foreground ml-2 placeholder:text-muted-foreground/50"
-              placeholder="Search sessions..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={THEME[theme].mutedForeground}
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")}>
-                <X size={16} color={THEME[theme].mutedForeground} />
-              </Pressable>
-            )}
-          </View>
+          <GlassSearchBar theme={theme} value={searchQuery} onChangeText={setSearchQuery} placeholder="Search sessions..." className="flex-1" />
           <Pressable
             onPress={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false) }}
             className={cn(

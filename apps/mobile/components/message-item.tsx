@@ -151,10 +151,10 @@ function getErrorHint(name?: string): string | undefined {
     }
 }
 
-function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; pendingPermissions?: PermissionRequest[]; onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void; streaming?: boolean }) {
+function PartRenderer({ part, index, message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming, isUser }: { part: Part; index: number; message: Message; theme: "light" | "dark"; projectId: string; sessionId: string; pendingQuestions?: QuestionRequest[]; onQuestionReply?: (requestId: string, answers: string[][]) => void; onQuestionReject?: (requestId: string) => void; pendingPermissions?: PermissionRequest[]; onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void; streaming?: boolean; isUser?: boolean }) {
     switch (part.type) {
         case "text":
-            return <MemoMarkdown key={part.id ?? index} theme={theme} streaming={streaming}>{part.text}</MemoMarkdown>
+            return <MemoMarkdown key={part.id ?? index} theme={theme} streaming={streaming} whiteText={isUser}>{part.text}</MemoMarkdown>
         case "reasoning":
             return null
         case "tool-invocation":
@@ -381,7 +381,7 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming)
+const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming && prev.isUser === next.isUser)
 
 function getPlainText(message: Message): string {
     if (!message.parts) return ""
@@ -491,14 +491,20 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
         }
     }, [connection, sessionId, message.id, projectId, router, upsertSession, closeMenu])
 
+    const isUser = message.role === "user"
+    const timeLabel = message.time?.created
+        ? new Date(message.time.created).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+        : null
+
     return (
         <Pressable
             ref={containerRef}
             className={cn(
-                "flex flex-col gap-1.5 p-4 rounded-xl",
-                message.role === "user" ? "ml-auto max-w-[300px] bg-secondary/75 rounded-3xl" : null,
-                hasError ? "bg-destructive/10 border border-destructive/30" : null,
+                "flex flex-col gap-1.5",
+                isUser ? "ml-auto max-w-[85%] px-3.5 py-2.5 rounded-[20px] rounded-br-[6px] shadow-sm" : "p-1",
+                hasError ? "bg-destructive/10 border border-destructive/30 rounded-xl p-4" : null,
             )}
+            style={isUser ? { backgroundColor: "#0A84FF" } : undefined}
             onLongPress={handleLongPress}
             onTouchStart={handleTouchStart}
         >
@@ -530,9 +536,13 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                         />
                     )
                 }
-                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} pendingPermissions={pendingPermissions} onPermissionReply={onPermissionReply} streaming={streaming} />
+                return <MemoPartRenderer key={part.id ?? j} part={part} index={j} message={message} theme={theme} projectId={projectId} sessionId={sessionId} pendingQuestions={pendingQuestions} onQuestionReply={onQuestionReply} onQuestionReject={onQuestionReject} pendingPermissions={pendingPermissions} onPermissionReply={onPermissionReply} streaming={streaming} isUser={isUser} />
             })}
-            <MessageMetadata message={message} theme={theme} />
+            {isUser && timeLabel ? (
+                <Text className="text-[11px] text-white/80 text-right -mt-0.5">{timeLabel}</Text>
+            ) : (
+                <MessageMetadata message={message} theme={theme} />
+            )}
 
             <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
                 <Pressable className="flex-1" onPress={closeMenu}>

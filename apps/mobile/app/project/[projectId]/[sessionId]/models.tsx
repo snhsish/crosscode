@@ -10,14 +10,13 @@ import CheckIcon from "lucide-react-native/dist/esm/icons/check"
 import FileTextIcon from "lucide-react-native/dist/esm/icons/file-text"
 import FilterIcon from "lucide-react-native/dist/esm/icons/funnel"
 import ImageIcon from "lucide-react-native/dist/esm/icons/image"
-import SearchIcon from "lucide-react-native/dist/esm/icons/search"
 import SlidersHorizontalIcon from "lucide-react-native/dist/esm/icons/sliders-horizontal"
 import TypeIcon from "lucide-react-native/dist/esm/icons/type"
 import VideoIcon from "lucide-react-native/dist/esm/icons/video"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
-import { Input } from "@/components/ui/input"
 import { Icon } from "@/components/ui/icon"
+import { GlassSearchBar } from "@/components/ui/glass"
 import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { useModels } from "@/store/models.store"
@@ -255,20 +254,7 @@ export default function ModelsPage() {
             </View>
 
             <View className="flex-row items-center gap-2 px-4 py-2">
-                <View className="flex-1 relative">
-                    <View className="absolute left-3 top-0 bottom-0 justify-center z-10">
-                        <Icon as={SearchIcon} size={16} className="text-muted-foreground" />
-                    </View>
-                    <Input
-                        placeholder="Search models..."
-                        className="pl-9 h-9 text-sm"
-                        value={search}
-                        onChangeText={setSearch}
-                        autoCapitalize="none"
-                        autoCorrect={false}
-                        clearButtonMode="while-editing"
-                    />
-                </View>
+                <GlassSearchBar theme={theme} value={search} onChangeText={setSearch} placeholder="Search models..." className="flex-1" />
             </View>
 
             <View className="flex-row items-center gap-1.5 px-4 pb-1.5">

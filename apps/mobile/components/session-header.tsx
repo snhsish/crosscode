@@ -8,8 +8,9 @@ import FolderIcon from "lucide-react-native/dist/esm/icons/folder"
 import ShareIcon from "lucide-react-native/dist/esm/icons/share"
 import EditIcon from "lucide-react-native/dist/esm/icons/pencil"
 import GitBranchIcon from "lucide-react-native/dist/esm/icons/git-branch"
+import TerminalIcon from "lucide-react-native/dist/esm/icons/terminal"
+import MonitorIcon from "lucide-react-native/dist/esm/icons/monitor"
 import { useRouter } from "expo-router"
-import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { shareSession } from "@/lib/sessions"
@@ -18,6 +19,7 @@ import { useSessions } from "@/store/sessions.store"
 import { useSettings } from "@/store/settings.store"
 import { ShareSessionModal } from "@/components/share-session-modal"
 import { SettingsDivider } from "@/components/settings"
+import { GlassCircleButton, GlassPill, GlassView } from "@/components/ui/glass"
 
 interface SessionHeaderProps {
     projectId: string
@@ -54,7 +56,8 @@ function SessionHeaderInner({
     const buttonRef = useRef<View>(null)
     const [buttonPos, setButtonPos] = useState({ top: 0, right: 0 })
 
-    const displayTitle = title && title.length > 40 ? title.slice(0, 37) + "..." : title
+    const displayTitle = title && title.length > 24 ? title.slice(0, 21) + "..." : (title || projectName || "Chat")
+    const subtitle = sessionDirectory ?? projectDirectory ?? projectName ?? ""
 
     const toggleMenu = () => setShowMenu(!showMenu)
     const closeMenu = () => setShowMenu(false)
@@ -80,114 +83,157 @@ function SessionHeaderInner({
 
     return (
         <View
-            className="flex flex-row gap-2 items-center border-b border-accent pb-2 px-4"
-            style={{ paddingTop: paddingTop + 10 }}
+            pointerEvents="box-none"
+            className="absolute top-0 left-0 right-0 z-10"
+            style={{ paddingTop: paddingTop + 8 }}
         >
-            <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push("/sessions")}>
-                <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
-            </Button>
+            <View className="flex-row gap-2 items-center px-3" pointerEvents="box-none">
+                <GlassCircleButton theme={theme} size={44} onPress={() => router.push("/sessions")} accessibilityLabel="Go back">
+                    <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
+                </GlassCircleButton>
 
-            <View className="flex flex-1 flex-col gap-0">
-                <Text className="text-base font-semibold tracking-tight line-clamp-1">
-                    {displayTitle}
-                </Text>
-                <Text className="text-xs tracking-tight line-clamp-1 text-muted-foreground">
-                    {sessionDirectory ?? projectDirectory ?? projectName}
-                </Text>
-            </View>
+                <GlassPill theme={theme} className="flex-1 px-3.5 py-2 gap-2.5">
+                    <View className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#34c759" }} />
+                    <View className="flex-1 flex-col gap-0 min-w-0">
+                        <Text className="text-[15px] font-semibold tracking-tight" numberOfLines={1}>
+                            {displayTitle}
+                        </Text>
+                        {subtitle ? (
+                            <Text className="text-[11px] tracking-tight text-muted-foreground" numberOfLines={1}>
+                                {subtitle}
+                            </Text>
+                        ) : null}
+                    </View>
+                </GlassPill>
 
-            <View
-                className="relative"
-                ref={buttonRef}
-                onLayout={(e) => {
-                    buttonRef.current?.measure((x, y, width, height, pageX, pageY) => {
-                        setButtonPos({ top: pageY + height, right: width })
-                    })
-                }}
-            >
-                <Pressable
-                    className="w-10 h-10 rounded-full bg-accent/60 active:bg-accent border border-border/50 items-center justify-center"
-                    onPress={toggleMenu}
-                >
-                    <MoreVerticalIcon size={18} color={THEME[theme].mutedForeground} />
-                </Pressable>
-
-                <Modal visible={showMenu} transparent animationType="none" onRequestClose={closeMenu}>
-                    <Pressable className="flex-1" onPress={closeMenu}>
-                        <View
-                            className="w-56 rounded-xl bg-card border border-border shadow-lg"
-                            style={{ position: "absolute", top: buttonPos.top, right: buttonPos.right }}
-                        >
-                            <View className="py-2">
-                                <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/tasks`)}
-                                >
-                                    <ListTodoIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Tasks</Text>
-                                </Pressable>
-
-                                <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/files`)}
-                                >
-                                    <FileIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Modified files</Text>
-                                </Pressable>
-
-                                <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => handleNavigate(`/project/${projectId}/browser`)}
-                                >
-                                    <FolderIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Browse files</Text>
-                                </Pressable>
-
-                                {allowTerminal && (
-                                    <>
-                                        <SettingsDivider />
-                                        <Pressable
-                                            className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                            onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/git-graph`)}
-                                        >
-                                            <GitBranchIcon size={16} color={THEME[theme].mutedForeground} />
-                                            <Text className="text-sm text-foreground">Git graph</Text>
-                                        </Pressable>
-                                    </>
-                                )}
-                            </View>
-
-                            <View className="border-t border-border/50 py-2">
-                                <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={handleShare}
-                                >
-                                    <ShareIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Share session</Text>
-                                </Pressable>
-
-                                <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => {
-                                        closeMenu()
-                                    }}
-                                >
-                                    <EditIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Rename session</Text>
-                                </Pressable>
-                            </View>
-                        </View>
+                <GlassPill theme={theme} className="px-1.5 py-1.5 gap-0.5">
+                    <Pressable
+                        className="w-9 h-9 rounded-full items-center justify-center active:bg-white/10"
+                        onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/tasks`)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Tasks"
+                    >
+                        <TerminalIcon size={17} color={THEME[theme].foreground} />
                     </Pressable>
-                </Modal>
-            </View>
+                    <Pressable
+                        className="w-9 h-9 rounded-full items-center justify-center active:bg-white/10"
+                        onPress={() => handleNavigate(`/project/${projectId}/browser`)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Browse files"
+                    >
+                        <FolderIcon size={17} color={THEME[theme].foreground} />
+                    </Pressable>
+                    {allowTerminal ? (
+                        <Pressable
+                            className="w-9 h-9 rounded-full items-center justify-center active:bg-white/10"
+                            onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/git-graph`)}
+                            accessibilityRole="button"
+                            accessibilityLabel="Git graph"
+                        >
+                            <GitBranchIcon size={17} color={THEME[theme].foreground} />
+                        </Pressable>
+                    ) : null}
+                </GlassPill>
 
-            <ShareSessionModal
-                open={showShareModal}
-                onClose={() => setShowShareModal(false)}
-                shareUrl={shareUrl}
-                loading={shareLoading}
-                theme={theme}
-            />
+                <View
+                    ref={buttonRef}
+                    onLayout={() => {
+                        buttonRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                            setButtonPos({ top: pageY + height + 8, right: 12 })
+                        })
+                    }}
+                >
+                    <GlassCircleButton theme={theme} size={44} onPress={toggleMenu} accessibilityLabel="More options">
+                        <MonitorIcon size={18} color={THEME[theme].foreground} />
+                    </GlassCircleButton>
+
+                    <Modal visible={showMenu} transparent animationType="fade" onRequestClose={closeMenu}>
+                        <Pressable className="flex-1" onPress={closeMenu}>
+                            <GlassView
+                                theme={theme}
+                                borderRadius={20}
+                                intensity={60}
+                                style={{ position: "absolute", top: buttonPos.top, right: buttonPos.right, width: 224 }}
+                            >
+                                <View className="py-2">
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/tasks`)}
+                                    >
+                                        <ListTodoIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Tasks</Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/files`)}
+                                    >
+                                        <FileIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Modified files</Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={() => handleNavigate(`/project/${projectId}/browser`)}
+                                    >
+                                        <FolderIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Browse files</Text>
+                                    </Pressable>
+
+                                    {allowTerminal && (
+                                        <>
+                                            <SettingsDivider />
+                                            <Pressable
+                                                className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                                onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/git-graph`)}
+                                            >
+                                                <GitBranchIcon size={16} color={THEME[theme].mutedForeground} />
+                                                <Text className="text-sm text-foreground">Git graph</Text>
+                                            </Pressable>
+                                        </>
+                                    )}
+                                </View>
+
+                                <View className="border-t border-white/10 py-2">
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={handleShare}
+                                    >
+                                        <ShareIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Share session</Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={() => {
+                                            closeMenu()
+                                        }}
+                                    >
+                                        <EditIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Rename session</Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                        className="flex-row items-center gap-3 px-4 py-2.5 active:bg-white/10"
+                                        onPress={toggleMenu}
+                                    >
+                                        <MoreVerticalIcon size={16} color={THEME[theme].mutedForeground} />
+                                        <Text className="text-sm text-foreground">Close menu</Text>
+                                    </Pressable>
+                                </View>
+                            </GlassView>
+                        </Pressable>
+                    </Modal>
+                </View>
+
+                <ShareSessionModal
+                    open={showShareModal}
+                    onClose={() => setShowShareModal(false)}
+                    shareUrl={shareUrl}
+                    loading={shareLoading}
+                    theme={theme}
+                />
+            </View>
         </View>
     )
 }

@@ -99,7 +99,7 @@ const createCustomRenderer = (theme: "light" | "dark", onLinkPress: (href: strin
     },
 })
 
-function MarkdownRendererInner({ children, streaming, theme }: { children: string; streaming?: boolean; theme: "light" | "dark" }) {
+function MarkdownRendererInner({ children, streaming, theme, whiteText }: { children: string; streaming?: boolean; theme: "light" | "dark"; whiteText?: boolean }) {
     const [parsed, setParsed] = useState(children)
     const [pendingLink, setPendingLink] = useState<string | null>(null)
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,8 +119,16 @@ function MarkdownRendererInner({ children, streaming, theme }: { children: strin
         setParsed(children)
     }, [children, streaming])
 
+    const bubbleStyles: MarkedStyles = whiteText
+        ? {
+            ...manropeStyles,
+            text: { ...manropeStyles.text, color: "#ffffff" },
+            paragraph: { color: "#ffffff" },
+        } as MarkedStyles
+        : manropeStyles
+
     if (streaming && parsed !== children) {
-        return <Text className="text-sm text-foreground leading-relaxed font-sans">{children}</Text>
+        return <Text className={whiteText ? "text-[15px] text-white leading-relaxed font-sans" : "text-sm text-foreground leading-relaxed font-sans"}>{children}</Text>
     }
 
     return (
@@ -128,7 +136,7 @@ function MarkdownRendererInner({ children, streaming, theme }: { children: strin
             <Markdown
                 value={parsed}
                 renderer={customRenderer}
-                styles={manropeStyles}
+                styles={bubbleStyles}
                 flatListProps={{
                     scrollEnabled: false,
                     style: {
@@ -141,6 +149,6 @@ function MarkdownRendererInner({ children, streaming, theme }: { children: strin
     )
 }
 
-const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children && prev.streaming === next.streaming && prev.theme === next.theme)
+const MemoMarkdown = memo(MarkdownRendererInner, (prev, next) => prev.children === next.children && prev.streaming === next.streaming && prev.theme === next.theme && prev.whiteText === next.whiteText)
 
 export default MemoMarkdown

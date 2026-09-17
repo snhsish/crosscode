@@ -1,5 +1,5 @@
 import * as React from "react"
-import { FlatList, Modal, Pressable, TextInput, View } from "react-native"
+import { FlatList, Modal, Pressable, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "nativewind"
@@ -15,10 +15,9 @@ import ArrowLeft from "lucide-react-native/dist/esm/icons/arrow-left"
 import ArrowUpDown from "lucide-react-native/dist/esm/icons/arrow-up-down"
 import Filter from "lucide-react-native/dist/esm/icons/funnel"
 import Plus from "lucide-react-native/dist/esm/icons/plus"
-import Search from "lucide-react-native/dist/esm/icons/search"
 import Trash2 from "lucide-react-native/dist/esm/icons/trash-2"
-import X from "lucide-react-native/dist/esm/icons/x"
 import Zap from "lucide-react-native/dist/esm/icons/zap"
+import { GlassSearchBar } from "@/components/ui/glass"
 
 type FilterType = "all" | "built-in" | "custom"
 type SortType = "name-asc" | "name-desc"
@@ -221,21 +220,7 @@ export default function QuickPromptsScreen() {
                 </View>
 
                 <View className="flex-row items-center gap-2">
-                    <View className="flex-1 flex-row items-center bg-muted/50 rounded-lg px-3 h-10">
-                        <Search size={18} color={THEME[theme].mutedForeground} />
-                        <TextInput
-                            className="flex-1 text-sm text-foreground ml-2 placeholder:text-muted-foreground/50"
-                            placeholder="Search prompts..."
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                            placeholderTextColor={THEME[theme].mutedForeground}
-                        />
-                        {searchQuery.length > 0 && (
-                            <Pressable onPress={() => setSearchQuery("")}>
-                                <X size={16} color={THEME[theme].mutedForeground} />
-                            </Pressable>
-                        )}
-                    </View>
+                    <GlassSearchBar theme={theme} value={searchQuery} onChangeText={setSearchQuery} placeholder="Search prompts..." className="flex-1" />
                     <Pressable
                         onPress={() => { setShowFilterMenu(!showFilterMenu); setShowSortMenu(false) }}
                         className={cn(

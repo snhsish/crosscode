@@ -9,7 +9,7 @@ import FilesIcon from "lucide-react-native/dist/esm/icons/files"
 import ImageIcon from "lucide-react-native/dist/esm/icons/image"
 import MicIcon from "lucide-react-native/dist/esm/icons/mic"
 import PlusIcon from "lucide-react-native/dist/esm/icons/plus"
-import SendIcon from "lucide-react-native/dist/esm/icons/send"
+import ArrowUpIcon from "lucide-react-native/dist/esm/icons/arrow-up"
 import SquareIcon from "lucide-react-native/dist/esm/icons/square"
 import VideoIcon from "lucide-react-native/dist/esm/icons/video"
 import XIcon from "lucide-react-native/dist/esm/icons/x"
@@ -17,9 +17,9 @@ import ZapIcon from "lucide-react-native/dist/esm/icons/zap"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useNavigation, useRouter } from "expo-router"
 import * as ImagePicker from "expo-image-picker"
-import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { Textarea } from "@/components/ui/textarea"
+import { GlassCircleButton, GlassView } from "@/components/ui/glass"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TriggerRef } from "@rn-primitives/select"
 import { THEME } from "@/lib/theme"
@@ -376,11 +376,94 @@ function ChatInputInner({
         right: 12,
     }), [insets.top, insets.bottom])
 
+    const sendBg = streaming || (recognizing && !showSend)
+        ? (THEME[theme].destructive ?? "#ef4444")
+        : theme === "dark" ? "#ffffff" : "#0a0a0a"
+    const sendFg = streaming || (recognizing && !showSend)
+        ? "#ffffff"
+        : theme === "dark" ? "#0a0a0a" : "#ffffff"
+
     return (
         <>
             <Animated.View style={animatedInputStyle}>
-                <View className="p-4 !bg-transparent" style={{ paddingBottom: insets.bottom + 16 }}>
-                    <View className="p-2 rounded-3xl bg-accent">
+                <View className="px-3 !bg-transparent" style={{ paddingBottom: insets.bottom + 12 }}>
+                    {showAttachmentMenu && (
+                        <GlassView theme={theme} borderRadius={20} intensity={60} className="mb-2 overflow-hidden">
+                            {ATTACHMENT_SECTIONS.map((section, sectionIndex) => (
+                                <View key={section.title}>
+                                    {sectionIndex > 0 && <View className="h-px bg-white/10" style={{ marginHorizontal: 16 }} />}
+                                    <Text
+                                        className="text-xs text-muted-foreground uppercase tracking-wide px-4 pt-3 pb-1"
+                                        accessibilityRole="header"
+                                    >
+                                        {section.title}
+                                    </Text>
+                                    {section.actions.map((action, actionIndex) => {
+                                        const isPhoto = action.key === "photo"
+                                        const isQuickPrompts = action.key === "quick-prompts"
+                                        const disabled = DISABLED_ACTIONS.has(action.key) || (isPhoto && images.length >= MAX_IMAGES)
+                                        const tint = isQuickPrompts ? THEME[theme].primary : THEME[theme].foreground
+
+                                        return (
+                                            <Pressable
+                                                key={action.key}
+                                                onPress={() => {
+                                                    if (isPhoto) pickImages()
+                                                    else if (isQuickPrompts) {
+                                                        hideAttachmentMenu()
+                                                        setShowQuickPromptsModal(true)
+                                                    }
+                                                }}
+                                                disabled={disabled}
+                                                accessibilityRole="button"
+                                                accessibilityLabel={action.label}
+                                                accessibilityHint={
+                                                    disabled
+                                                        ? "Not available yet"
+                                                        : isPhoto
+                                                            ? `Attach an image. Up to ${MAX_IMAGES} images per message.`
+                                                            : `Open ${action.label}`
+                                                }
+                                                accessibilityState={{ disabled }}
+                                                className={`flex-row items-center gap-3 px-4 py-3 min-h-[44px] active:bg-white/10 ${
+                                                    disabled ? "opacity-40" : ""
+                                                } ${actionIndex === section.actions.length - 1 ? "mb-1" : ""}`}
+                                            >
+                                                <View
+                                                    className="w-8 h-8 rounded-lg items-center justify-center"
+                                                    style={{
+                                                        backgroundColor: isQuickPrompts
+                                                            ? THEME[theme].primary + "1A"
+                                                            : THEME[theme].secondary,
+                                                    }}
+                                                >
+                                                    <action.icon size={18} color={tint} />
+                                                </View>
+                                                <Text
+                                                    className={`flex-1 text-[15px] ${
+                                                        isQuickPrompts ? "text-primary font-medium" : "text-foreground"
+                                                    }`}
+                                                >
+                                                    {action.label}
+                                                    {isPhoto && images.length >= MAX_IMAGES ? " (max reached)" : ""}
+                                                </Text>
+                                                {disabled && !isPhoto && (
+                                                    <Text className="text-xs text-muted-foreground">Soon</Text>
+                                                )}
+                                            </Pressable>
+                                        )
+                                    })}
+                                    {sectionIndex === ATTACHMENT_SECTIONS.length - 1 && <View className="pb-1" />}
+                                </View>
+                            ))}
+                        </GlassView>
+                    )}
+                    <View className="flex-row items-end gap-2">
+                        <GlassCircleButton theme={theme} size={48} onPress={toggleAttachmentMenu} accessibilityLabel="Attachments">
+                            {showAttachmentMenu ? <XIcon size={22} color={THEME[theme].foreground} /> : <PlusIcon size={22} color={THEME[theme].foreground} />}
+                        </GlassCircleButton>
+                        <GlassView theme={theme} borderRadius={28} intensity={55} className="flex-1 relative">
+                        <View className="px-4 pt-3 pb-2">
                         {images.length > 0 && (
                             <View className="flex-row gap-2 px-2 pt-2 pb-1">
                                 {images.map((img, index) => (
@@ -424,11 +507,7 @@ function ChatInputInner({
                             returnKeyType="default"
                         />
 
-                        <View className="flex flex-row justify-between items-center">
-                            <View className="flex flex-row items-center gap-1">
-                                <Button variant="ghost" size="icon" className="w-9 h-9" onPress={toggleAttachmentMenu}>
-                                    {showAttachmentMenu ? <XIcon size={20} color={THEME[theme].foreground} /> : <PlusIcon size={20} color={THEME[theme].foreground} />}
-                                </Button>
+                        <View className="flex flex-row items-center gap-1.5 pr-12">
                                 <Select
                                     defaultValue={{ value: selectedAgent, label: capitalize(selectedAgent) }}
                                     onValueChange={(option) => {
@@ -455,7 +534,7 @@ function ChatInputInner({
                                     </SelectContent>
                                 </Select>
                                 <Pressable
-                                    className="flex-row items-center gap-1 h-8 px-2 rounded-md border border-border/50 bg-transparent active:bg-accent"
+                                    className="flex-row items-center gap-1 h-8 px-2.5 rounded-full border border-white/15 bg-white/5 active:bg-white/15"
                                     onPress={() =>
                                         router.push(
                                             `/project/${projectId}/${sessionId}/models?currentModelId=${selectedModelId ?? ""}&currentProviderId=${selectedProviderId ?? ""}&agent=${selectedAgent}`
@@ -497,100 +576,29 @@ function ChatInputInner({
                                     </Select>
                                 )}
                             </View>
-
-                            <Pressable
-                                onPress={streaming ? onStop : handleActionPress}
-                                disabled={streaming ? false : showSend ? sending || !draft.trim() : false}
-                                accessibilityRole="button"
-                                accessibilityLabel={streaming ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
-                                className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: streaming || (recognizing && !showSend) ? THEME[theme].destructive : THEME[theme].primary }}
-                            >
-                                {streaming ? (
-                                    <SquareIcon size={16} color={THEME[theme].background} fill={THEME[theme].background} />
-                                ) : (
-                                    <Animated.View style={micAnimatedStyle}>
-                                        {showSend ? (
-                                            <SendIcon size={20} color={THEME[theme].background} />
-                                        ) : (
-                                            <MicIcon size={20} color={THEME[theme].background} />
-                                        )}
-                                    </Animated.View>
-                                )}
-                            </Pressable>
                         </View>
+                        <Pressable
+                            onPress={streaming ? onStop : handleActionPress}
+                            disabled={streaming ? false : showSend ? sending || !draft.trim() : false}
+                            accessibilityRole="button"
+                            accessibilityLabel={streaming ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
+                            className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full items-center justify-center shadow-md"
+                            style={{ backgroundColor: sendBg, opacity: (!streaming && showSend && (sending || !draft.trim())) ? 0.5 : 1 }}
+                        >
+                            {streaming ? (
+                                <SquareIcon size={15} color={sendFg} fill={sendFg} />
+                            ) : (
+                                <Animated.View style={micAnimatedStyle}>
+                                    {showSend ? (
+                                        <ArrowUpIcon size={20} color={sendFg} />
+                                    ) : (
+                                        <MicIcon size={19} color={sendFg} />
+                                    )}
+                                </Animated.View>
+                            )}
+                        </Pressable>
+                        </GlassView>
                     </View>
-                    {showAttachmentMenu && (
-                        <View className="mt-2 rounded-2xl bg-card border border-border overflow-hidden">
-                            {ATTACHMENT_SECTIONS.map((section, sectionIndex) => (
-                                <View key={section.title}>
-                                    {sectionIndex > 0 && <View className="h-px bg-border/60" style={{ marginHorizontal: 16 }} />}
-                                    <Text
-                                        className="text-xs text-muted-foreground uppercase tracking-wide px-4 pt-3 pb-1"
-                                        accessibilityRole="header"
-                                    >
-                                        {section.title}
-                                    </Text>
-                                    {section.actions.map((action, actionIndex) => {
-                                        const isPhoto = action.key === "photo"
-                                        const isQuickPrompts = action.key === "quick-prompts"
-                                        const disabled = DISABLED_ACTIONS.has(action.key) || (isPhoto && images.length >= MAX_IMAGES)
-                                        const tint = isQuickPrompts ? THEME[theme].primary : THEME[theme].foreground
-
-                                        return (
-                                            <Pressable
-                                                key={action.key}
-                                                onPress={() => {
-                                                    if (isPhoto) pickImages()
-                                                    else if (isQuickPrompts) {
-                                                        hideAttachmentMenu()
-                                                        setShowQuickPromptsModal(true)
-                                                    }
-                                                }}
-                                                disabled={disabled}
-                                                accessibilityRole="button"
-                                                accessibilityLabel={action.label}
-                                                accessibilityHint={
-                                                    disabled
-                                                        ? "Not available yet"
-                                                        : isPhoto
-                                                            ? `Attach an image. Up to ${MAX_IMAGES} images per message.`
-                                                            : `Open ${action.label}`
-                                                }
-                                                accessibilityState={{ disabled }}
-                                                className={`flex-row items-center gap-3 px-4 py-3 min-h-[44px] active:bg-muted ${
-                                                    disabled ? "opacity-40" : ""
-                                                } ${actionIndex === section.actions.length - 1 ? "mb-1" : ""}`}
-                                            >
-                                                <View
-                                                    className="w-8 h-8 rounded-lg items-center justify-center"
-                                                    style={{
-                                                        backgroundColor: isQuickPrompts
-                                                            ? THEME[theme].primary + "1A"
-                                                            : THEME[theme].secondary,
-                                                    }}
-                                                >
-                                                    <action.icon size={18} color={tint} />
-                                                </View>
-                                                <Text
-                                                    className={`flex-1 text-[15px] ${
-                                                        isQuickPrompts ? "text-primary font-medium" : "text-foreground"
-                                                    }`}
-                                                >
-                                                    {action.label}
-                                                    {isPhoto && images.length >= MAX_IMAGES ? " (max reached)" : ""}
-                                                </Text>
-                                                {disabled && !isPhoto && (
-                                                    <Text className="text-xs text-muted-foreground">Soon</Text>
-                                                )}
-                                            </Pressable>
-                                        )
-                                    })}
-                                    {sectionIndex === ATTACHMENT_SECTIONS.length - 1 && <View className="pb-1" />}
-                                </View>
-                            ))}
-                        </View>
-                    )}
                 </View>
             </Animated.View>
             <QuickPromptsModal

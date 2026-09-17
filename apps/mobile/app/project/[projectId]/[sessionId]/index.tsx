@@ -7,7 +7,7 @@ import { useConnections } from "@/store/connection.store"
 import { Message, Part, useMessages } from "@/store/messages.store"
 import { useAgents } from "@/store/agents.store"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import ArrowDownIcon from "lucide-react-native/dist/esm/icons/arrow-down"
+import ChevronDownIcon from "lucide-react-native/dist/esm/icons/chevron-down"
 import MessageCircleIcon from "lucide-react-native/dist/esm/icons/message-circle"
 import RefreshCwIcon from "lucide-react-native/dist/esm/icons/refresh-cw"
 import TriangleAlertIcon from "lucide-react-native/dist/esm/icons/triangle-alert"
@@ -27,6 +27,7 @@ import { useChatStore, SelectedModel } from "@/store/chat.store"
 import { useModels } from "@/store/models.store"
 import { updateSessionModel } from "@/lib/models"
 import { WorkingIndicator } from "@/components/typing-animation"
+import { GlassCircleButton, GlassPill } from "@/components/ui/glass"
 import { useQuestions } from "@/store/questions.store"
 import { getPendingQuestions, replyToQuestion, rejectQuestion } from "@/lib/questions"
 import { QuestionRequest } from "@/store/questions.store"
@@ -816,11 +817,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const StreamingIndicator = useMemo(() => {
         if (!turn || turn.startAt == null) return null
         return (
-            <View className="pt-1 pb-2">
-                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+            <View className="pt-1 pb-2 items-center">
+                <GlassPill theme={theme} className="px-1">
+                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                </GlassPill>
             </View>
         )
-    }, [turn])
+    }, [turn, theme])
 
     const ListFooterComponent = useMemo(() => {
         if (!isLoadingMore) return null
@@ -885,31 +888,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     )
 
     return (
-        <View className="flex-1 bg-background">
-            <SessionHeader
-                projectId={projectId!}
-                sessionId={sessionId!}
-                title={session?.title}
-                projectName={project?.name}
-                projectDirectory={project?.directory}
-                sessionDirectory={session?.directory}
-                theme={theme}
-                paddingTop={insets.top}
-            />
-
-            {(connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "connectivity-issues") && (
-                <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
-                    <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
-                    <Text className="text-xs text-muted-foreground">
-                        {connectionStatus === "connecting"
-                            ? "Connecting..."
-                            : connectionStatus === "reconnecting"
-                                ? "Reconnecting..."
-                                : "Connectivity issues, retrying..."}
-                    </Text>
-                </View>
-            )}
-
+        <View className="flex-1 bg-background relative">
             {messages.length > 0 ? (
                 <FlatList
                     ref={scrollRef}
@@ -922,7 +901,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     keyboardShouldPersistTaps="handled"
                     onScrollBeginDrag={handleScrollBeginDrag}
                     className="flex-1 px-4 pt-2"
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingTop: keyboardHeight + 16 }}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 120, paddingTop: insets.top + 76 + keyboardHeight }}
                     onScrollToIndexFailed={onScrollToIndexFailed}
                     ListFooterComponent={ListFooterComponent}
                     ListHeaderComponent={StreamingIndicator}
@@ -939,19 +918,18 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )}
 
             {!isAtBottom && messages.length > 0 && (
-                <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + 150 + keyboardHeight }}>
-                    <View className="items-center">
-                        <Button variant="secondary" size="xs" className="rounded-full shadow-md" onPress={scrollToBottom}>
-                            <ArrowDownIcon size={12} color={THEME[theme].foreground} />
-                            <Text className="text-xs">Scroll to bottom</Text>
-                        </Button>
-                    </View>
+                <View pointerEvents="box-none" className="absolute right-4" style={{ bottom: insets.bottom + 132 + keyboardHeight }}>
+                    <GlassCircleButton theme={theme} size={44} onPress={scrollToBottom} accessibilityLabel="Scroll to bottom">
+                        <ChevronDownIcon size={20} color={THEME[theme].foreground} />
+                    </GlassCircleButton>
                 </View>
             )}
 
             {turn && turn.startAt != null && messages.length === 0 && (
-                <View className="px-4 py-2">
-                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                <View className="px-4 py-2 items-center">
+                    <GlassPill theme={theme} className="px-1">
+                        <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                    </GlassPill>
                 </View>
             )}
 
@@ -994,6 +972,32 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                             onReply={handlePermissionReply}
                         />
                     ))}
+                </View>
+            )}
+
+            <SessionHeader
+                projectId={projectId!}
+                sessionId={sessionId!}
+                title={session?.title}
+                projectName={project?.name}
+                projectDirectory={project?.directory}
+                sessionDirectory={session?.directory}
+                theme={theme}
+                paddingTop={insets.top}
+            />
+
+            {(connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "connectivity-issues") && (
+                <View pointerEvents="box-none" className="absolute left-0 right-0 items-center" style={{ top: insets.top + 64 }}>
+                    <GlassPill theme={theme} className="px-3.5 py-1.5 gap-2">
+                        <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+                        <Text className="text-xs text-muted-foreground">
+                            {connectionStatus === "connecting"
+                                ? "Connecting..."
+                                : connectionStatus === "reconnecting"
+                                    ? "Reconnecting..."
+                                    : "Connectivity issues, retrying..."}
+                        </Text>
+                    </GlassPill>
                 </View>
             )}
 

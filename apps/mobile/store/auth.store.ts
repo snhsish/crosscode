@@ -1,6 +1,6 @@
-import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { secureStorage } from "../lib/secure-storage"
 
 type User = {
     id: string
@@ -33,7 +33,7 @@ export const useAuth = create<AuthStore>()(
         }),
         {
             name: "crosscode-auth",
-            storage: createJSONStorage(() => AsyncStorage),
+            storage: createJSONStorage(() => secureStorage),
         }
     )
 )

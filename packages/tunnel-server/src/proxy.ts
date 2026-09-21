@@ -13,6 +13,30 @@ import type { WebSocket } from "ws"
 import { logger } from "./logger.js"
 import { createQuestionPushObserver, createSsePushObserver } from "./push-events.js"
 
+const RATE_LIMIT_WINDOW = 60_000
+const MAX_REQUESTS_PER_WINDOW = 120
+const MAX_RATE_LIMIT_KEYS = 10_000
+const rateLimits = new Map<string, { count: number; resetAt: number }>()
+
+function checkRateLimit(key: string): { allowed: boolean; retryAfter: number } {
+  const now = Date.now()
+  let limit = rateLimits.get(key)
+  if (!limit || now > limit.resetAt) {
+    if (rateLimits.size >= MAX_RATE_LIMIT_KEYS) {
+      for (const [k, v] of rateLimits) {
+        if (v.resetAt <= now) rateLimits.delete(k)
+      }
+    }
+    limit = { count: 0, resetAt: now + RATE_LIMIT_WINDOW }
+    rateLimits.set(key, limit)
+  }
+  limit.count++
+  return {
+    allowed: limit.count <= MAX_REQUESTS_PER_WINDOW,
+    retryAfter: Math.max(1, Math.ceil((limit.resetAt - now) / 1000)),
+  }
+}
+
 export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   const url = req.url || "/"
   const method = req.method || "GET"
@@ -45,6 +69,15 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
     logger.warn("Tunnel not active for project", { projectId, path, method })
     res.writeHead(503, { "Content-Type": "application/json" })
     res.end(JSON.stringify({ error: "Tunnel not active" }))
+    return
+  }
+
+  const clientIp = req.socket.remoteAddress || "unknown"
+  const limit = checkRateLimit(`${projectId}:${clientIp}`)
+  if (!limit.allowed) {
+    logger.warn("Rate limit exceeded for tunnel", { projectId, path, method })
+    res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(limit.retryAfter) })
+    res.end(JSON.stringify({ error: "Too many requests. Please try again later." }))
     return
   }
 

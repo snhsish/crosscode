@@ -105,7 +105,7 @@ export function ensureSessionToken(config: Config, project?: ProjectConfig): str
 export function ensureProjectId(config: Config, project?: ProjectConfig): string {
     const target = project ?? getProjectConfig(config)
     if (!target.projectId) {
-        target.projectId = crypto.randomBytes(4).toString("hex")
+        target.projectId = crypto.randomBytes(16).toString("hex")
         saveProjectConfig(config)
         logCrosscode(`Project ID generated for ${process.cwd()}: ${target.projectId}`)
     } else {

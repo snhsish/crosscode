@@ -12,9 +12,14 @@ import XIcon from "lucide-react-native/dist/esm/icons/x"
 import { cn, getAuthHeader } from "@/lib/utils"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
+import { consumePendingConnection, peekPendingConnection } from "@/lib/pending-connection"
+import { validateConnectionUrl, validateAuthToken } from "@/lib/security"
 
 export default function Connect() {
-    const { url, token } = useLocalSearchParams<{ url: string, token: string }>()
+    const params = useLocalSearchParams<{ url?: string, token?: string }>()
+    const pending = peekPendingConnection()
+    const url = pending?.url ?? params.url ?? ""
+    const token = pending?.token ?? params.token ?? ""
     const { colorScheme } = useColorScheme()
     const router = useRouter()
     const insets = useSafeAreaInsets()
@@ -30,22 +35,31 @@ export default function Connect() {
         setTesting(true)
 
         try {
-            const res = await fetch(`${url}/global/health`, {
-                method: "GET",
-                headers: {
-                    "Authorization": getAuthHeader(token)
+            validateConnectionUrl(url)
+            validateAuthToken(token)
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 10000)
+            try {
+                const res = await fetch(`${url}/global/health`, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": getAuthHeader(token)
+                    },
+                    signal: controller.signal,
+                })
+                if (res.ok) {
+                    setTested({
+                        msg: "Remote server reachable",
+                        error: false
+                    })
+                } else {
+                    setTested({
+                        msg: "Remote server unreachable",
+                        error: true
+                    })
                 }
-            })
-            if (res.ok) {
-                setTested({
-                    msg: "Remote server reachable",
-                    error: false
-                })
-            } else {
-                setTested({
-                    msg: "Remote server unreachable",
-                    error: true
-                })
+            } finally {
+                clearTimeout(timer)
             }
         } catch {
             setTested({
@@ -58,6 +72,13 @@ export default function Connect() {
     }, [url, token])
 
     function save() {
+        try {
+            validateConnectionUrl(url)
+            validateAuthToken(token)
+        } catch (error) {
+            setTested({ msg: error instanceof Error ? error.message : "Invalid connection", error: true })
+            return
+        }
         const tier = useAuth.getState().user?.tier ?? "free"
         if (isAtTunnelLimit(tier, connections.length)) {
             void requestPaywall("connection_limit")
@@ -68,6 +89,7 @@ export default function Connect() {
             name,
             token
         })
+        consumePendingConnection()
         router.replace("/")
     }
 
@@ -78,7 +100,10 @@ export default function Connect() {
     return (
         <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
             <View className="p-4">
-                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push("/new-connection")}>
+                <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => {
+                    consumePendingConnection()
+                    router.replace("/new-connection")
+                }}>
                     <XIcon size={25} color={THEME[theme].foreground} />
                 </Button>
             </View>
@@ -143,7 +168,10 @@ export default function Connect() {
 
                 <Button
                     className="mt-5 rounded-full"
-                    onPress={tested?.error ? () => router.push("/new-connection") : save}
+                    onPress={tested?.error ? () => {
+                        consumePendingConnection()
+                        router.replace("/new-connection")
+                    } : save}
                 >
                     <Text>
                         {tested?.error ? "Scan again" : "Connect to OpenCode"}

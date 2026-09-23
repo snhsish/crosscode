@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { secureStorage } from "../lib/secure-storage"
+import { clearAuthCache } from "../lib/utils"
 
 type User = {
     id: string
@@ -28,7 +29,11 @@ export const useAuth = create<AuthStore>()(
             serverUrl: null,
             isLoggedIn: false,
             login: (user, sessionToken, serverUrl) => set({ user, sessionToken, serverUrl: serverUrl ?? null, isLoggedIn: true }),
-            logout: () => set({ user: null, sessionToken: null, serverUrl: null, isLoggedIn: false }),
+            logout: () => {
+                clearAuthCache()
+                void secureStorage.removeItem("crosscode-auth")
+                set({ user: null, sessionToken: null, serverUrl: null, isLoggedIn: false })
+            },
             setUser: (user) => set({ user }),
         }),
         {

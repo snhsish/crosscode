@@ -790,10 +790,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const after = sorted.slice(lastUserIdx + 1)
         const assistantMsgs = after.filter((m) => m.role === "assistant")
+        const lastUser = sorted[lastUserIdx]
+        const lastUserAgent = lastUser.role === "user" ? (lastUser as { agent?: string }).agent ?? null : null
+        const optimisticAgent = lastUserAgent ?? selectedAgent
 
         if (assistantMsgs.length === 0) {
             const startAt = sorted[lastUserIdx].time?.created ?? null
-            return startAt == null ? null : { startAt, endAt: null as number | null }
+            return startAt == null ? null : { startAt, endAt: null as number | null, agent: optimisticAgent }
         }
 
         const startAt = assistantMsgs[0].time?.created ?? null
@@ -809,15 +812,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             endAt = max || null
         }
 
-        return { startAt, endAt }
-    }, [rawMessages, isStreaming])
+        return { startAt, endAt, agent: (assistantMsgs[0] as { mode?: string }).mode ?? optimisticAgent }
+    }, [rawMessages, isStreaming, selectedAgent])
 
     // The list is inverted, so the header renders visually below the newest message
     const StreamingIndicator = useMemo(() => {
         if (!turn || turn.startAt == null) return null
         return (
             <View className="pt-1 pb-2">
-                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} agentName={turn.agent} />
             </View>
         )
     }, [turn])
@@ -951,7 +954,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
             {turn && turn.startAt != null && messages.length === 0 && (
                 <View className="px-4 py-2">
-                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} agentName={turn.agent} />
                 </View>
             )}
 

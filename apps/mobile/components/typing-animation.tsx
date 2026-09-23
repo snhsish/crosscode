@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { View } from "react-native"
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from "react-native-reanimated"
 import { Text } from "@/components/ui/text"
+import { AgentBadge } from "@/components/agent-badge"
 
 function TypingDot({ delay }: { delay: number }) {
     const progress = useSharedValue(0)
@@ -47,7 +48,7 @@ function formatElapsedTime(totalSeconds: number): string {
     return `${minutes}m ${seconds}s`
 }
 
-export function WorkingIndicator({ startedAt, endedAt }: { startedAt: number; endedAt?: number | null }) {
+export function WorkingIndicator({ startedAt, endedAt, agentName }: { startedAt: number; endedAt?: number | null; agentName?: string | null }) {
     const [now, setNow] = useState(() => Date.now())
     const done = endedAt != null
     const active = done ? endedAt! : now
@@ -64,6 +65,7 @@ export function WorkingIndicator({ startedAt, endedAt }: { startedAt: number; en
     return (
         <View className="flex-row items-center gap-2 px-4 py-1.5">
             {done ? null : <TypingDots />}
+            {agentName ? <AgentBadge name={agentName} /> : null}
             <Text className="text-xs text-muted-foreground">
                 {done ? "Worked for " : "Working for "}{formatElapsedTime(totalSeconds)}
             </Text>

@@ -203,6 +203,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         providerId?: string
         images?: ImageAttachment[]
         mentions?: SendMention[]
+        delivery?: "queue"
     } | null>(null)
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
@@ -274,6 +275,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         images?: ImageAttachment[],
         mentionFiles: MentionFilePart[] = [],
         agentOverride?: string,
+        delivery?: "queue",
     ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
         try {
             const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
@@ -318,14 +320,27 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
-            const res = await fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
+            // delivery:"queue" tells opencode to run this as the next turn after
+            // the current response finishes, instead of steering the live turn.
+            if (delivery) {
+                body.delivery = delivery
+            }
+            const send = (payload: Record<string, unknown>) => fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
                 method: "POST",
                 headers: {
                     "Authorization": getAuthHeader(connectionToken),
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(body),
+                body: JSON.stringify(payload),
             })
+            let res = await send(body)
+
+            if (!res.ok && delivery && res.status === 400) {
+                // Older opencode server that rejects the unknown delivery field.
+                // Fall back to a plain send: busy sessions still queue server-side.
+                const { delivery: _omitted, ...fallbackBody } = body
+                res = await send(fallbackBody)
+            }
 
             if (!res.ok) {
                 let errorText = `${res.status} ${res.statusText}`
@@ -437,6 +452,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             data.text, selectedAgent, data.modelId, data.providerId, data.images,
             retryMentions.files,
             retryMentions.agent,
+            data.delivery,
         )
 
         if (result.ok) {
@@ -478,6 +494,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const text = draft.trim()
         if (!text) return
+
+        // While a response is streaming, this send becomes a queued follow-up:
+        // opencode runs it as the next turn instead of steering the live one.
+        const queueSend = isStreaming
+        const delivery = queueSend ? ("queue" as const) : undefined
 
         const now = Date.now()
         const modelId = selectedModel?.id ?? session?.model?.id
@@ -532,6 +553,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             agent: effectiveAgent,
             model: { providerID: providerId ?? "...", modelID: modelId ?? "..." },
             parts: userParts,
+            queued: queueSend || undefined,
         }
 
         upsertMessages(targetSessionId, [userMsg])
@@ -539,7 +561,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         const result = await attemptSendMessage(
             connection.url, connection.token, targetSessionId,
             text, selectedAgent, modelId, providerId, imagesToSend,
-            sendMentions.files, sendMentions.agent,
+            sendMentions.files, sendMentions.agent, delivery,
         )
 
         if (result.ok) {
@@ -548,7 +570,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
 
         if (result.retryable) {
-            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend, mentions }
+            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend, mentions, delivery }
             setSending(false)
             setSendError({
                 title: "Failed to send message",
@@ -564,7 +586,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )
             setSending(false)
         }
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
+    }, [connection, sending, draft, isStreaming, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
 
     const getAndSetMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
@@ -743,6 +765,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         })
     }, [rawMessages, pendingPermissions])
 
+    // Optimistic messages queued while streaming (local-only, unconfirmed).
+    // Server confirmation via message.updated replaces them and drops `queued`.
+    const queuedCount = useMemo(
+        () => rawMessages.filter((m) => m.role === "user" && m.id.startsWith("local-") && m.queued).length,
+        [rawMessages]
+    )
+
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {
             const hasQuestionTool = item.parts?.some(
@@ -764,6 +793,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     pendingPermissions={messagePermissions}
                     onPermissionReply={handlePermissionReply}
                     streaming={isStreamingMsg}
+                    queued={item.role === "user" && item.id.startsWith("local-") && !!item.queued}
                 />
             )
         },
@@ -1027,6 +1057,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 onStopVoice={handleStopVoice}
                 streaming={isStreaming}
                 onStop={abortStreaming}
+                queuedCount={queuedCount}
             />
         </View>
     )

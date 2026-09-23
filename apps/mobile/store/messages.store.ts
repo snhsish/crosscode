@@ -38,6 +38,9 @@ export type UserMessage = {
         providerID: string
         modelID: string
     }
+    // Local-only flag for messages queued while a response is streaming.
+    // Cleared automatically when the server confirms via message.updated.
+    queued?: boolean
     system?: string
     tools?: {
         [key: string]: boolean

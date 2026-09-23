@@ -62,6 +62,7 @@ interface MessageItemProps {
     onQuestionReject?: (requestId: string) => void
     pendingPermissions?: PermissionRequest[]
     onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void
+    queued?: boolean
 }
 
 function getErrorLabel(name?: string): string {
@@ -427,7 +428,7 @@ function MessageMetadata({ message, theme }: { message: Message; theme: "light" 
     )
 }
 
-function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: MessageItemProps & { streaming?: boolean }) {
+function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming, queued }: MessageItemProps & { streaming?: boolean }) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -517,6 +518,15 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                     </View>
                 </View>
             ) : null}
+            {queued && message.role === "user" ? (
+                <View className="flex-row items-center gap-1 mb-0.5">
+                    <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                        <Text className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                            Queued — sends after current response
+                        </Text>
+                    </View>
+                </View>
+            ) : null}
             {message.parts?.map((part, j) => {
                 if (part.type === "reasoning") {
                     const isPartStreaming = !!streaming && j === message.parts!.length - 1
@@ -583,5 +593,5 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 }
 
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
-    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming
+    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming && prev.queued === next.queued
 })

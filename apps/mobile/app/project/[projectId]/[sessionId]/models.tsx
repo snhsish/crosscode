@@ -71,6 +71,8 @@ export default function ModelsPage() {
     const [search, setSearch] = useState("")
     const [statusFilter, setStatusFilter] = useState("active")
     const [sort, setSort] = useState<SortMode>("name")
+    const [filterOpen, setFilterOpen] = useState(false)
+    const [sortOpen, setSortOpen] = useState(false)
     const [selectedId, setSelectedId] = useState(currentModelId ?? "")
     const [selectedProviderId, setSelectedProviderId] = useState(currentProviderId ?? "")
     const updatingRef = useRef<string | null>(null)
@@ -83,6 +85,11 @@ export default function ModelsPage() {
         }
         return map
     }, [providers])
+
+    const currentModel = useMemo(
+        () => models.find((m) => m.id === selectedId && m.providerID === selectedProviderId) ?? null,
+        [models, selectedId, selectedProviderId]
+    )
 
     useEffect(() => {
         if (connection) fetchAll(connection.url, connection.token)
@@ -244,17 +251,83 @@ export default function ModelsPage() {
                 </Button>
                 <Text className="text-base font-semibold flex-1">Select Model</Text>
 
-                {selectedId ? (
-                    <View className="flex-row items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-accent/60 border border-border/50">
-                        <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                            {providerMap[selectedProviderId] ?? selectedProviderId}
-                            {selectedId ? ` / ${selectedId}` : ""}
-                        </Text>
-                    </View>
-                ) : null}
+                <Text
+                    className="text-xs text-muted-foreground"
+                    numberOfLines={1}
+                    accessible
+                    accessibilityRole="text"
+                    accessibilityLabel={`${filtered.length} models available`}
+                >
+                    {filtered.length} models
+                </Text>
             </View>
 
-            <View className="flex-row items-center gap-2.5 px-4 py-2.5">
+            <View
+                className="flex-row items-center gap-2.5 px-4 py-2.5 border-b border-border/50 bg-accent/30"
+                accessible
+                accessibilityRole="summary"
+                accessibilityLabel={
+                    currentModel
+                        ? `Currently selected model: ${currentModel.name} by ${providerMap[currentModel.providerID] ?? currentModel.providerID}`
+                        : "No model selected"
+                }
+                accessibilityHint="Tap a model below to change it"
+            >
+                <View className="w-8 h-8 rounded-full bg-primary/15 items-center justify-center">
+                    <Icon as={CheckIcon} size={16} className="text-primary" />
+                </View>
+                <View className="flex-1">
+                    <Text className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                        Current model
+                    </Text>
+                    {currentModel ? (
+                        <>
+                            <Text
+                                className="text-sm font-medium text-foreground"
+                                numberOfLines={1}
+                            >
+                                {currentModel.name}
+                            </Text>
+                            <Text
+                                className="text-xs text-muted-foreground"
+                                numberOfLines={1}
+                            >
+                                {providerMap[currentModel.providerID] ?? currentModel.providerID}
+                                {currentModel.family ? ` · ${currentModel.family}` : ""}
+                            </Text>
+                        </>
+                    ) : (
+                        <Text className="text-sm text-muted-foreground">
+                            No model selected
+                        </Text>
+                    )}
+                </View>
+                {currentModel && (
+                    <View
+                        className={cn(
+                            "px-1.5 py-0.5 rounded-full",
+                            currentModel.status === "active" && "bg-green-500/15",
+                            currentModel.status === "beta" && "bg-yellow-500/15",
+                            currentModel.status === "alpha" && "bg-orange-500/15",
+                            currentModel.status === "deprecated" && "bg-red-500/15"
+                        )}
+                    >
+                        <Text
+                            className={cn(
+                                "text-[10px] font-medium capitalize",
+                                currentModel.status === "active" && "text-green-500",
+                                currentModel.status === "beta" && "text-yellow-500",
+                                currentModel.status === "alpha" && "text-orange-500",
+                                currentModel.status === "deprecated" && "text-red-500"
+                            )}
+                        >
+                            {currentModel.status}
+                        </Text>
+                    </View>
+                )}
+            </View>
+
+            <View className="flex-row items-center gap-2 px-4 py-2.5">
                 <View className="flex-1 relative">
                     <View className="absolute left-4 top-0 bottom-0 justify-center z-10">
                         <Icon as={SearchIcon} size={16} className="text-muted-foreground" />
@@ -269,64 +342,105 @@ export default function ModelsPage() {
                         clearButtonMode="while-editing"
                     />
                 </View>
+                <Pressable
+                    onPress={() => setFilterOpen((v) => !v)}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle filters"
+                    accessibilityHint="Shows or hides filter options"
+                    accessibilityState={{ expanded: filterOpen, selected: filterOpen }}
+                    className={cn(
+                        "w-11 h-11 rounded-full border items-center justify-center",
+                        filterOpen ? "bg-primary/10 border-primary" : "border-border"
+                    )}
+                >
+                    <Icon
+                        as={FilterIcon}
+                        size={18}
+                        className={filterOpen ? "text-primary" : "text-muted-foreground"}
+                    />
+                </Pressable>
+                <Pressable
+                    onPress={() => setSortOpen((v) => !v)}
+                    accessible
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle sort options"
+                    accessibilityHint="Shows or hides sort options"
+                    accessibilityState={{ expanded: sortOpen, selected: sortOpen }}
+                    className={cn(
+                        "w-11 h-11 rounded-full border items-center justify-center",
+                        sortOpen ? "bg-primary/10 border-primary" : "border-border"
+                    )}
+                >
+                    <Icon
+                        as={SlidersHorizontalIcon}
+                        size={18}
+                        className={sortOpen ? "text-primary" : "text-muted-foreground"}
+                    />
+                </Pressable>
             </View>
 
-            <View className="flex-row items-center gap-1.5 px-4 pb-1.5">
-                <Icon as={FilterIcon} size={12} className="text-muted-foreground" />
-                <Text className="text-xs text-muted-foreground mr-1">Filter:</Text>
-                {STATUS_OPTIONS.map((opt) => (
-                    <Pressable
-                        key={opt.value}
-                        className={cn(
-                            "px-2.5 py-1 rounded-full border",
-                            statusFilter === opt.value
-                                ? cn(opt.chipBg, opt.borderColor)
-                                : "border-border"
-                        )}
-                        onPress={() => setStatusFilter(opt.value)}
-                    >
-                        <Text
+            {filterOpen && (
+                <View className="flex-row flex-wrap items-center gap-1.5 px-4 pb-1.5">
+                    <Text className="text-xs text-muted-foreground mr-1">Filter:</Text>
+                    {STATUS_OPTIONS.map((opt) => (
+                        <Pressable
+                            key={opt.value}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Filter by ${opt.label}`}
+                            accessibilityState={{ selected: statusFilter === opt.value }}
                             className={cn(
-                                "text-xs",
+                                "px-2.5 py-1 rounded-full border",
                                 statusFilter === opt.value
-                                    ? cn(opt.chipText, "font-medium")
-                                    : "text-muted-foreground"
+                                    ? cn(opt.chipBg, opt.borderColor)
+                                    : "border-border"
                             )}
+                            onPress={() => setStatusFilter(opt.value)}
                         >
-                            {opt.label}
-                        </Text>
-                    </Pressable>
-                ))}
-            </View>
+                            <Text
+                                className={cn(
+                                    "text-xs",
+                                    statusFilter === opt.value
+                                        ? cn(opt.chipText, "font-medium")
+                                        : "text-muted-foreground"
+                                )}
+                            >
+                                {opt.label}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
 
-            <View className="flex-row items-center gap-1.5 px-4 pb-2">
-                <Icon as={SlidersHorizontalIcon} size={12} className="text-muted-foreground" />
-                <Text className="text-xs text-muted-foreground mr-1">Sort:</Text>
-                {SORT_OPTIONS.map((opt) => (
-                    <Pressable
-                        key={opt.value}
-                        className={cn(
-                            "px-2.5 py-1 rounded-full border",
-                            sort === opt.value
-                                ? "border-primary bg-primary/10"
-                                : "border-border"
-                        )}
-                        onPress={() => setSort(opt.value)}
-                    >
-                        <Text
+            {sortOpen && (
+                <View className="flex-row flex-wrap items-center gap-1.5 px-4 pb-2">
+                    <Text className="text-xs text-muted-foreground mr-1">Sort:</Text>
+                    {SORT_OPTIONS.map((opt) => (
+                        <Pressable
+                            key={opt.value}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Sort by ${opt.label}`}
+                            accessibilityState={{ selected: sort === opt.value }}
                             className={cn(
-                                "text-xs",
-                                sort === opt.value ? "text-primary font-medium" : "text-muted-foreground"
+                                "px-2.5 py-1 rounded-full border",
+                                sort === opt.value
+                                    ? "border-primary bg-primary/10"
+                                    : "border-border"
                             )}
+                            onPress={() => setSort(opt.value)}
                         >
-                            {opt.label}
-                        </Text>
-                    </Pressable>
-                ))}
-                <Text className="text-xs text-muted-foreground ml-auto">
-                    {filtered.length} models
-                </Text>
-            </View>
+                            <Text
+                                className={cn(
+                                    "text-xs",
+                                    sort === opt.value ? "text-primary font-medium" : "text-muted-foreground"
+                                )}
+                            >
+                                {opt.label}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+            )}
 
             {models.length === 0 ? (
                 <View className="flex-1 items-center justify-center">

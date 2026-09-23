@@ -8,6 +8,7 @@ import CpuIcon from "lucide-react-native/dist/esm/icons/cpu"
 import FilesIcon from "lucide-react-native/dist/esm/icons/files"
 import ImageIcon from "lucide-react-native/dist/esm/icons/image"
 import MicIcon from "lucide-react-native/dist/esm/icons/mic"
+import ListPlusIcon from "lucide-react-native/dist/esm/icons/list-plus"
 import PlusIcon from "lucide-react-native/dist/esm/icons/plus"
 import SendIcon from "lucide-react-native/dist/esm/icons/send"
 import SquareIcon from "lucide-react-native/dist/esm/icons/square"
@@ -68,6 +69,10 @@ const ATTACHMENT_SECTIONS = [
 
 const DISABLED_ACTIONS = new Set(["camera", "files", "video"])
 
+// Distinct amber for the queue-send action so it can't be mistaken for a
+// normal send (primary) or stop (destructive). Works on both themes.
+const QUEUE_COLOR = "#f59e0b"
+
 const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
 type Agent = { name: string; mode?: string; hidden?: boolean; description?: string; [key: string]: unknown }
@@ -102,6 +107,7 @@ interface ChatInputProps {
     onStopVoice?: () => void
     streaming?: boolean
     onStop?: () => void
+    queuedCount?: number
 }
 
 function ChatInputInner({
@@ -134,6 +140,7 @@ function ChatInputInner({
     onStopVoice,
     streaming = false,
     onStop,
+    queuedCount = 0,
 }: ChatInputProps) {
     const insets = useSafeAreaInsets()
     const ref = useRef<TriggerRef>(null)
@@ -166,6 +173,11 @@ function ChatInputInner({
 
     const showSend = Boolean(draft.trim()) || !voiceAvailable
     const showSendRef = useRef(showSend)
+    // While streaming the action button toggles: empty input = Stop (kept
+    // accessible), typed input = Queue with distinct color + icon.
+    const hasText = Boolean(draft.trim())
+    const isQueueMode = streaming && hasText
+    const isStopMode = streaming && !hasText
     useEffect(() => {
         showSendRef.current = showSend
     }, [showSend])
@@ -424,6 +436,12 @@ function ChatInputInner({
                             returnKeyType="default"
                         />
 
+                        {isQueueMode ? (
+                            <Text className="text-[11px] px-3 pb-1.5 text-amber-600 dark:text-amber-400">
+                                Queues after the current response — clear the input to stop instead.
+                            </Text>
+                        ) : null}
+
                         <View className="flex flex-row justify-between items-center">
                             <View className="flex flex-row items-center gap-1">
                                 <Button variant="ghost" size="icon" className="w-9 h-9" onPress={toggleAttachmentMenu}>
@@ -498,26 +516,42 @@ function ChatInputInner({
                                 )}
                             </View>
 
-                            <Pressable
-                                onPress={streaming ? onStop : handleActionPress}
-                                disabled={streaming ? false : showSend ? sending || !draft.trim() : false}
-                                accessibilityRole="button"
-                                accessibilityLabel={streaming ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
-                                className="w-10 h-10 rounded-full items-center justify-center"
-                                style={{ backgroundColor: streaming || (recognizing && !showSend) ? THEME[theme].destructive : THEME[theme].primary }}
-                            >
-                                {streaming ? (
-                                    <SquareIcon size={16} color={THEME[theme].background} fill={THEME[theme].background} />
-                                ) : (
-                                    <Animated.View style={micAnimatedStyle}>
-                                        {showSend ? (
-                                            <SendIcon size={20} color={THEME[theme].background} />
-                                        ) : (
-                                            <MicIcon size={20} color={THEME[theme].background} />
-                                        )}
-                                    </Animated.View>
-                                )}
-                            </Pressable>
+                            <View className="relative">
+                                <Pressable
+                                    onPress={isStopMode ? onStop : handleActionPress}
+                                    disabled={isStopMode ? false : isQueueMode ? sending || !hasText : showSend ? sending || !draft.trim() : false}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={isQueueMode ? "Queue message" : isStopMode ? "Stop streaming" : showSend ? "Send message" : "Toggle voice input"}
+                                    accessibilityHint={isQueueMode ? "Sends after the current response finishes" : undefined}
+                                    className="w-10 h-10 rounded-full items-center justify-center"
+                                    style={{ backgroundColor: isQueueMode ? QUEUE_COLOR : isStopMode || (recognizing && !showSend) ? THEME[theme].destructive : THEME[theme].primary }}
+                                >
+                                    {isStopMode ? (
+                                        <SquareIcon size={16} color={THEME[theme].background} fill={THEME[theme].background} />
+                                    ) : (
+                                        <Animated.View style={micAnimatedStyle}>
+                                            {isQueueMode ? (
+                                                <ListPlusIcon size={20} color={THEME[theme].background} />
+                                            ) : showSend ? (
+                                                <SendIcon size={20} color={THEME[theme].background} />
+                                            ) : (
+                                                <MicIcon size={20} color={THEME[theme].background} />
+                                            )}
+                                        </Animated.View>
+                                    )}
+                                </Pressable>
+                                {queuedCount > 0 ? (
+                                    <View
+                                        className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full items-center justify-center border border-background"
+                                        style={{ backgroundColor: THEME[theme].destructive }}
+                                        pointerEvents="none"
+                                    >
+                                        <Text className="text-[10px] font-semibold text-white">
+                                            {queuedCount > 9 ? "9+" : String(queuedCount)}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                            </View>
                         </View>
                     </View>
                     {showAttachmentMenu && (

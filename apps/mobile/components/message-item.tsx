@@ -20,6 +20,7 @@ import { BashBlock } from "@/components/bash-block"
 import { EditBlock } from "@/components/edit-block"
 import { QuestionBlock } from "@/components/question-block"
 import { PermissionBlock } from "@/components/permission-block"
+import { AgentBadge } from "@/components/agent-badge"
 import { QuestionRequest } from "@/store/questions.store"
 import { PermissionRequest } from "@/store/permissions.store"
 import { revertMessage, forkSession } from "@/lib/sessions"
@@ -440,6 +441,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const upsertSession = useSessions((s) => s.upsertSession)
 
     const hasError = message.role === "assistant" && "error" in message && message.error
+    const agentName = message.role === "assistant" ? (message as { mode?: string }).mode ?? null : null
 
     const closeMenu = useCallback(() => setShowMenu(false), [])
 
@@ -502,6 +504,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             onLongPress={handleLongPress}
             onTouchStart={handleTouchStart}
         >
+            {agentName ? <AgentBadge name={agentName} /> : null}
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">
                     <TriangleAlertIcon size={12} color={THEME[theme].destructive ?? "#ef4444"} />

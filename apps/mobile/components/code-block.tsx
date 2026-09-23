@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { Platform, ScrollView, Pressable, View, type TextStyle } from "react-native"
 import * as Clipboard from "expo-clipboard"
 import CheckIcon from "lucide-react-native/dist/esm/icons/check"
@@ -24,18 +24,34 @@ interface CodeBlockProps {
     lineNumbers?: boolean
 }
 
-export function CodeBlock({ text, language, theme, header = true, lineNumbers = false }: CodeBlockProps) {
+const MAX_CODE_CHARS = 20000
+
+function CodeBlockInner({ text, language, theme, header = true, lineNumbers = false }: CodeBlockProps) {
     const [copied, setCopied] = useState(false)
-    ensurePrismLanguages()
+    const [expanded, setExpanded] = useState(false)
+    const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    useEffect(() => {
+        // Defer sync prism grammar requires off the render path.
+        const t = setTimeout(() => ensurePrismLanguages(), 0)
+        return () => {
+            clearTimeout(t)
+            if (copyTimer.current) clearTimeout(copyTimer.current)
+        }
+    }, [])
     const prismTheme = theme === "dark" ? themes.oneDark : themes.github
-    const normalizedLanguage = normalizeLanguage(language)
-    const label = displayLanguage(language)
-    const code = text.endsWith("\n") ? text.slice(0, -1) : text
+    const normalizedLanguage = useMemo(() => normalizeLanguage(language), [language])
+    const label = useMemo(() => displayLanguage(language), [language])
+    const truncated = text.length > MAX_CODE_CHARS && !expanded
+    const code = useMemo(() => {
+        const raw = truncated ? text.slice(0, MAX_CODE_CHARS) : text
+        return raw.endsWith("\n") ? raw.slice(0, -1) : raw
+    }, [text, truncated])
 
     const copyCode = async () => {
         await Clipboard.setStringAsync(code)
         setCopied(true)
-        setTimeout(() => setCopied(false), 1500)
+        if (copyTimer.current) clearTimeout(copyTimer.current)
+        copyTimer.current = setTimeout(() => setCopied(false), 1500)
     }
 
     if (!header) {
@@ -136,6 +152,18 @@ export function CodeBlock({ text, language, theme, header = true, lineNumbers = 
                     )}
                 </Highlight>
             </ScrollView>
+            {truncated && (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Show full code"
+                    className="border-t border-border/40 px-3 py-2 active:opacity-60"
+                    onPress={() => setExpanded(true)}
+                >
+                    <Text className="text-xs text-muted-foreground">Show more ({Math.round(text.length / 1000)}k chars)</Text>
+                </Pressable>
+            )}
         </View>
     )
 }
+
+export const CodeBlock = memo(CodeBlockInner)

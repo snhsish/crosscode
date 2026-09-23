@@ -381,7 +381,23 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming)
+const MemoPartRenderer = memo(
+    PartRenderer,
+    (prev, next) =>
+        prev.part === next.part &&
+        prev.index === next.index &&
+        // Message objects are recreated per SSE delta ({...info, parts:[...]}),
+        // so compare stable identity instead of object ref to avoid
+        // re-rendering every part of the streaming message per token.
+        prev.message.id === next.message.id &&
+        (prev.message.parts?.length ?? 0) === (next.message.parts?.length ?? 0) &&
+        prev.theme === next.theme &&
+        prev.projectId === next.projectId &&
+        prev.sessionId === next.sessionId &&
+        prev.pendingQuestions === next.pendingQuestions &&
+        prev.pendingPermissions === next.pendingPermissions &&
+        prev.streaming === next.streaming
+)
 
 function getPlainText(message: Message): string {
     if (!message.parts) return ""
@@ -398,16 +414,17 @@ function formatTokens(n: number): string {
 }
 
 function MessageMetadata({ message, theme }: { message: Message; theme: "light" | "dark" }) {
-    const models = useModels((s) => s.models)
-    const providers = useModels((s) => s.providers)
+    // Look up via getState instead of subscribing: subscribing every row to
+    // the whole models/providers arrays re-renders N rows on each fetch.
+    const snapshot = useModels.getState()
+    const model = snapshot.models.find((m) => m.id === (message as { modelID?: string }).modelID && m.providerID === (message as { providerID?: string }).providerID)
+    const provider = snapshot.providers.find((p) => p.id === (message as { providerID?: string }).providerID)
 
     if (message.role !== "assistant") return null
     if (!message.time.completed) return null
 
-    const model = models.find((m) => m.id === message.modelID && m.providerID === message.providerID)
-    const provider = providers.find((p) => p.id === message.providerID)
-    const modelName = model?.name ?? message.modelID
-    const providerName = provider?.name ?? message.providerID
+    const modelName = model?.name ?? (message as { modelID?: string }).modelID
+    const providerName = provider?.name ?? (message as { providerID?: string }).providerID
 
     const totalTokens = message.tokens.input + message.tokens.output + message.tokens.reasoning + message.tokens.cache.read + message.tokens.cache.write
     const costStr = message.cost.toFixed(4)

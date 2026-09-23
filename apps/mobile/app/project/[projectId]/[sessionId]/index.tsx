@@ -46,6 +46,29 @@ const EMPTY_MESSAGES: Message[] = []
 
 const MESSAGES_PER_PAGE = 20
 
+function ConnectionBanner({ theme }: { theme: "light" | "dark" }) {
+    const connectionStatus = useChatStore((s) => s.connectionStatus)
+    if (
+        connectionStatus !== "connecting" &&
+        connectionStatus !== "reconnecting" &&
+        connectionStatus !== "connectivity-issues"
+    ) {
+        return null
+    }
+    return (
+        <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
+            <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+            <Text className="text-xs text-muted-foreground">
+                {connectionStatus === "connecting"
+                    ? "Connecting..."
+                    : connectionStatus === "reconnecting"
+                        ? "Reconnecting..."
+                        : "Connectivity issues, retrying..."}
+            </Text>
+        </View>
+    )
+}
+
 export default function SessionScreen() {
     const insets = useSafeAreaInsets()
     const { colorScheme } = useColorScheme()
@@ -114,22 +137,34 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId])
     const session = useMemo(() => sessions.find((s) => s.id === sessionId) ?? null, [sessions, sessionId])
 
-    const isStreaming = useChatStore(
-        useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
+    const isStreamingSelector = useMemo(
+        () => (s: { streamingBySession: Record<string, boolean> }) => s.streamingBySession[sessionId!] ?? false,
+        [sessionId]
     )
-    const connectionStatus = useChatStore((s) => s.connectionStatus)
-    const draft = useChatStore(
-        useCallback((s) => s.draftBySession[sessionId!] ?? "", [sessionId])
+    const isStreaming = useChatStore(isStreamingSelector)
+    const draftSelector = useMemo(
+        () => (s: { draftBySession: Record<string, string> }) => s.draftBySession[sessionId!] ?? "",
+        [sessionId]
     )
+    const draft = useChatStore(draftSelector)
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
-    const currentAgentModel = useChatStore(
-        useCallback((s) => s.modelByAgent[selectedAgent], [selectedAgent])
+    const agentModelSelector = useMemo(
+        () => (s: { modelByAgent: Record<string, SelectedModel> }) => s.modelByAgent[selectedAgent],
+        [selectedAgent]
     )
+    const currentAgentModel = useChatStore(agentModelSelector)
     const setModelByAgent = useChatStore((s) => s.setModelByAgent)
     const setModel = useChatStore((s) => s.setModel)
-    const storedModel = useChatStore(
-        useCallback((s) => s.modelBySession[sessionId!], [sessionId])
+    const sessionModelSelector = useMemo(
+        () => (s: { modelBySession: Record<string, SelectedModel> }) => s.modelBySession[sessionId!],
+        [sessionId]
+    )
+    const storedModel = useChatStore(sessionModelSelector)
+
+    const modelByAgentProp = useMemo(
+        () => (currentAgentModel ? { [selectedAgent]: currentAgentModel } : {}),
+        [selectedAgent, currentAgentModel]
     )
 
     const selectedModel = currentAgentModel ?? storedModel ?? session?.model ?? null
@@ -137,15 +172,19 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const models = useModels((s) => s.models)
     const fetchAll = useModels((s) => s.fetchAll)
 
-    const pendingQuestions = useQuestions(
-        useCallback((s) => s.questionsBySession[sessionId!] ?? EMPTY_QUESTIONS, [sessionId])
+    const pendingQuestionsSelector = useMemo(
+        () => (s: { questionsBySession: Record<string, QuestionRequest[]> }) => s.questionsBySession[sessionId!] ?? EMPTY_QUESTIONS,
+        [sessionId]
     )
+    const pendingQuestions = useQuestions(pendingQuestionsSelector)
     const setQuestions = useQuestions((s) => s.setQuestions)
     const removeQuestion = useQuestions((s) => s.removeQuestion)
 
-    const pendingPermissions = usePermissions(
-        useCallback((s) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS, [sessionId])
+    const pendingPermissionsSelector = useMemo(
+        () => (s: { permissionsBySession: Record<string, PermissionRequest[]> }) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS,
+        [sessionId]
     )
+    const pendingPermissions = usePermissions(pendingPermissionsSelector)
     const removePermission = usePermissions((s) => s.removePermission)
 
     const questionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -154,7 +193,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const pollQuestions = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
         if (appStateRef.current !== "active") {
-            questionPollRef.current = setTimeout(pollQuestions, 5000)
+            // SSE is the primary channel; poll only as a 30s fallback so we
+            // don't duplicate events and waste radio/battery.
+            questionPollRef.current = setTimeout(pollQuestions, 30000)
             return
         }
         try {
@@ -181,7 +222,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 setQuestions(sessionId!, sessionQs)
             }
         } catch {}
-        questionPollRef.current = setTimeout(pollQuestions, 5000)
+        questionPollRef.current = setTimeout(pollQuestions, 30000)
     }, [connection?.url, connection?.token, projectId, sessionId, setQuestions])
 
     useEffect(() => {
@@ -578,11 +619,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     : raw
 
             const existing = getMessagesBySession(sessionId!)
-            const localMessages = existing.filter(m => m.id.startsWith("local-"))
+            const localMessages = existing.filter((m) => m.id.startsWith("local-") || m.id.startsWith("error-"))
             const map = new Map<string, Message>()
             for (const m of data) map.set(m.id, m)
             for (const m of localMessages) map.set(m.id, m)
-            setMessages(sessionId!, Array.from(map.values()))
+            const merged = Array.from(map.values()).sort((a, b) => a.time.created - b.time.created)
+            setMessages(sessionId!, merged)
 
             if (data.length < MESSAGES_PER_PAGE) {
                 setHasMoreMessages(false)
@@ -598,7 +640,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setIsLoadingMore(true)
         
         const existing = getMessagesBySession(sessionId!)
-        const offset = existing.length
+        // Optimistic local-/error- messages aren't on the server; counting
+        // them in offset would skip real messages and create holes.
+        const offset = existing.filter((m) => !m.id.startsWith("local-") && !m.id.startsWith("error-")).length
         
         const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE, offset)
         if (raw) {
@@ -897,18 +941,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 paddingTop={insets.top}
             />
 
-            {(connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "connectivity-issues") && (
-                <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
-                    <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
-                    <Text className="text-xs text-muted-foreground">
-                        {connectionStatus === "connecting"
-                            ? "Connecting..."
-                            : connectionStatus === "reconnecting"
-                                ? "Reconnecting..."
-                                : "Connectivity issues, retrying..."}
-                    </Text>
-                </View>
-            )}
+            <ConnectionBanner theme={theme} />
 
             {messages.length > 0 ? (
                 <FlatList
@@ -928,10 +961,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     ListHeaderComponent={StreamingIndicator}
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
+                    updateCellsBatchingPeriod={50}
                     windowSize={10}
                     initialNumToRender={15}
+                    disableIntervalMomentum
                     inverted
-                    onEndReached={loadMoreMessages}
+                    onEndReached={isStreaming ? undefined : loadMoreMessages}
                     onEndReachedThreshold={0.5}
                 />
             ) : (
@@ -1014,7 +1049,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 connectionUrl={connection?.url}
                 connectionToken={connection?.token}
                 theme={theme}
-                modelByAgent={currentAgentModel ? { [selectedAgent]: currentAgentModel } : {}}
+                modelByAgent={modelByAgentProp}
                 onModelSelect={handleModelSelect}
                 onVariantSelect={handleVariantSelect}
                 onSessionModelUpdate={handleSessionModelUpdate}

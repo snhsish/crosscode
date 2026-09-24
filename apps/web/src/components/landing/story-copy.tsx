@@ -42,26 +42,31 @@ export const STORY_COPIES: StoryCopy[] = [
 
 export function StoryCopyBlock({ copy }: { copy: StoryCopy }) {
   return (
-    <div className="text-left">
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[#1f86ff]">
+    <div className="max-w-[440px] text-left">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#1f86ff]">
         {copy.eyebrow}
       </p>
-      <h2
-        className="mt-3 text-[30px] font-medium leading-[1.1] tracking-[-0.02em] text-[#1a1a1a] sm:text-[40px]"
-        style={{ fontFamily: "var(--font-manrope), Manrope, system-ui, sans-serif" }}
-      >
+      <h2 className="mt-3 text-[28px] font-medium leading-[1.1] tracking-[-0.025em] text-neutral-900 sm:text-[34px] lg:text-[36px]">
         {copy.title}
       </h2>
-      <p className="mt-4 text-[15px] leading-[1.6] text-[#555555] sm:text-[17px]">
+      <p className="mt-3.5 text-[15px] leading-[1.6] text-neutral-500 sm:text-[16px]">
         {copy.description}
       </p>
-      <ul className="mt-6 flex flex-col gap-3.5">
+      <ul className="mt-7 border-t border-neutral-200">
         {copy.bullets.map(({ icon: Icon, text }) => (
-          <li key={text} className="flex items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f1f1f1]">
-              <Icon size={17} className="text-[#333333]" strokeWidth={2} />
+          <li
+            key={text}
+            className="flex items-center gap-3 border-b border-neutral-200 py-2.5 sm:py-3"
+          >
+            <Icon
+              size={15}
+              strokeWidth={1.75}
+              className="shrink-0 text-neutral-400"
+              aria-hidden="true"
+            />
+            <span className="text-[14px] font-medium tracking-[-0.01em] text-neutral-800 sm:text-[15px]">
+              {text}
             </span>
-            <span className="text-[14px] font-medium text-[#333333] sm:text-[15px]">{text}</span>
           </li>
         ))}
       </ul>

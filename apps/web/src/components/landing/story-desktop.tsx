@@ -14,7 +14,8 @@ import {
 } from "@/components/landing/session-mockup";
 import { STORY_COPIES, StoryCopyBlock } from "@/components/landing/story-copy";
 
-const COPY_WIDTH = 340;
+const COPY_WIDTH = 500;
+const COPY_GAP = 130;
 
 export function StoryDesktop() {
   const triggerRef = useRef<HTMLElement>(null);
@@ -30,15 +31,19 @@ export function StoryDesktop() {
   const [density, setDensity] = useState<MockupDensity>("wide");
   const [view, setView] = useState<MockupView>("chat");
   const [copyIdx, setCopyIdx] = useState(-1);
-  const stateRef = useRef({ density: "wide" as MockupDensity, view: "chat" as MockupView, copyIdx: -1 });
+  const [streamT, setStreamT] = useState(0);
+  const stateRef = useRef({
+    density: "wide" as MockupDensity,
+    view: "chat" as MockupView,
+    copyIdx: -1,
+    streamQ: 0,
+  });
 
   useLayoutEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     gsap.registerPlugin(ScrollTrigger);
 
     const ctx = gsap.context(() => {
-      // Initial states — set in JS so GSAP owns all transforms (no Tailwind translate classes)
-      // No y offset: the morph itself provides the rise, and the typing dots stay above the fold
       gsap.set(shiftRef.current, { y: 0 });
       gsap.set(copyWrapRef.current, { marginLeft: -COPY_WIDTH, autoAlpha: 0 });
 
@@ -46,7 +51,6 @@ export function StoryDesktop() {
         defaults: { ease: "power2.inOut" },
         scrollTrigger: {
           trigger: triggerRef.current,
-          // Pin the moment the page loads (section already sits 68px down, below the navbar)
           start: "top top+=68px",
           end: "+=320%",
           scrub: 1,
@@ -54,22 +58,31 @@ export function StoryDesktop() {
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             const p = self.progress;
+            const rawMorph = Math.min(1, Math.max(0, (p - 0.08) / (0.47 - 0.08)));
+            const morph = rawMorph * rawMorph * (3 - 2 * rawMorph);
+            frameRef.current?.style.setProperty("--m", String(morph));
+            const rawStream = Math.min(1, Math.max(0, (p - 0.18) / (0.68 - 0.18)));
+            const streamQ = Math.round(rawStream * 120) / 120;
             const nextDensity: MockupDensity = p > 0.2 ? "phone" : "wide";
             const nextCopy = p > 0.75 ? 1 : p > 0.52 ? 0 : -1;
             const nextView: MockupView = p > 0.75 ? "models" : "chat";
             const s = stateRef.current;
-            if (s.density !== nextDensity || s.copyIdx !== nextCopy || s.view !== nextView) {
-              stateRef.current = { density: nextDensity, copyIdx: nextCopy, view: nextView };
-              setDensity(nextDensity);
-              setCopyIdx(nextCopy);
-              setView(nextView);
+            if (
+              s.density !== nextDensity ||
+              s.copyIdx !== nextCopy ||
+              s.view !== nextView ||
+              s.streamQ !== streamQ
+            ) {
+              stateRef.current = { density: nextDensity, copyIdx: nextCopy, view: nextView, streamQ };
+              if (s.density !== nextDensity) setDensity(nextDensity);
+              if (s.copyIdx !== nextCopy) setCopyIdx(nextCopy);
+              if (s.view !== nextView) setView(nextView);
+              if (s.streamQ !== streamQ) setStreamT(streamQ);
             }
           },
         },
       });
 
-      // Phase 1 — hero exits fast, title collapses so the stage takes the viewport,
-      // wide card morphs into the full phone
       tl.to(titleRef.current, { autoAlpha: 0, y: -140, duration: 0.55, ease: "power1.in" }, 0);
       tl.to(titleRef.current, { height: 0, paddingTop: 0, duration: 0.5 }, 0.9);
       tl.to(waveRef.current, { autoAlpha: 0, duration: 0.6, ease: "power1.out" }, 0);
@@ -84,22 +97,19 @@ export function StoryDesktop() {
         },
         0.35
       );
-      tl.to(shiftRef.current, { y: 0, duration: 1.2 }, 0.35);
-
-      // Phase 2 — pair lifts to vertical center as the copy grows in on the right
-      tl.to(
-        rowRef.current,
+      tl.fromTo(
+        shiftRef.current,
         {
-          paddingBottom: () =>
-            Math.max(0, (stageRef.current!.clientHeight - 747) / 2),
-          duration: 0.8,
+          y: () => Math.max(0, (stageRef.current!.clientHeight - 410) / 2),
         },
-        1.7
+        { y: 0, duration: 1.75, ease: "power2.inOut" },
+        0.35
       );
-      tl.to(copyWrapRef.current, { marginLeft: 96, autoAlpha: 1, duration: 0.8 }, 1.7);
 
-      // Phase 3 — hold for the models swap (driven by onUpdate)
-      tl.to({}, { duration: 0.8 });
+      tl.to(copyWrapRef.current, { marginLeft: COPY_GAP, duration: 0.6 }, 1.5);
+      tl.to(copyWrapRef.current, { autoAlpha: 1, duration: 0.35 }, 1.75);
+
+      tl.to({}, { duration: 1.2 });
     }, triggerRef);
 
     return () => ctx.revert();
@@ -108,17 +118,14 @@ export function StoryDesktop() {
   return (
     <>
       <section ref={triggerRef} className="relative overflow-hidden bg-white">
-        {/* Full-bleed pinned stage: navbar overlays the top padding */}
-        <div className="relative flex h-[100svh] min-h-[700px] flex-col overflow-hidden pt-[68px]">
-          {/* Hero title */}
+        <div className="relative flex h-[100svh] min-h-[815px] flex-col overflow-hidden pt-[68px]">
           <div
             ref={titleRef}
-            className="relative z-10 mx-auto w-full max-w-[1100px] shrink-0 overflow-hidden px-6 pt-7"
+            className="relative z-10 mx-auto w-full max-w-[1280px] shrink-0 overflow-hidden px-6 pt-7"
           >
             <HeroTitle />
           </div>
 
-          {/* Stage — phone bottom-anchored by flex, copy grows in on the right */}
           <div ref={stageRef} className="relative z-0 flex min-h-0 w-full flex-1">
             <div ref={waveRef} className="pointer-events-none absolute inset-0 select-none">
               <Image
@@ -131,14 +138,14 @@ export function StoryDesktop() {
               />
             </div>
 
-            <div ref={rowRef} className="relative z-10 mx-auto flex h-full w-full max-w-[1100px] items-end justify-center">
-              <div className="flex items-end justify-center">
-                <div ref={shiftRef} className="relative">
-                  <MorphMockupFrame density={density} view={view} frameRef={frameRef} />
+            <div ref={rowRef} className="relative z-10 mx-auto flex h-full w-full max-w-[1280px] items-center justify-center px-6">
+              <div className="flex items-center justify-center">
+                <div ref={shiftRef} className="relative z-10">
+                  <MorphMockupFrame density={density} view={view} streamT={streamT} frameRef={frameRef} />
                 </div>
               </div>
 
-              <div ref={copyWrapRef} className="pointer-events-none w-[340px] shrink-0 self-center">
+              <div ref={copyWrapRef} className="pointer-events-none relative z-0 w-[500px] shrink-0 self-center">
                 <div ref={copyInnerRef}>
                   <AnimatePresence initial={false} mode="wait">
                     {copyIdx >= 0 && (

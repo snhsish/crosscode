@@ -69,21 +69,31 @@ function formatTime(ts: number, now: number) {
   return new Date(ts).toLocaleDateString()
 }
 
+// Bucket "now" to 5-minute windows so rows sharing a bucket don't re-render
+// every minute. Each row subscribes to the bucket, not a raw timestamp.
+function useNowBucket(): number {
+  const [bucket, setBucket] = React.useState(() => Math.floor(Date.now() / 300000))
+  React.useEffect(() => {
+    const interval = setInterval(() => setBucket(Math.floor(Date.now() / 300000)), 60000)
+    return () => clearInterval(interval)
+  }, [])
+  return bucket * 300000
+}
+
 const SessionItem = React.memo(function SessionItem({
   session,
   isLast,
   onNavigate,
   onDelete,
-  now,
 }: {
   session: Session
   isLast: boolean
   onNavigate: (id: string) => void
   onDelete: (id: string) => void
-  now: number
 }) {
   const theme = useColorScheme().colorScheme ?? "light"
   const isStreaming = useChatStore((s) => s.streamingBySession[session.id] ?? false)
+  const now = useNowBucket()
   const [menuVisible, setMenuVisible] = React.useState(false)
   const pressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -212,13 +222,7 @@ export default function SessionsScreen() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
   const [selectedSessionId, setSelectedSessionId] = React.useState<string | null>(null)
   const [creatingSession, setCreatingSession] = React.useState(false)
-  const [now, setNow] = React.useState(Date.now())
   const removeSession = useSessions((s) => s.removeSession)
-
-  React.useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 60000)
-    return () => clearInterval(interval)
-  }, [])
 
   const handleCreateSession = React.useCallback(async () => {
     if (!connection?.url || !connection?.token || !project?.directory || creatingSession) return
@@ -467,7 +471,6 @@ export default function SessionsScreen() {
               isLast={index === section.data.length - 1}
               onNavigate={handleNavigate}
               onDelete={handleDelete}
-              now={now}
             />
           )}
           contentContainerStyle={{ paddingBottom: 32 }}

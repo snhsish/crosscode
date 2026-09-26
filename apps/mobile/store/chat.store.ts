@@ -120,9 +120,10 @@ export const useChatStore = create<ChatStore>()(
         {
             name: "crosscode-chat",
             storage: createJSONStorage(() => AsyncStorage),
+            // Drafts change per keystroke — persisting them rewrites AsyncStorage
+            // on every char and causes I/O jank. Keep drafts memory-only.
             partialize: (state) => ({
                 modelByAgent: state.modelByAgent,
-                draftBySession: state.draftBySession,
             }),
         }
     )

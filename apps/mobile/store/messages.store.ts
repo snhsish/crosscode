@@ -138,6 +138,13 @@ type MessagesStore = {
     getMessagesBySession: (sessionId: string) => Message[]
 }
 
+const MAX_MESSAGES_PER_SESSION = 500
+
+function capMessages(messages: Message[]): Message[] {
+    if (messages.length <= MAX_MESSAGES_PER_SESSION) return messages
+    return messages.slice(messages.length - MAX_MESSAGES_PER_SESSION)
+}
+
 export const useMessages = create<MessagesStore>()(
     (set, get) => ({
         messagesBySession: {},
@@ -154,7 +161,7 @@ export const useMessages = create<MessagesStore>()(
                 return {
                     messagesBySession: {
                         ...state.messagesBySession,
-                        [sessionId]: Array.from(map.values()),
+                        [sessionId]: capMessages(Array.from(map.values())),
                     },
                 }
             }),
@@ -165,7 +172,7 @@ export const useMessages = create<MessagesStore>()(
             set((state) => ({
                 messagesBySession: {
                     ...state.messagesBySession,
-                    [sessionId]: messages,
+                    [sessionId]: capMessages(messages),
                 },
             })),
     })

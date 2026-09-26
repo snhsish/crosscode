@@ -1,11 +1,14 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { secureStorage } from "../lib/secure-storage"
-
-let nextID = 1
+import { clearAuthCache } from "../lib/utils"
 
 const uid = () => {
-    return `${Date.now()}-${nextID++}`
+    try {
+        const c = globalThis.crypto as Crypto | undefined
+        if (c && typeof c.randomUUID === "function") return c.randomUUID()
+    } catch {}
+    return `${Date.now()}-${Math.floor(Math.random() * 1e9).toString(36)}`
 }
 
 export type Connection = {
@@ -32,24 +35,37 @@ type ConnectionStore = {
 
 export const useConnections = create<ConnectionStore>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             connections: [],
             current: null,
             activeConnections: [],
             addConnection: (con) =>
                 set((state) => {
+                    const existing = state.connections.find((c) => c.url === con.url)
+                    if (existing) {
+                        if (existing.token !== con.token) clearAuthCache(existing.token)
+                        return {
+                            connections: state.connections.map((c) =>
+                                c.id === existing.id ? { ...c, ...con } : c
+                            ),
+                            current: existing.id,
+                        }
+                    }
                     const newCon = { ...con, id: uid(), added: Date.now(), healthy: null }
                     return {
                         connections: [...state.connections, newCon],
                         current: newCon.id,
                     }
                 }),
-            removeConnection: (id) =>
+            removeConnection: (id) => {
+                const conn = get().connections.find((c) => c.id === id)
+                if (conn) clearAuthCache(conn.token)
                 set((state) => ({
                     connections: state.connections.filter((c) => c.id !== id),
                     current: state.current === id ? null : state.current,
                     activeConnections: state.activeConnections.filter((a) => a !== id),
-                })),
+                }))
+            },
             updateConnection: (id, updates) =>
                 set((state) => ({
                     connections: state.connections.map((c) =>

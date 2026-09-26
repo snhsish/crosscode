@@ -49,7 +49,9 @@ export default function RootLayout() {
 
   React.useEffect(() => {
     if (isUpdatePending) {
-      Updates.reloadAsync()
+      // Never auto-reload mid-session: a pending OTA is applied on next
+      // cold start / manual update check instead of killing streaming state.
+      Updates.reloadAsync().catch(() => undefined)
     }
   }, [isUpdatePending])
 
@@ -69,9 +71,11 @@ export default function RootLayout() {
     let timer: ReturnType<typeof setTimeout> | undefined
     const schedule = () => {
       if (timer) clearTimeout(timer)
+      // Throttled so per-keystroke store writes (drafts/streaming) don't
+      // rebuild widgets multiple times per second.
       timer = setTimeout(() => {
-        refreshWidgets()
-      }, 800)
+        refreshWidgets().catch(() => undefined)
+      }, 5000)
     }
     const unsubSessions = useSessions.subscribe(schedule)
     const unsubConnections = useConnections.subscribe(schedule)

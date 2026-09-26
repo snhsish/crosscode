@@ -20,9 +20,13 @@ export function getUpdateInfo() {
 export async function checkAndApplyUpdate(): Promise<UpdateCheckOutcome> {
   if (__DEV__) return "unavailable-in-dev"
   if (!Updates.isEnabled) return "disabled"
-  const check = await Updates.checkForUpdateAsync()
-  if (!check.isAvailable) return "up-to-date"
-  await Updates.fetchUpdateAsync()
-  await Updates.reloadAsync()
-  return "updated"
+  try {
+    const check = await Updates.checkForUpdateAsync()
+    if (!check.isAvailable) return "up-to-date"
+    await Updates.fetchUpdateAsync()
+    await Updates.reloadAsync()
+    return "updated"
+  } catch {
+    return "up-to-date"
+  }
 }

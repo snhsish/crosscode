@@ -10,6 +10,7 @@ import { HeroTitle } from "@/components/landing/hero-title";
 import { DownloadIcon } from "@/components/landing/hero-title";
 import { SessionMockup, type MockupView } from "@/components/landing/session-mockup";
 import { STORY_COPIES, StoryCopyBlock } from "@/components/landing/story-copy";
+import { ExtraFeatures } from "@/components/landing/extra-features";
 
 function StaticFallback() {
   return (
@@ -41,6 +42,7 @@ function StaticFallback() {
           <StoryCopyBlock copy={copy} />
         </section>
       ))}
+      <ExtraFeatures />
     </div>
   );
 }
@@ -168,6 +170,8 @@ export function StoryMobile() {
           </div>
         </div>
       </section>
+
+      <ExtraFeatures />
 
       <section className="border-t border-[#ececec] px-5 py-14 text-center">
         <p className="text-[15px] text-[#8e8e8e]">Ready when you are</p>

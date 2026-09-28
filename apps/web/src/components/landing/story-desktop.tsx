@@ -13,6 +13,7 @@ import {
   type MockupView,
 } from "@/components/landing/session-mockup";
 import { STORY_COPIES, StoryCopyBlock } from "@/components/landing/story-copy";
+import { ExtraFeatures } from "@/components/landing/extra-features";
 
 const COPY_WIDTH = 500;
 const COPY_GAP = 130;
@@ -168,6 +169,8 @@ export function StoryDesktop() {
           </div>
         </div>
       </section>
+
+      <ExtraFeatures />
 
       <section className="border-t border-[#ececec] bg-white px-6 py-16 text-center">
         <p className="text-[15px] text-[#8e8e8e]">Ready when you are</p>

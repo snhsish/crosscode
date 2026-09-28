@@ -76,16 +76,17 @@ export function StoryMobile() {
         scrollTrigger: {
           trigger: triggerRef.current,
           start: "top top+=68px",
-          end: "+=280%",
-          scrub: 1,
+          end: "+=460%",
+          scrub: 0.6,
           pin: true,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             const p = self.progress;
             const rawStream = Math.min(1, 0.6 + (0.4 * p) / 0.3);
             const streamQ = Math.round(rawStream * 120) / 120;
-            const nextCopy = p > 0.7 ? 1 : p > 0.42 ? 0 : -1;
-            const nextView: MockupView = p > 0.7 ? "models" : "chat";
+            const nextCopy = p > 0.74 ? 2 : p > 0.52 ? 1 : p > 0.3 ? 0 : -1;
+            const nextView: MockupView =
+              p > 0.74 ? "connections" : p > 0.52 ? "models" : "chat";
             const s = stateRef.current;
             if (s.copyIdx !== nextCopy || s.view !== nextView || s.streamQ !== streamQ) {
               stateRef.current = { copyIdx: nextCopy, view: nextView, streamQ };
@@ -101,8 +102,8 @@ export function StoryMobile() {
       tl.to(titleRef.current, { height: 0, duration: 0.45 }, 0.5);
       tl.to(waveRef.current, { autoAlpha: 0, duration: 0.5, ease: "power1.out" }, 0);
       tl.fromTo(phoneRef.current, { y: 30 }, { y: 0, duration: 1.6 }, 0.2);
-      tl.to(copyWrapRef.current, { autoAlpha: 1, height: 320, duration: 0.6 }, 1.5);
-      tl.fromTo(copyWrapRef.current, { y: 24 }, { y: 0, duration: 0.5 }, 1.5);
+      tl.to(copyWrapRef.current, { autoAlpha: 1, height: 420, duration: 0.6 }, 0.9);
+      tl.fromTo(copyWrapRef.current, { y: 24 }, { y: 0, duration: 0.5 }, 0.9);
       tl.to({}, { duration: 0.9 });
     }, triggerRef);
 
@@ -117,7 +118,7 @@ export function StoryMobile() {
         <div className="relative flex h-[100svh] min-h-[640px] flex-col overflow-hidden pt-[68px]">
           <div
             ref={titleRef}
-            className="relative z-10 mx-auto w-full max-w-[460px] shrink-0 overflow-hidden px-5 pt-8"
+            className="relative z-10 mx-auto w-full max-w-[460px] shrink-0 overflow-hidden px-5 pt-16"
           >
             <HeroTitle />
           </div>
@@ -147,15 +148,16 @@ export function StoryMobile() {
             </div>
 
             <div ref={copyWrapRef} className="relative z-10 overflow-hidden bg-white px-5 pb-6 pt-4">
-              <div className="mx-auto min-h-[280px] w-full max-w-[460px]">
-                <AnimatePresence initial={false} mode="wait">
+              <div className="mx-auto grid min-h-[380px] w-full max-w-[460px]">
+                <AnimatePresence initial={false} mode="sync">
                   {copyIdx >= 0 && (
                     <motion.div
                       key={copyIdx}
+                      className="col-start-1 row-start-1"
                       initial={{ opacity: 0, y: 24 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -24 }}
-                      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                     >
                       <StoryCopyBlock copy={STORY_COPIES[copyIdx]} />
                     </motion.div>

@@ -2,10 +2,11 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { MockupChatView } from "@/components/landing/mockup-chat";
+import { MockupConnectionsView } from "@/components/landing/mockup-connections";
 import { MockupModelsView } from "@/components/landing/mockup-models";
 import { cn } from "@/lib/utils";
 
-export type MockupView = "chat" | "models";
+export type MockupView = "chat" | "models" | "connections";
 export type MockupDensity = "wide" | "phone";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -33,12 +34,18 @@ export function SessionMockup({
           <motion.div
             key={view}
             className="absolute inset-0"
-            initial={{ opacity: 0, x: view === "models" ? 48 : -48 }}
+            initial={{ opacity: 0, x: view === "chat" ? -48 : 48 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: view === "models" ? -32 : 32 }}
-            transition={{ duration: 0.45, ease }}
+            exit={{ opacity: 0, x: view === "chat" ? 32 : -32 }}
+            transition={{ duration: 0.3, ease }}
           >
-            {view === "chat" ? <MockupChatView streamT={streamT} /> : <MockupModelsView />}
+            {view === "chat" ? (
+              <MockupChatView streamT={streamT} />
+            ) : view === "models" ? (
+              <MockupModelsView />
+            ) : (
+              <MockupConnectionsView />
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -75,12 +82,18 @@ export function MorphMockupFrame({
             <motion.div
               key={view}
               className="absolute inset-0"
-              initial={{ opacity: 0, x: view === "models" ? 48 : -48 }}
+              initial={{ opacity: 0, x: view === "chat" ? -48 : 48 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: view === "models" ? -32 : 32 }}
-              transition={{ duration: 0.45, ease }}
+              exit={{ opacity: 0, x: view === "chat" ? 32 : -32 }}
+              transition={{ duration: 0.3, ease }}
             >
-              {view === "chat" ? <MockupChatView streamT={streamT} /> : <MockupModelsView />}
+              {view === "chat" ? (
+                <MockupChatView streamT={streamT} />
+              ) : view === "models" ? (
+                <MockupModelsView />
+              ) : (
+                <MockupConnectionsView />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>

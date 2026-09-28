@@ -52,20 +52,21 @@ export function StoryDesktop() {
         scrollTrigger: {
           trigger: triggerRef.current,
           start: "top top+=68px",
-          end: "+=320%",
-          scrub: 1,
+          end: "+=540%",
+          scrub: 0.6,
           pin: true,
           invalidateOnRefresh: true,
           onUpdate: (self) => {
             const p = self.progress;
-            const rawMorph = Math.min(1, Math.max(0, (p - 0.08) / (0.47 - 0.08)));
+            const rawMorph = Math.min(1, Math.max(0, (p - 0.05) / (0.25 - 0.05)));
             const morph = rawMorph * rawMorph * (3 - 2 * rawMorph);
             frameRef.current?.style.setProperty("--m", String(morph));
-            const rawStream = Math.min(1, Math.max(0, (p - 0.18) / (0.68 - 0.18)));
+            const rawStream = Math.min(1, Math.max(0, (p - 0.1) / (0.45 - 0.1)));
             const streamQ = Math.round(rawStream * 120) / 120;
-            const nextDensity: MockupDensity = p > 0.2 ? "phone" : "wide";
-            const nextCopy = p > 0.75 ? 1 : p > 0.52 ? 0 : -1;
-            const nextView: MockupView = p > 0.75 ? "models" : "chat";
+            const nextDensity: MockupDensity = p > 0.1 ? "phone" : "wide";
+            const nextCopy = p > 0.74 ? 2 : p > 0.51 ? 1 : p > 0.28 ? 0 : -1;
+            const nextView: MockupView =
+              p > 0.74 ? "connections" : p > 0.51 ? "models" : "chat";
             const s = stateRef.current;
             if (
               s.density !== nextDensity ||
@@ -106,8 +107,8 @@ export function StoryDesktop() {
         0.35
       );
 
-      tl.to(copyWrapRef.current, { marginLeft: COPY_GAP, duration: 0.6 }, 1.5);
-      tl.to(copyWrapRef.current, { autoAlpha: 1, duration: 0.35 }, 1.75);
+      tl.to(copyWrapRef.current, { marginLeft: COPY_GAP, duration: 0.6 }, 0.7);
+      tl.to(copyWrapRef.current, { autoAlpha: 1, duration: 0.35 }, 0.95);
 
       tl.to({}, { duration: 1.2 });
     }, triggerRef);
@@ -118,10 +119,10 @@ export function StoryDesktop() {
   return (
     <>
       <section ref={triggerRef} className="relative overflow-hidden bg-white">
-        <div className="relative flex h-[100svh] min-h-[815px] flex-col overflow-hidden pt-[68px]">
+        <div className="relative flex h-[calc(100svh-68px)] min-h-[815px] flex-col overflow-hidden">
           <div
             ref={titleRef}
-            className="relative z-10 mx-auto w-full max-w-[1280px] shrink-0 overflow-hidden px-6 pt-7"
+            className="relative z-10 mx-auto w-full max-w-[1280px] shrink-0 overflow-hidden px-6 pt-24 lg:pt-28"
           >
             <HeroTitle />
           </div>
@@ -146,15 +147,16 @@ export function StoryDesktop() {
               </div>
 
               <div ref={copyWrapRef} className="pointer-events-none relative z-0 w-[500px] shrink-0 self-center">
-                <div ref={copyInnerRef}>
-                  <AnimatePresence initial={false} mode="wait">
+                <div ref={copyInnerRef} className="grid">
+                  <AnimatePresence initial={false} mode="sync">
                     {copyIdx >= 0 && (
                       <motion.div
                         key={copyIdx}
+                        className="col-start-1 row-start-1"
                         initial={{ opacity: 0, y: 24 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -24 }}
-                        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                        transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                       >
                         <StoryCopyBlock copy={STORY_COPIES[copyIdx]} />
                       </motion.div>

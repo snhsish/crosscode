@@ -1,21 +1,42 @@
-import { ArrowLeft, Check, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  AudioLines,
+  Check,
+  FileText,
+  Image as ImageIcon,
+  Search,
+  Type,
+  Video,
+  type LucideIcon,
+} from "lucide-react";
 import { MockupStatusBar } from "@/components/landing/mockup-statusbar";
+
+type Capability = "text" | "image" | "audio" | "video" | "pdf";
+
+const CAPABILITY_ICONS: Record<Capability, LucideIcon> = {
+  text: Type,
+  image: ImageIcon,
+  audio: AudioLines,
+  video: Video,
+  pdf: FileText,
+};
 
 type DemoModel = {
   name: string;
   provider: string;
   status: "active" | "beta" | "alpha";
   selected?: boolean;
+  capabilities: Capability[];
 };
 
 const DEMO_MODELS: DemoModel[] = [
-  { name: "Claude Sonnet 4", provider: "Anthropic", status: "active", selected: true },
-  { name: "Claude Opus 4", provider: "Anthropic", status: "active" },
-  { name: "GPT-5", provider: "OpenAI", status: "active" },
-  { name: "GPT-5 Mini", provider: "OpenAI", status: "active" },
-  { name: "Gemini 2.5 Pro", provider: "Google", status: "beta" },
-  { name: "Gemini 2.5 Flash", provider: "Google", status: "beta" },
-  { name: "Grok 4", provider: "xAI", status: "alpha" },
+  { name: "Claude Sonnet 4", provider: "Anthropic", status: "active", selected: true, capabilities: ["text", "image", "pdf"] },
+  { name: "Claude Opus 4", provider: "Anthropic", status: "active", capabilities: ["text", "image", "pdf"] },
+  { name: "GPT-5", provider: "OpenAI", status: "active", capabilities: ["text", "image", "audio", "pdf"] },
+  { name: "GPT-5 Mini", provider: "OpenAI", status: "active", capabilities: ["text", "image"] },
+  { name: "Gemini 2.5 Pro", provider: "Google", status: "beta", capabilities: ["text", "image", "audio", "video", "pdf"] },
+  { name: "Gemini 2.5 Flash", provider: "Google", status: "beta", capabilities: ["text", "image", "audio", "video"] },
+  { name: "Grok 4", provider: "xAI", status: "alpha", capabilities: ["text", "image"] },
 ];
 
 const STATUS_STYLES: Record<DemoModel["status"], string> = {
@@ -39,6 +60,12 @@ function ModelRow({ model }: { model: DemoModel }) {
           {model.selected && <Check size={13} className="shrink-0 text-[#1a1a1a]" />}
         </div>
         <p className="mt-0.5 text-left text-[11px] text-[#8e8e8e]">{model.provider}</p>
+        <div className="mt-1 flex items-center gap-1.5">
+          {model.capabilities.map((cap) => {
+            const CapIcon = CAPABILITY_ICONS[cap];
+            return <CapIcon key={cap} size={11} className="text-[#8e8e8e]/60" />;
+          })}
+        </div>
       </div>
       <span
         className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[model.status]}`}

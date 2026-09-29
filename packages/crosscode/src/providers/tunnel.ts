@@ -8,7 +8,7 @@ import { createOpencodeProxy, proxyAgent } from "../proxy"
 import { startOpencode } from "../opencode"
 import { connectTunnel } from "../tunnel-client"
 import type { Config, ProjectConfig } from "../config"
-import { ensureSessionToken, ensureProjectId } from "../config"
+import { ensureSessionToken, ensureProjectId, resolveOpencodeBin } from "../config"
 
 export type TunnelCallbacks = {
     onTunnelUrl: (url: string) => void
@@ -25,8 +25,9 @@ export async function startTunnelProvider(
 ) {
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
+    const opencodeBin = resolveOpencodeBin(config)
 
-    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children, opencodeBin })
 
     let proxyPort = await getFreePort()
     while (proxyPort === port) proxyPort = await getFreePort()
@@ -53,7 +54,7 @@ export async function startTunnelProvider(
         })
         testReq.end()
 
-        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
+        spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
         const projectId = ensureProjectId(config, project)
         logCrosscode(`Project ID: ${projectId}`)

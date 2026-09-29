@@ -2,10 +2,10 @@ import { execFile } from "child_process"
 
 export type OpencodeMajor = 1 | 2
 
-let cached: OpencodeMajor | null = null
+let cached: { bin: string; major: OpencodeMajor } | null = null
 
 export function getCachedOpencodeMajor(): OpencodeMajor | null {
-    return cached
+    return cached?.major ?? null
 }
 
 function parseMajor(output: string): OpencodeMajor {
@@ -17,12 +17,13 @@ function parseMajor(output: string): OpencodeMajor {
 // `opencode --version` prints e.g. "1.15.7" (v1) or "opencode v2.0.6" (v2).
 // Defaults to 1 when the binary is missing or the output is unrecognized,
 // so old setups keep working.
-export function detectOpencodeMajor(): Promise<OpencodeMajor> {
-    if (cached) return Promise.resolve(cached)
+export function detectOpencodeMajor(bin = "opencode"): Promise<OpencodeMajor> {
+    if (cached && cached.bin === bin) return Promise.resolve(cached.major)
     return new Promise((resolve) => {
-        execFile("opencode", ["--version"], { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
-            cached = parseMajor(err ? "" : stdout)
-            resolve(cached)
+        execFile(bin, ["--version"], { encoding: "utf8", timeout: 8000 }, (err, stdout) => {
+            const major = parseMajor(err ? "" : stdout)
+            cached = { bin, major }
+            resolve(major)
         })
     })
 }

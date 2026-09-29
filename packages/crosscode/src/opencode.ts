@@ -17,16 +17,17 @@ export async function startOpencode(opts: {
     sessionToken: string
     spinner: Ora
     children: ChildProcess[]
+    opencodeBin?: string
 }): Promise<OpencodeInstance> {
-    const { port, sessionToken, spinner, children } = opts
+    const { port, sessionToken, spinner, children, opencodeBin = "opencode" } = opts
 
     // v2 renamed --log-level values to lowercase ("DEBUG" is rejected).
-    const serverVersion = await detectOpencodeMajor()
+    const serverVersion = await detectOpencodeMajor(opencodeBin)
     const logLevel = serverVersion >= 2 ? "debug" : "DEBUG"
-    logCrosscode(`Detected opencode v${serverVersion}`)
-    debug("opencode version", { serverVersion })
+    logCrosscode(`Detected ${opencodeBin} v${serverVersion}`)
+    debug("opencode version", { bin: opencodeBin, serverVersion })
 
-    const proc = spawnCmd("opencode", [
+    const proc = spawnCmd(opencodeBin, [
         "serve", "--print-logs", "--log-level", logLevel,
         "--port", String(port), "--hostname", "127.0.0.1",
     ], {
@@ -38,14 +39,14 @@ export async function startOpencode(opts: {
     children.push(proc)
 
     proc.on("spawn", () => {
-        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Detecting port...")
-        logCrosscode("opencode serve started (PID: " + proc.pid + ")")
-        debug("opencode spawned", { pid: proc.pid })
+        spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Detecting port...")
+        logCrosscode(`${opencodeBin} serve started (PID: ${proc.pid})`)
+        debug("opencode spawned", { bin: opencodeBin, pid: proc.pid })
     })
     proc.on("error", (err) => {
-        spinner.fail(chalk.red.italic("Failed to start opencode serve"))
-        logCrosscode("opencode serve error: " + err.message)
-        debug("opencode spawn error", { error: err.message })
+        spinner.fail(chalk.red.italic(`Failed to start ${opencodeBin} serve`))
+        logCrosscode(`${opencodeBin} serve error: ${err.message}`)
+        debug("opencode spawn error", { bin: opencodeBin, error: err.message })
     })
 
     const detectedPort = await waitForOpencodePort({

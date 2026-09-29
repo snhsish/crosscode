@@ -10,7 +10,7 @@ import { logCrosscode, cloudflaredLogStream, cloudflaredTunnelDir, cfCertPath } 
 import { createOpencodeProxy } from "../proxy"
 import { startOpencode } from "../opencode"
 import type { Config, ProjectConfig, CloudflaredTunnel } from "../config"
-import { ensureSessionToken, ensureProjectId, saveProjectConfig } from "../config"
+import { ensureSessionToken, ensureProjectId, saveProjectConfig, resolveOpencodeBin } from "../config"
 
 // Use a persistent named cloudflared tunnel so the public URL is stable
 // (<tunnelId>.cfargotunnel.com) across restarts and reconnects, instead of
@@ -65,8 +65,9 @@ export async function startCloudflaredProvider(
 ) {
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
+    const opencodeBin = resolveOpencodeBin(config)
 
-    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children, opencodeBin })
 
     let proxyPort = await getFreePort()
     while (proxyPort === port) proxyPort = await getFreePort()
@@ -76,7 +77,7 @@ export async function startCloudflaredProvider(
     proxy.listen(proxyPort, "127.0.0.1", async () => {
         logCrosscode(`SSE proxy started on port ${proxyPort}`)
         debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
-        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
+        spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
 
         const namedTunnel = await ensureCloudflaredNamedTunnel(config, project)
         if (!namedTunnel) {

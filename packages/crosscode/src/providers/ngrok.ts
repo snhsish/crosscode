@@ -7,7 +7,7 @@ import { logCrosscode, ngrokLogStream, cloudflaredLogStream } from "../log"
 import { proxyAgent } from "../proxy"
 import { startOpencode } from "../opencode"
 import type { Config, ProjectConfig } from "../config"
-import { ensureSessionToken, saveConfig } from "../config"
+import { ensureSessionToken, saveConfig, resolveOpencodeBin } from "../config"
 import { setupNgrokToken } from "../auth"
 
 export async function startNgrokProvider(
@@ -30,8 +30,9 @@ export async function startNgrokProvider(
 
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
+    const opencodeBin = resolveOpencodeBin(config)
 
-    const { detectedPort } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort } = await startOpencode({ port, sessionToken, spinner, children, opencodeBin })
 
     const ngrok = spawnCmd("ngrok", ["http", `--authtoken=${ngrokToken}`, `${detectedPort}`], {
         stdio: ["ignore", "pipe", "pipe"],
@@ -41,7 +42,7 @@ export async function startNgrokProvider(
 
     ngrok.on("spawn", () => {
         logCrosscode("ngrok started (PID: " + ngrok.pid + ")")
-        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Starting ngrok tunnel...")
+        spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Starting ngrok tunnel...")
         debug("ngrok spawned", { pid: ngrok.pid })
     })
     ngrok.on("error", (err) => {

@@ -14,6 +14,7 @@ import { THEME } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 import { useConnections } from "@/store/connection.store"
 import { fetchSessionTodos, TodoTask } from "@/lib/todo"
+import { getServerVersion, supportsFeature } from "@/lib/server-version"
 
 const STATUS_CONFIG: Record<string, { icon: typeof CheckCircle2Icon; color: string; bg: string; label: string }> = {
     completed: { icon: CheckCircle2Icon, color: "text-green-500", bg: "bg-green-500/15", label: "Completed" },
@@ -41,6 +42,8 @@ export default function TasksPage() {
     const [todos, setTodos] = useState<TodoTask[]>([])
     const [loading, setLoading] = useState(true)
     const [refreshing, setRefreshing] = useState(false)
+
+    const todosSupported = supportsFeature(getServerVersion(connection?.url), "todo")
 
     const loadTodos = useCallback(async () => {
         if (!connection?.url || !connection?.token || !sessionId) return
@@ -168,10 +171,12 @@ export default function TasksPage() {
                         <CheckCircle2Icon size={28} color={THEME[theme].mutedForeground} />
                     </View>
                     <Text className="text-lg font-semibold tracking-tight text-center mb-2">
-                        No tasks yet
+                        {todosSupported ? "No tasks yet" : "Tasks need opencode v1"}
                     </Text>
                     <Text className="text-sm text-muted-foreground text-center leading-5">
-                        Tasks will appear here when the agent creates a task list for this session.
+                        {todosSupported
+                            ? "Tasks will appear here when the agent creates a task list for this session."
+                            : "The v2 API does not expose session tasks yet. They will return automatically once supported."}
                     </Text>
                 </View>
             ) : (

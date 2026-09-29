@@ -1,4 +1,5 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 type ModelEndpoint = {
     type: string
@@ -64,28 +65,33 @@ export type Provider = {
 
 export async function fetchModels(url: string, token: string): Promise<Model[]> {
     try {
-        const res = await fetch(`${url}/api/model`, {
+        // Unchanged across versions: both serve GET /api/model.
+        const endpoint = `${url.replace(/\/+$/, "")}/api/model`
+        const res = await fetch(endpoint, {
             method: "GET",
             headers: {
                 "Authorization": getAuthHeader(token)
             }
         })
         if (!res.ok) {
-            console.error(`[fetchModels] HTTP ${res.status} from ${url}/api/model`)
+            console.error(`[fetchModels] HTTP ${res.status} from ${endpoint}`)
             return []
         }
-        const data = await res.json()
-        if (Array.isArray(data)) return data
-        if (data && typeof data === "object") {
-            if (Array.isArray(data.models)) return data.models
-            if (Array.isArray(data.data)) return data.data
-            const values = Object.values(data)
+        const json = await res.json()
+        // v1 may return a map of models instead of an array
+        if (json && typeof json === "object" && !Array.isArray(json) && !("data" in json)) {
+            const raw = json as Record<string, unknown>
+            if (Array.isArray(raw.models)) return raw.models as Model[]
+            if (Array.isArray(raw.data)) return raw.data as Model[]
+            const values = Object.values(raw)
             if (values.length > 0 && typeof values[0] === "object" && !Array.isArray(values[0])) {
                 return values as Model[]
             }
+            console.error("[fetchModels] Unexpected response shape:", JSON.stringify(json).slice(0, 200))
+            return []
         }
-        console.error("[fetchModels] Unexpected response shape:", JSON.stringify(data).slice(0, 200))
-        return []
+        const data = unwrapList<Model>(json)
+        return data
     } catch (error) {
         console.error("[fetchModels] Network error:", error)
         return []
@@ -94,7 +100,8 @@ export async function fetchModels(url: string, token: string): Promise<Model[]> 
 
 export async function fetchProviders(url: string, token: string): Promise<Provider[]> {
     try {
-        const res = await fetch(`${url}/api/provider`, {
+        // Unchanged across versions: both serve GET /api/provider.
+        const res = await fetch(`${url.replace(/\/+$/, "")}/api/provider`, {
             method: "GET",
             headers: {
                 "Authorization": getAuthHeader(token)
@@ -102,9 +109,10 @@ export async function fetchProviders(url: string, token: string): Promise<Provid
         })
         if (!res.ok) return []
         const data = await res.json()
-        if (Array.isArray(data)) return data
-        if (data && typeof data === "object") {
-            return Object.values(data)
+        const list = unwrapList<Provider | Record<string, unknown>>(data)
+        if (list.length > 0) return list as Provider[]
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+            return Object.values(data) as Provider[]
         }
         return []
     } catch (error) {
@@ -115,6 +123,19 @@ export async function fetchProviders(url: string, token: string): Promise<Provid
 
 export async function updateSessionModel(url: string, token: string, sessionId: string, model: { id: string; providerID: string; variant?: string }) {
     try {
+        const version = getServerVersion(url)
+        if (version >= 2) {
+            // v2 sets the model via a dedicated endpoint (PATCH /session no longer accepts it).
+            await fetch(`${apiUrl(url, version, "/session")}/${sessionId}/model`, {
+                method: "POST",
+                headers: {
+                    "Authorization": getAuthHeader(token),
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ model })
+            })
+            return
+        }
         await fetch(`${url}/session/${sessionId}`, {
             method: "PATCH",
             headers: {

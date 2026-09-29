@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { shareSession } from "@/lib/sessions"
+import { getServerVersion, supportsFeature } from "@/lib/server-version"
 import { useConnections } from "@/store/connection.store"
 import { useSessions } from "@/store/sessions.store"
 import { useSettings } from "@/store/settings.store"
@@ -55,6 +56,12 @@ function SessionHeaderInner({
     const [buttonPos, setButtonPos] = useState({ top: 0, right: 0 })
 
     const displayTitle = title && title.length > 40 ? title.slice(0, 37) + "..." : title
+
+    // share/tasks have no v2 API yet: keep the rows but mute them on v2
+    // so they light back up when the server supports them again.
+    const serverVersion = getServerVersion(connection?.url)
+    const shareSupported = supportsFeature(serverVersion, "share")
+    const tasksSupported = supportsFeature(serverVersion, "todo")
 
     const toggleMenu = () => setShowMenu(!showMenu)
     const closeMenu = () => setShowMenu(false)
@@ -120,11 +127,12 @@ function SessionHeaderInner({
                         >
                             <View className="py-2">
                                 <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={() => handleNavigate(`/project/${projectId}/${sessionId}/tasks`)}
+                                    className={`flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50${tasksSupported ? "" : " opacity-40"}`}
+                                    disabled={!tasksSupported}
+                                    onPress={() => tasksSupported && handleNavigate(`/project/${projectId}/${sessionId}/tasks`)}
                                 >
                                     <ListTodoIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Tasks</Text>
+                                    <Text className="text-sm text-foreground">Tasks{tasksSupported ? "" : " (v2 soon)"}</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -159,11 +167,12 @@ function SessionHeaderInner({
 
                             <View className="border-t border-border/50 py-2">
                                 <Pressable
-                                    className="flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50"
-                                    onPress={handleShare}
+                                    className={`flex-row items-center gap-3 px-4 py-2.5 active:bg-accent/50${shareSupported ? "" : " opacity-40"}`}
+                                    disabled={!shareSupported}
+                                    onPress={() => shareSupported && handleShare()}
                                 >
                                     <ShareIcon size={16} color={THEME[theme].mutedForeground} />
-                                    <Text className="text-sm text-foreground">Share session</Text>
+                                    <Text className="text-sm text-foreground">Share session{shareSupported ? "" : " (v2 soon)"}</Text>
                                 </Pressable>
 
                                 <Pressable

@@ -1,4 +1,5 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export type FileDiff = {
     file: string
@@ -31,8 +32,14 @@ function normalizeFileDiff(value: unknown): FileDiff | null {
 
 export async function fetchSessionDiffs(url: string, token: string, sessionId: string, messageID?: string): Promise<FileDiff[]> {
     try {
-        const query = messageID ? `?messageID=${encodeURIComponent(messageID)}` : ""
-        const res = await fetch(`${url}/session/${sessionId}/diff${query}`, {
+        const version = getServerVersion(url)
+        // v2 selects the turn with ?from= and wraps rows in { data }.
+        const query = messageID
+            ? version >= 2
+                ? `?from=${encodeURIComponent(messageID)}`
+                : `?messageID=${encodeURIComponent(messageID)}`
+            : ""
+        const res = await fetch(`${apiUrl(url, version, "/session")}/${sessionId}/diff${query}`, {
             method: "GET",
             headers: {
                 "Authorization": getAuthHeader(token),
@@ -40,11 +47,13 @@ export async function fetchSessionDiffs(url: string, token: string, sessionId: s
         })
         if (!res.ok) return []
         const data = await res.json()
-        const records = Array.isArray(data)
-            ? data
-            : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).diffs)
-                ? (data as { diffs: unknown[] }).diffs
-                : []
+        const records = unwrapList<unknown>(data).length > 0
+            ? unwrapList<unknown>(data)
+            : Array.isArray(data)
+                ? data
+                : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).diffs)
+                    ? (data as { diffs: unknown[] }).diffs
+                    : []
         return records.map(normalizeFileDiff).filter((diff): diff is FileDiff => diff !== null)
     } catch {
         return []

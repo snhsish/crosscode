@@ -15,7 +15,7 @@ import XIcon from "lucide-react-native/dist/esm/icons/x"
 import { useColorScheme } from "nativewind"
 import { THEME } from "@/lib/theme"
 import { Text } from "@/components/ui/text"
-import { getMessages } from "@/lib/messages"
+import { getMessages, sendPromptV2 } from "@/lib/messages"
 import { Pressable } from "react-native"
 import { Button } from "@/components/ui/button"
 import { MessageItem } from "@/components/message-item"
@@ -34,7 +34,8 @@ import { usePermissions } from "@/store/permissions.store"
 import { replyToPermission } from "@/lib/permissions"
 import { PermissionRequest } from "@/store/permissions.store"
 import { PermissionBlock } from "@/components/permission-block"
-import { getAuthHeader } from "@/lib/utils"
+import { getAuthHeader, apiUrl } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 import { MentionFilePart, SendMention, resolveSendMentions } from "@/lib/mentions"
 import { notifyAgentStatus, setActiveChatScreen, clearActiveChatScreen } from "@/lib/notifications"
 
@@ -153,6 +154,8 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
     const pollQuestions = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
+        // No questions API on v2; the UI is muted there (see supportsFeature).
+        if (getServerVersion(connection.url) >= 2) return
         if (appStateRef.current !== "active") {
             questionPollRef.current = setTimeout(pollQuestions, 5000)
             return
@@ -318,6 +321,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
+            if (getServerVersion(connectionUrl) >= 2) {
+                return sendPromptV2(connectionUrl, connectionToken, targetSessionId, {
+                    text,
+                    agent: agentOverride ?? agent,
+                    modelId,
+                    providerId,
+                    parts,
+                })
+            }
             const res = await fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
                 method: "POST",
                 headers: {
@@ -466,7 +478,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const abortStreaming = useCallback(async () => {
         if (!connection?.url || !isStreaming) return
         try {
-            await fetch(`${connection.url}/session/${sessionId}/abort`, {
+            // v2 renamed abort to interrupt.
+            const endpoint = getServerVersion(connection.url) >= 2
+                ? `${apiUrl(connection.url, 2, "/session")}/${sessionId}/interrupt`
+                : `${connection.url}/session/${sessionId}/abort`
+            await fetch(endpoint, {
                 method: "POST",
                 headers: { Authorization: getAuthHeader(connection.token) },
             })

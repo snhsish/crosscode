@@ -66,12 +66,12 @@ export async function startCloudflaredProvider(
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
 
-    const { detectedPort } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children })
 
     let proxyPort = await getFreePort()
     while (proxyPort === port) proxyPort = await getFreePort()
 
-    const proxy = createOpencodeProxy(detectedPort, sessionToken, "cf-proxy")
+    const proxy = createOpencodeProxy(detectedPort, sessionToken, "cf-proxy", serverVersion)
 
     proxy.listen(proxyPort, "127.0.0.1", async () => {
         logCrosscode(`SSE proxy started on port ${proxyPort}`)

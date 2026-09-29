@@ -26,18 +26,18 @@ export async function startTunnelProvider(
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
 
-    const { detectedPort } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children })
 
     let proxyPort = await getFreePort()
     while (proxyPort === port) proxyPort = await getFreePort()
 
-    const proxy = createOpencodeProxy(detectedPort, sessionToken, "tunnel")
+    const proxy = createOpencodeProxy(detectedPort, sessionToken, "tunnel", serverVersion)
 
     proxy.listen(proxyPort, "127.0.0.1", () => {
         logCrosscode(`SSE proxy started on port ${proxyPort}`)
         debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
 
-        const testReq = http.request(`http://127.0.0.1:${detectedPort}/global/health`, {
+        const testReq = http.request(`http://127.0.0.1:${detectedPort}${serverVersion >= 2 ? "/api/info" : "/global/health"}`, {
             method: "GET",
             headers: {
                 "Authorization": `Basic ${Buffer.from(`opencode:${sessionToken}`).toString("base64")}`,

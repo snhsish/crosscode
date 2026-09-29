@@ -13,6 +13,20 @@ type SSEEvent = {
     properties: Record<string, unknown>
 }
 
+// v1 events look like { type, properties }; v2 wraps them as
+// { id, type, data }. Accept both so either server version streams.
+function normalizeEvent(parsed: unknown): SSEEvent | null {
+    if (!parsed || typeof parsed !== "object") return null
+    const raw = parsed as Record<string, unknown>
+    const inner = raw.payload && raw.type === undefined ? raw.payload : raw
+    if (!inner || typeof inner !== "object") return null
+    const event = inner as Record<string, unknown>
+    if (typeof event.type !== "string") return null
+    const properties = (event.data ?? event.properties ?? {}) as Record<string, unknown>
+    if (!properties || typeof properties !== "object") return null
+    return { type: event.type, properties }
+}
+
 type MessagePart = Part & {
     sessionID?: string
     messageID?: string
@@ -106,11 +120,8 @@ export function useGlobalSessionStatus(url?: string, token?: string) {
                         if (dataLines.length > 0) {
                             const data = dataLines.join("\n")
                             try {
-                                const parsed = JSON.parse(data)
-                                let sseEvent: SSEEvent
-                                if (parsed.payload && parsed.type === undefined) sseEvent = parsed.payload
-                                else sseEvent = parsed
-                                handleEvent(sseEvent)
+                                const sseEvent = normalizeEvent(JSON.parse(data))
+                                if (sseEvent) handleEvent(sseEvent)
                             } catch {}
                         }
                     }
@@ -684,16 +695,8 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                             const data = dataLines.join("\n")
 
                             try {
-                                const parsed = JSON.parse(data)
-                                let sseEvent: SSEEvent
-
-                                if (parsed.payload && parsed.type === undefined) {
-                                    sseEvent = parsed.payload
-                                } else {
-                                    sseEvent = parsed
-                                }
-
-                                handleEvent(sseEvent, sid)
+                                const sseEvent = normalizeEvent(JSON.parse(data))
+                                if (sseEvent) handleEvent(sseEvent, sid)
                             } catch {
                                 // Parse error - skip malformed event
                             }

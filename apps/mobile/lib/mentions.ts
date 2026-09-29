@@ -1,4 +1,6 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
+import { readFileContent } from "@/lib/file-browser"
 
 export type MentionKind = "file" | "agent"
 
@@ -66,17 +68,29 @@ export const fetchFileSuggestions = async (
     opts?: { limit?: number; signal?: AbortSignal },
 ): Promise<string[]> => {
     try {
+        const version = getServerVersion(url)
         const params = new URLSearchParams({
             query,
             limit: String(opts?.limit ?? 20),
         })
-        const res = await fetch(`${url}/find/file?${params.toString()}`, {
+        const endpoint = version >= 2
+            ? `${apiUrl(url, version, "/fs/find")}?${params.toString()}`
+            : `${url}/find/file?${params.toString()}`
+        const res = await fetch(endpoint, {
             headers: { Authorization: getAuthHeader(token) },
             signal: opts?.signal,
         })
         if (!res.ok) return []
         const data = (await res.json()) as unknown
-        return Array.isArray(data) ? data.filter((p): p is string => typeof p === "string") : []
+        const list = unwrapList<unknown>(data)
+        return list.flatMap((item): string[] => {
+            if (typeof item === "string") return [item]
+            if (item && typeof item === "object") {
+                const path = (item as Record<string, unknown>).path
+                if (typeof path === "string") return [path]
+            }
+            return []
+        })
     } catch {
         return []
     }
@@ -98,14 +112,9 @@ export const fetchMentionFilePart = async (
     path: string,
 ): Promise<MentionFilePart | null> => {
     try {
-        const params = new URLSearchParams({ path })
-        const res = await fetch(`${url}/file/content?${params.toString()}`, {
-            headers: { Authorization: getAuthHeader(token) },
-        })
-        if (!res.ok) return null
-        const data = (await res.json()) as { content?: unknown; text?: unknown }
-        const content = typeof data.content === "string" ? data.content : typeof data.text === "string" ? data.text : null
-        if (content === null || content.length === 0 || content.length > MAX_MENTION_BYTES) return null
+        // v2 serves raw file bytes; reuse the shared reader which handles both.
+        const content = await readFileContent(url, token, path)
+        if (content.length === 0 || content.length > MAX_MENTION_BYTES) return null
         if (content.includes("\0")) return null
         return {
             mime: "text/plain",

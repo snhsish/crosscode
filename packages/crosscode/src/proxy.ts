@@ -1,6 +1,7 @@
 import http from "http"
 import { debug, censorAuth } from "./util"
 import { handleGitRequest } from "./git-handler"
+import type { OpencodeMajor } from "./opencode-version"
 
 const MAX_BODY_SIZE = 10 * 1024 * 1024
 const HOP_BY_HOP = new Set(["connection", "keep-alive", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer"])
@@ -26,7 +27,9 @@ export function sanitizeUrlPath(url: string | undefined): string {
     return `${cleaned || "/"}${rawQuery ? `?${rawQuery}` : ""}`
 }
 
-export function createOpencodeProxy(targetPort: number, sessionToken: string, logPrefix: string): http.Server {
+export function createOpencodeProxy(targetPort: number, sessionToken: string, logPrefix: string, serverVersion: OpencodeMajor = 1): http.Server {
+    // v2 moved the API under /api/*
+    const eventPath = serverVersion >= 2 ? "/api/event" : "/event"
     return http.createServer(async (req, res) => {
         const safePath = sanitizeUrlPath(req.url)
         const targetUrl = `http://127.0.0.1:${targetPort}${safePath}`
@@ -67,7 +70,7 @@ export function createOpencodeProxy(targetPort: number, sessionToken: string, lo
                 debug("converted SSE auth to Basic format")
             }
 
-            const sseReq = http.get(`http://127.0.0.1:${targetPort}/event`, {
+            const sseReq = http.get(`http://127.0.0.1:${targetPort}${eventPath}`, {
                 headers: {
                     "Accept": "text/event-stream",
                     "Authorization": sseAuth,

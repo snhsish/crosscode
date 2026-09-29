@@ -3,12 +3,14 @@ import http from "http"
 
 const PORT_PATTERNS = [
     /opencode server listening on \S*?:(\d+)/i,
+    // v2 prints "server listening on http://127.0.0.1:PORT" (no "opencode" prefix)
+    /server listening on \S*?:(\d+)/i,
     /listening on (?:https?:\/\/)?[^\s"']*?:(\d+)/i,
 ]
 
-function probePort(port: number): Promise<boolean> {
+function probePort(port: number, healthPath: string): Promise<boolean> {
     return new Promise((resolve) => {
-        const req = http.get({ host: "127.0.0.1", port, path: "/global/health", timeout: 700 }, (res) => {
+        const req = http.get({ host: "127.0.0.1", port, path: healthPath, timeout: 700 }, (res) => {
             res.resume()
             resolve(true)
         })
@@ -68,10 +70,11 @@ async function getListeningPorts(pid?: number): Promise<number[]> {
 export function waitForOpencodePort(opts: {
     proc: ChildProcess
     requestedPort: number
+    healthPath?: string
     onData?: (data: Buffer) => void
     timeoutMs?: number
 }): Promise<number> {
-    const { proc, requestedPort, onData, timeoutMs = 15_000 } = opts
+    const { proc, requestedPort, healthPath = "/global/health", onData, timeoutMs = 15_000 } = opts
 
     let buffer = ""
     let resolved = false
@@ -108,7 +111,7 @@ export function waitForOpencodePort(opts: {
 
             if (exited || probing) return
             probing = true
-            const alive = await probePort(requestedPort)
+            const alive = await probePort(requestedPort, healthPath)
             probing = false
             if (alive) return finish(requestedPort)
         }, 250)

@@ -4,10 +4,12 @@ import chalk from "chalk"
 import { debug, spawnCmd } from "./util"
 import { logCrosscode, opencodeLogStream } from "./log"
 import { waitForOpencodePort } from "./port-detect"
+import { detectOpencodeMajor, type OpencodeMajor } from "./opencode-version"
 
 export type OpencodeInstance = {
     proc: ChildProcess
     detectedPort: number
+    serverVersion: OpencodeMajor
 }
 
 export async function startOpencode(opts: {
@@ -18,8 +20,14 @@ export async function startOpencode(opts: {
 }): Promise<OpencodeInstance> {
     const { port, sessionToken, spinner, children } = opts
 
+    // v2 renamed --log-level values to lowercase ("DEBUG" is rejected).
+    const serverVersion = await detectOpencodeMajor()
+    const logLevel = serverVersion >= 2 ? "debug" : "DEBUG"
+    logCrosscode(`Detected opencode v${serverVersion}`)
+    debug("opencode version", { serverVersion })
+
     const proc = spawnCmd("opencode", [
-        "serve", "--print-logs", "--log-level", "DEBUG",
+        "serve", "--print-logs", "--log-level", logLevel,
         "--port", String(port), "--hostname", "127.0.0.1",
     ], {
         cwd: process.cwd(),
@@ -43,6 +51,7 @@ export async function startOpencode(opts: {
     const detectedPort = await waitForOpencodePort({
         proc,
         requestedPort: port,
+        healthPath: serverVersion >= 2 ? "/api/info" : "/global/health",
         onData: d => opencodeLogStream.write(d),
     })
 
@@ -51,5 +60,5 @@ export async function startOpencode(opts: {
         debug("using detected port", { detected: detectedPort, requested: port })
     }
 
-    return { proc, detectedPort }
+    return { proc, detectedPort, serverVersion }
 }

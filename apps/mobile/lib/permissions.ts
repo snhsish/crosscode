@@ -1,5 +1,6 @@
 import { PermissionRequest } from "@/store/permissions.store"
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 type RawPermission = Record<string, unknown>
 
@@ -23,6 +24,8 @@ function asStringArray(value: unknown): string[] {
 //                  messageID, callID?, title, metadata, time }
 //   Event permission.updated properties = Permission directly
 //   Event permission.replied properties = { sessionID, permissionID, response }
+// v2 request shape: { id (^per), sessionID, action, resources,
+//                     save, metadata, source { messageID, ... }, message }
 // Legacy shapes (older servers) are also accepted:
 //   - id vs requestID vs permissionID
 //   - permission vs action vs type
@@ -49,7 +52,7 @@ export function normalizePermission(raw: RawPermission, fallbackSessionId?: stri
         ? asStringArray(raw.always)
         : asStringArray(raw.save)
 
-    const title = asString(raw.title)
+    const title = asString(raw.title) ?? asString(raw.message)
 
     const metadata =
         raw.metadata && typeof raw.metadata === "object"
@@ -92,11 +95,24 @@ export function normalizePermission(raw: RawPermission, fallbackSessionId?: stri
 }
 
 export const getPendingPermissions = async (
-    _url: string,
-    _token: string,
-    _sessionId?: string
+    url: string,
+    token: string,
+    sessionId?: string
 ): Promise<PermissionRequest[]> => {
-    // OpenCode exposes no GET /permission list endpoint (see /doc spec) —
+    // v2 exposes pending requests at GET /api/session/:id/permission.
+    if (getServerVersion(url) >= 2 && sessionId) {
+        try {
+            const res = await fetch(`${apiUrl(url, 2, "/session")}/${sessionId}/permission`, {
+                method: "GET",
+                headers: { Authorization: getAuthHeader(token) },
+            })
+            if (!res.ok) return []
+            return unwrapList<RawPermission>(await res.json()).map((raw) => normalizePermission(raw, sessionId))
+        } catch {
+            return []
+        }
+    }
+    // OpenCode v1 exposes no GET /permission list endpoint (see /doc spec) —
     // pending permissions arrive via the `permission.updated` SSE event.
     // Keep this stub so callers don't hit a 404 polling loop.
     return []
@@ -110,17 +126,22 @@ export const replyToPermission = async (
     _message?: string,
     sessionId?: string
 ): Promise<boolean> => {
-    // Per /doc spec: POST /session/:id/permissions/:permissionID
-    // body: { response: "once" | "always" | "reject" }
     if (!sessionId) return false
     try {
-        const res = await fetch(`${url}/session/${sessionId}/permissions/${requestId}`, {
+        const version = getServerVersion(url)
+        // v2: POST /api/session/:id/permission/:requestID/reply { decision }
+        // v1: POST /session/:id/permissions/:permissionID { response }
+        const endpoint = version >= 2
+            ? `${apiUrl(url, version, "/session")}/${sessionId}/permission/${requestId}/reply`
+            : `${url}/session/${sessionId}/permissions/${requestId}`
+        const body = version >= 2 ? { decision: reply } : { response: reply }
+        const res = await fetch(endpoint, {
             method: "POST",
             headers: {
                 Authorization: getAuthHeader(token),
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ response: reply }),
+            body: JSON.stringify(body),
         })
         return res.ok
     } catch {

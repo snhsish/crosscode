@@ -1,10 +1,13 @@
 import { QuestionRequest } from "@/store/questions.store"
 import { getAuthHeader } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export const getPendingQuestions = async (
     url: string,
     token: string
 ): Promise<QuestionRequest[]> => {
+    // No v2 equivalent yet; the UI mutes questions on v2 (see supportsFeature).
+    if (getServerVersion(url) >= 2) return []
     try {
         const res = await fetch(`${url}/question`, {
             method: "GET",
@@ -26,6 +29,7 @@ export const replyToQuestion = async (
     requestId: string,
     answers: string[][]
 ): Promise<boolean> => {
+    if (getServerVersion(url) >= 2) return false
     try {
         const res = await fetch(`${url}/question/${requestId}/reply`, {
             method: "POST",
@@ -46,6 +50,7 @@ export const rejectQuestion = async (
     token: string,
     requestId: string
 ): Promise<boolean> => {
+    if (getServerVersion(url) >= 2) return false
     try {
         const res = await fetch(`${url}/question/${requestId}/reject`, {
             method: "POST",

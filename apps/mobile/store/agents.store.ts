@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import { Agent } from "../lib/opencode"
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export type AgentStore = {
     agents: Agent[]
@@ -18,14 +19,15 @@ export const useAgents = create<AgentStore>()(
             setAgents: (agents) => set({ agents }),
             fetchAgents: async (url, token) => {
                 try {
-                    const res = await fetch(`${url}/agent`, {
+                    const version = getServerVersion(url)
+                    const res = await fetch(apiUrl(url, version, "/agent"), {
                         method: "GET",
                         headers: {
                             "Authorization": getAuthHeader(token)
                         }
                     })
                     if (!res.ok) return
-                    const all: Agent[] = await res.json()
+                    const all = unwrapList<Agent>(await res.json())
                     set({ agents: all.filter(a => a.mode === "primary" && !a.hidden) })
                 } catch (error) {
                     console.error("[fetchAgents] Failed to fetch agents:", error)

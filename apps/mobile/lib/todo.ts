@@ -1,4 +1,5 @@
 import { getAuthHeader } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export type TodoTask = {
     content: string
@@ -7,6 +8,8 @@ export type TodoTask = {
 }
 
 export async function fetchSessionTodos(url: string, token: string, sessionId: string): Promise<TodoTask[]> {
+    // No v2 equivalent yet; the UI mutes todos on v2 (see supportsFeature).
+    if (getServerVersion(url) >= 2) return []
     try {
         const res = await fetch(`${url}/session/${sessionId}/todo`, {
             method: "GET",

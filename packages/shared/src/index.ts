@@ -29,6 +29,20 @@ export type DeviceLinkQrPayload = {
 
 export * from "./plans"
 
+const MAX_QR_PAYLOAD_LEN = 8192
+const BASE64_RE = /^[A-Za-z0-9+/=]+$/
+const TOKEN_RE = /^[A-Za-z0-9\-_.]{16,256}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function assertSafeEncoded(encoded: string): void {
+  if (typeof encoded !== "string" || encoded.length === 0 || encoded.length > MAX_QR_PAYLOAD_LEN) {
+    throw new Error("Invalid QR payload")
+  }
+  if (!BASE64_RE.test(encoded)) {
+    throw new Error("Invalid QR payload")
+  }
+}
+
 function toBase64(str: string): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
   let result = ''
@@ -69,10 +83,15 @@ export function encodeQrPayload(payload: QrPayload): string {
 }
 
 export function decodeQrPayload(encoded: string): QrPayload {
+  assertSafeEncoded(encoded)
   const parsed = JSON.parse(fromBase64(encoded))
   if (typeof parsed.url !== 'string' || parsed.v !== 1) {
     throw new Error('Invalid QR payload')
   }
+  if (typeof parsed.token !== 'string' || !TOKEN_RE.test(parsed.token)) {
+    throw new Error('Invalid QR payload')
+  }
+  assertSafeConnectionUrl(parsed.url)
   return { url: parsed.url, token: parsed.token, v: parsed.v }
 }
 
@@ -88,8 +107,21 @@ export function encodeLoginQrPayload(payload: LoginQrPayload): string {
 }
 
 export function decodeLoginQrPayload(encoded: string): LoginQrPayload {
+  assertSafeEncoded(encoded)
   const parsed = JSON.parse(fromBase64(encoded))
   if (parsed.type !== "login" || typeof parsed.email !== "string" || parsed.v !== 1) {
+    throw new Error('Invalid login QR payload')
+  }
+  if (!EMAIL_RE.test(parsed.email)) {
+    throw new Error('Invalid login QR payload')
+  }
+  if (typeof parsed.name !== "string" || parsed.name.length === 0 || parsed.name.length > 128) {
+    throw new Error('Invalid login QR payload')
+  }
+  if (typeof parsed.sessionToken !== "string" || !TOKEN_RE.test(parsed.sessionToken)) {
+    throw new Error('Invalid login QR payload')
+  }
+  if (typeof parsed.tier !== "string" || parsed.tier.length === 0 || parsed.tier.length > 32) {
     throw new Error('Invalid login QR payload')
   }
   return {
@@ -120,15 +152,54 @@ export function encodeDeviceLinkQrPayload(payload: Omit<DeviceLinkQrPayload, "ur
 }
 
 export function decodeDeviceLinkQrPayload(encoded: string): DeviceLinkQrPayload {
+  assertSafeEncoded(encoded)
   const parsed = JSON.parse(fromBase64(encoded))
   if (parsed.type !== "device-link" || typeof parsed.token !== "string" || parsed.v !== 1) {
     throw new Error('Invalid device-link QR payload')
   }
+  if (!TOKEN_RE.test(parsed.token)) {
+    throw new Error('Invalid device-link QR payload')
+  }
+  const url = parsed.url ?? ""
+  if (typeof url !== "string") {
+    throw new Error('Invalid device-link QR payload')
+  }
+  // Empty url means "use the default auth server" (older web QR omits url).
+  // Non-empty urls must be valid https (or loopback/LAN for self-hosted).
+  if (url !== "") {
+    assertSafeConnectionUrl(url)
+  }
   return {
     type: parsed.type,
     token: parsed.token,
-    url: parsed.url ?? "",
+    url,
     v: parsed.v,
+  }
+}
+
+/** Reject non-https URLs except loopback / private LAN (self-hosted with user confirm). */
+export function assertSafeConnectionUrl(url: string): void {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error("Invalid QR payload")
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Invalid QR payload")
+  }
+  const host = parsed.hostname.toLowerCase()
+  if (host === "169.254.169.254" || host === "metadata.google.internal") {
+    throw new Error("Invalid QR payload")
+  }
+  if (parsed.protocol === "http:") {
+    const isLoopback =
+      host === "localhost" || host === "127.0.0.1" || host === "::1"
+    const isPrivateLan =
+      /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    if (!isLoopback && !isPrivateLan) {
+      throw new Error("Invalid QR payload")
+    }
   }
 }
 

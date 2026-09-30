@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import * as SecureStore from "expo-secure-store"
 import { DAILY_HISTORY_LIMIT, type DailyBucket, todayKey } from "@/store/opencode-stats.store"
 
 const CONNECTIONS_KEY = "crosscode-connections"
@@ -44,6 +45,19 @@ interface ProjectStats {
 
 async function readPersisted<T>(key: string): Promise<T | undefined> {
   try {
+    // Connection/auth stores persist via secureStorage (SecureStore first,
+    // AsyncStorage fallback). Check both so widgets don't go stale.
+    if (key === CONNECTIONS_KEY) {
+      try {
+        if (await SecureStore.isAvailableAsync().catch(() => false)) {
+          const secured = await SecureStore.getItemAsync(key)
+          if (secured) {
+            const parsed = JSON.parse(secured) as Persisted<T>
+            if (parsed?.state !== undefined) return parsed.state
+          }
+        }
+      } catch {}
+    }
     const raw = await AsyncStorage.getItem(key)
     if (!raw) return undefined
     const parsed = JSON.parse(raw) as Persisted<T>
@@ -95,12 +109,14 @@ export interface WidgetData {
 }
 
 export async function buildWidgetData(): Promise<WidgetData> {
-  const [connections, sessions, stats, questions] = await Promise.all([
+  const [connections, sessionsState, statsState, questions] = await Promise.all([
     readPersisted<{ connections: Connection[]; current: string | null }>(CONNECTIONS_KEY),
-    readPersisted<Session[]>(SESSIONS_KEY),
-    readPersisted<Record<string, ProjectStats>>(STATS_KEY),
+    readPersisted<{ sessions: Session[] }>(SESSIONS_KEY),
+    readPersisted<{ projects: Record<string, ProjectStats> }>(STATS_KEY),
     readPersisted<{ questionsBySession: Record<string, unknown[]> }>(QUESTIONS_KEY),
   ])
+  const stats = statsState?.projects
+  const sessions = sessionsState?.sessions
 
   const currentId = connections?.current
   const current =

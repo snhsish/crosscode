@@ -17,6 +17,9 @@ import { useColorScheme } from "nativewind"
 import { useAuth } from "@/store/auth.store"
 import { registerPushDevice } from "@/lib/account-notifications"
 import { useSettings } from "@/store/settings.store"
+import { validateAuthToken, validateServerUrl, secureFetch } from "@/lib/security"
+
+const AUTH_SERVER_URL = "https://crosscode.site"
 
 export default function LoginScannerScreen() {
   const router = useRouter()
@@ -37,19 +40,25 @@ export default function LoginScannerScreen() {
 
   const handleScan = async (data: string) => {
     if (navigated.current || claiming || importing) return
+    navigated.current = true
     try {
       const payloadType = detectQrPayloadType(data)
 
       if (payloadType === "device-link") {
         const payload = decodeDeviceLinkQrPayload(data)
-        navigated.current = true
+        validateAuthToken(payload.token)
+        // Login QRs must resolve against the pinned auth server unless the
+        // payload carries an explicit self-hosted URL.
+        const serverUrl = payload.url ? validateServerUrl(payload.url) : AUTH_SERVER_URL
         setClaiming(true)
-        await claimDevice(payload.token, payload.url)
+        await claimDevice(payload.token, serverUrl)
       } else {
+        navigated.current = false
         Alert.alert("Invalid QR", "Please scan a login QR code from the web dashboard.")
       }
-    } catch {
-      Alert.alert("Invalid QR", "Please scan a valid login QR code.")
+    } catch (error) {
+      navigated.current = false
+      Alert.alert("Invalid QR", error instanceof Error ? error.message : "Please scan a valid login QR code.")
     }
   }
 
@@ -69,35 +78,59 @@ export default function LoginScannerScreen() {
 
   const claimDevice = async (token: string, serverUrl: string) => {
     try {
-      const res = await fetch(`${serverUrl}/api/auth/device-link/claim?token=${token}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceName: "Mobile Device" }),
-      })
+      validateAuthToken(token)
+      const safeServerUrl = validateServerUrl(serverUrl)
+      const res = await secureFetch(
+        safeServerUrl,
+        `/api/auth/device-link/claim?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deviceName: "Mobile Device" }),
+        },
+        15000
+      )
 
       if (!res.ok) {
-        const error = await res.json()
-        throw new Error(error.error || "Failed to claim device")
+        const error = await res.json().catch(() => ({}))
+        throw new Error((error as { error?: string }).error || "Failed to claim device")
       }
 
-      const accountRes = await fetch(`${serverUrl}/api/account`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      await res.json().catch(() => ({}))
+
+      const accountRes = await secureFetch(
+        safeServerUrl,
+        "/api/account",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+        15000
+      )
 
       if (accountRes.ok) {
-        const accountData = await accountRes.json()
+        const accountData = await accountRes.json().catch(() => null)
+        const user = (accountData as { user?: { id?: unknown; email?: unknown; name?: unknown; tier?: unknown } } | null)?.user
+        if (
+          !user ||
+          typeof user.id !== "string" ||
+          typeof user.email !== "string" ||
+          typeof user.name !== "string" ||
+          typeof user.tier !== "string"
+        ) {
+          throw new Error("Failed to fetch account")
+        }
         login(
           {
-            id: accountData.user.id,
-            email: accountData.user.email,
-            name: accountData.user.name,
-            tier: accountData.user.tier,
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            tier: user.tier,
           },
           token,
-          serverUrl
+          safeServerUrl
         )
         if (useSettings.getState().notifications) {
-          await registerPushDevice(serverUrl, token)
+          await registerPushDevice(safeServerUrl, token)
         }
         Alert.alert("Logged In", "You have been successfully logged in!", [
           { text: "OK", onPress: () => router.replace("/(tabs)/user") },

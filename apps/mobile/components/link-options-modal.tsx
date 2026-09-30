@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { THEME } from "@/lib/theme"
+import { isSafeExternalUrl } from "@/lib/security"
 
 interface LinkOptionsModalProps {
     open: boolean
@@ -35,9 +36,15 @@ function LinkOptionsModalInner({ open, url, onClose, theme }: LinkOptionsModalPr
 
     const handleOpen = async () => {
         if (!url) return
+        if (!isSafeExternalUrl(url)) {
+            handleClose()
+            return
+        }
         handleClose()
         try {
-            await Linking.openURL(url)
+            if (await Linking.canOpenURL(url)) {
+                await Linking.openURL(url)
+            }
         } catch {}
     }
 

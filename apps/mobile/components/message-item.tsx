@@ -20,6 +20,7 @@ import { BashBlock } from "@/components/bash-block"
 import { EditBlock } from "@/components/edit-block"
 import { QuestionBlock } from "@/components/question-block"
 import { PermissionBlock } from "@/components/permission-block"
+import { AgentBadge } from "@/components/agent-badge"
 import { QuestionRequest } from "@/store/questions.store"
 import { PermissionRequest } from "@/store/permissions.store"
 import { revertMessage, forkSession } from "@/lib/sessions"
@@ -62,6 +63,7 @@ interface MessageItemProps {
     onQuestionReject?: (requestId: string) => void
     pendingPermissions?: PermissionRequest[]
     onPermissionReply?: (requestId: string, reply: "once" | "always" | "reject", message?: string) => void
+    queued?: boolean
 }
 
 function getErrorLabel(name?: string): string {
@@ -381,7 +383,23 @@ function PartRenderer({ part, index, message, theme, projectId, sessionId, pendi
     }
 }
 
-const MemoPartRenderer = memo(PartRenderer, (prev, next) => prev.part === next.part && prev.index === next.index && prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming)
+const MemoPartRenderer = memo(
+    PartRenderer,
+    (prev, next) =>
+        prev.part === next.part &&
+        prev.index === next.index &&
+        // Message objects are recreated per SSE delta ({...info, parts:[...]}),
+        // so compare stable identity instead of object ref to avoid
+        // re-rendering every part of the streaming message per token.
+        prev.message.id === next.message.id &&
+        (prev.message.parts?.length ?? 0) === (next.message.parts?.length ?? 0) &&
+        prev.theme === next.theme &&
+        prev.projectId === next.projectId &&
+        prev.sessionId === next.sessionId &&
+        prev.pendingQuestions === next.pendingQuestions &&
+        prev.pendingPermissions === next.pendingPermissions &&
+        prev.streaming === next.streaming
+)
 
 function getPlainText(message: Message): string {
     if (!message.parts) return ""
@@ -398,16 +416,17 @@ function formatTokens(n: number): string {
 }
 
 function MessageMetadata({ message, theme }: { message: Message; theme: "light" | "dark" }) {
-    const models = useModels((s) => s.models)
-    const providers = useModels((s) => s.providers)
+    // Look up via getState instead of subscribing: subscribing every row to
+    // the whole models/providers arrays re-renders N rows on each fetch.
+    const snapshot = useModels.getState()
+    const model = snapshot.models.find((m) => m.id === (message as { modelID?: string }).modelID && m.providerID === (message as { providerID?: string }).providerID)
+    const provider = snapshot.providers.find((p) => p.id === (message as { providerID?: string }).providerID)
 
     if (message.role !== "assistant") return null
     if (!message.time.completed) return null
 
-    const model = models.find((m) => m.id === message.modelID && m.providerID === message.providerID)
-    const provider = providers.find((p) => p.id === message.providerID)
-    const modelName = model?.name ?? message.modelID
-    const providerName = provider?.name ?? message.providerID
+    const modelName = model?.name ?? (message as { modelID?: string }).modelID
+    const providerName = provider?.name ?? (message as { providerID?: string }).providerID
 
     const totalTokens = message.tokens.input + message.tokens.output + message.tokens.reasoning + message.tokens.cache.read + message.tokens.cache.write
     const costStr = message.cost.toFixed(4)
@@ -427,7 +446,7 @@ function MessageMetadata({ message, theme }: { message: Message; theme: "light" 
     )
 }
 
-function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming }: MessageItemProps & { streaming?: boolean }) {
+function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestions, onQuestionReply, onQuestionReject, pendingPermissions, onPermissionReply, streaming, queued }: MessageItemProps & { streaming?: boolean }) {
     const router = useRouter()
     const [showMenu, setShowMenu] = useState(false)
     const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
@@ -440,6 +459,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
     const upsertSession = useSessions((s) => s.upsertSession)
 
     const hasError = message.role === "assistant" && "error" in message && message.error
+    const agentName = message.role === "assistant" ? (message as { mode?: string }).mode ?? null : null
 
     const closeMenu = useCallback(() => setShowMenu(false), [])
 
@@ -502,6 +522,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
             onLongPress={handleLongPress}
             onTouchStart={handleTouchStart}
         >
+            {agentName ? <AgentBadge name={agentName} /> : null}
             {hasError ? (
                 <View className="flex-row items-center gap-1.5 mb-1">
                     <TriangleAlertIcon size={12} color={THEME[theme].destructive ?? "#ef4444"} />
@@ -514,6 +535,15 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                                 {getErrorHint(message.error?.name)}
                             </Text>
                         )}
+                    </View>
+                </View>
+            ) : null}
+            {queued && message.role === "user" ? (
+                <View className="flex-row items-center gap-1 mb-0.5">
+                    <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
+                        <Text className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                            Queued — sends after current response
+                        </Text>
                     </View>
                 </View>
             ) : null}
@@ -583,5 +613,5 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
 }
 
 export const MessageItem = memo(MessageItemInner, (prev, next) => {
-    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming
+    return prev.message === next.message && prev.theme === next.theme && prev.projectId === next.projectId && prev.sessionId === next.sessionId && prev.pendingQuestions === next.pendingQuestions && prev.pendingPermissions === next.pendingPermissions && prev.streaming === next.streaming && prev.queued === next.queued
 })

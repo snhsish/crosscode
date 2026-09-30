@@ -47,6 +47,29 @@ const EMPTY_MESSAGES: Message[] = []
 
 const MESSAGES_PER_PAGE = 20
 
+function ConnectionBanner({ theme }: { theme: "light" | "dark" }) {
+    const connectionStatus = useChatStore((s) => s.connectionStatus)
+    if (
+        connectionStatus !== "connecting" &&
+        connectionStatus !== "reconnecting" &&
+        connectionStatus !== "connectivity-issues"
+    ) {
+        return null
+    }
+    return (
+        <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
+            <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+            <Text className="text-xs text-muted-foreground">
+                {connectionStatus === "connecting"
+                    ? "Connecting..."
+                    : connectionStatus === "reconnecting"
+                        ? "Reconnecting..."
+                        : "Connectivity issues, retrying..."}
+            </Text>
+        </View>
+    )
+}
+
 export default function SessionScreen() {
     const insets = useSafeAreaInsets()
     const { colorScheme } = useColorScheme()
@@ -115,22 +138,34 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId])
     const session = useMemo(() => sessions.find((s) => s.id === sessionId) ?? null, [sessions, sessionId])
 
-    const isStreaming = useChatStore(
-        useCallback((s) => s.streamingBySession[sessionId!] ?? false, [sessionId])
+    const isStreamingSelector = useMemo(
+        () => (s: { streamingBySession: Record<string, boolean> }) => s.streamingBySession[sessionId!] ?? false,
+        [sessionId]
     )
-    const connectionStatus = useChatStore((s) => s.connectionStatus)
-    const draft = useChatStore(
-        useCallback((s) => s.draftBySession[sessionId!] ?? "", [sessionId])
+    const isStreaming = useChatStore(isStreamingSelector)
+    const draftSelector = useMemo(
+        () => (s: { draftBySession: Record<string, string> }) => s.draftBySession[sessionId!] ?? "",
+        [sessionId]
     )
+    const draft = useChatStore(draftSelector)
     const setDraft = useChatStore((s) => s.setDraft)
     const clearDraft = useChatStore((s) => s.clearDraft)
-    const currentAgentModel = useChatStore(
-        useCallback((s) => s.modelByAgent[selectedAgent], [selectedAgent])
+    const agentModelSelector = useMemo(
+        () => (s: { modelByAgent: Record<string, SelectedModel> }) => s.modelByAgent[selectedAgent],
+        [selectedAgent]
     )
+    const currentAgentModel = useChatStore(agentModelSelector)
     const setModelByAgent = useChatStore((s) => s.setModelByAgent)
     const setModel = useChatStore((s) => s.setModel)
-    const storedModel = useChatStore(
-        useCallback((s) => s.modelBySession[sessionId!], [sessionId])
+    const sessionModelSelector = useMemo(
+        () => (s: { modelBySession: Record<string, SelectedModel> }) => s.modelBySession[sessionId!],
+        [sessionId]
+    )
+    const storedModel = useChatStore(sessionModelSelector)
+
+    const modelByAgentProp = useMemo(
+        () => (currentAgentModel ? { [selectedAgent]: currentAgentModel } : {}),
+        [selectedAgent, currentAgentModel]
     )
 
     const selectedModel = currentAgentModel ?? storedModel ?? session?.model ?? null
@@ -138,15 +173,19 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const models = useModels((s) => s.models)
     const fetchAll = useModels((s) => s.fetchAll)
 
-    const pendingQuestions = useQuestions(
-        useCallback((s) => s.questionsBySession[sessionId!] ?? EMPTY_QUESTIONS, [sessionId])
+    const pendingQuestionsSelector = useMemo(
+        () => (s: { questionsBySession: Record<string, QuestionRequest[]> }) => s.questionsBySession[sessionId!] ?? EMPTY_QUESTIONS,
+        [sessionId]
     )
+    const pendingQuestions = useQuestions(pendingQuestionsSelector)
     const setQuestions = useQuestions((s) => s.setQuestions)
     const removeQuestion = useQuestions((s) => s.removeQuestion)
 
-    const pendingPermissions = usePermissions(
-        useCallback((s) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS, [sessionId])
+    const pendingPermissionsSelector = useMemo(
+        () => (s: { permissionsBySession: Record<string, PermissionRequest[]> }) => s.permissionsBySession[sessionId!] ?? EMPTY_PERMISSIONS,
+        [sessionId]
     )
+    const pendingPermissions = usePermissions(pendingPermissionsSelector)
     const removePermission = usePermissions((s) => s.removePermission)
 
     const questionPollRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -157,7 +196,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         // No questions API on v2; the UI is muted there (see supportsFeature).
         if (getServerVersion(connection.url) >= 2) return
         if (appStateRef.current !== "active") {
-            questionPollRef.current = setTimeout(pollQuestions, 5000)
+            // SSE is the primary channel; poll only as a 30s fallback so we
+            // don't duplicate events and waste radio/battery.
+            questionPollRef.current = setTimeout(pollQuestions, 30000)
             return
         }
         try {
@@ -184,7 +225,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 setQuestions(sessionId!, sessionQs)
             }
         } catch {}
-        questionPollRef.current = setTimeout(pollQuestions, 5000)
+        questionPollRef.current = setTimeout(pollQuestions, 30000)
     }, [connection?.url, connection?.token, projectId, sessionId, setQuestions])
 
     useEffect(() => {
@@ -206,6 +247,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         providerId?: string
         images?: ImageAttachment[]
         mentions?: SendMention[]
+        delivery?: "queue"
     } | null>(null)
 
     const handleQuestionReply = useCallback(async (requestId: string, answers: string[][]) => {
@@ -277,6 +319,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         images?: ImageAttachment[],
         mentionFiles: MentionFilePart[] = [],
         agentOverride?: string,
+        delivery?: "queue",
     ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
         try {
             const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
@@ -321,7 +364,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
-            if (getServerVersion(connectionUrl) >= 2) {
+<            if (getServerVersion(connectionUrl) >= 2) {
                 return sendPromptV2(connectionUrl, connectionToken, targetSessionId, {
                     text,
                     agent: agentOverride ?? agent,
@@ -330,14 +373,27 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     parts,
                 })
             }
-            const res = await fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
+            // delivery:"queue" tells opencode to run this as the next turn after
+            // the current response finishes, instead of steering the live turn.
+            if (delivery) {
+                body.delivery = delivery
+            }
+            const send = (payload: Record<string, unknown>) => fetch(`${connectionUrl}/session/${targetSessionId}/message`, {
                 method: "POST",
                 headers: {
                     "Authorization": getAuthHeader(connectionToken),
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify(body),
+                body: JSON.stringify(payload),
             })
+            let res = await send(body)
+
+            if (!res.ok && delivery && res.status === 400) {
+                // Older opencode server that rejects the unknown delivery field.
+                // Fall back to a plain send: busy sessions still queue server-side.
+                const { delivery: _omitted, ...fallbackBody } = body
+                res = await send(fallbackBody)
+            }
 
             if (!res.ok) {
                 let errorText = `${res.status} ${res.statusText}`
@@ -449,6 +505,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             data.text, selectedAgent, data.modelId, data.providerId, data.images,
             retryMentions.files,
             retryMentions.agent,
+            data.delivery,
         )
 
         if (result.ok) {
@@ -494,6 +551,11 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const text = draft.trim()
         if (!text) return
+
+        // While a response is streaming, this send becomes a queued follow-up:
+        // opencode runs it as the next turn instead of steering the live one.
+        const queueSend = isStreaming
+        const delivery = queueSend ? ("queue" as const) : undefined
 
         const now = Date.now()
         const modelId = selectedModel?.id ?? session?.model?.id
@@ -548,6 +610,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             agent: effectiveAgent,
             model: { providerID: providerId ?? "...", modelID: modelId ?? "..." },
             parts: userParts,
+            queued: queueSend || undefined,
         }
 
         upsertMessages(targetSessionId, [userMsg])
@@ -555,7 +618,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         const result = await attemptSendMessage(
             connection.url, connection.token, targetSessionId,
             text, selectedAgent, modelId, providerId, imagesToSend,
-            sendMentions.files, sendMentions.agent,
+            sendMentions.files, sendMentions.agent, delivery,
         )
 
         if (result.ok) {
@@ -564,7 +627,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         }
 
         if (result.retryable) {
-            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend, mentions }
+            failedSendRef.current = { text, targetSessionId, localId, modelId, providerId, images: imagesToSend, mentions, delivery }
             setSending(false)
             setSendError({
                 title: "Failed to send message",
@@ -580,7 +643,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             )
             setSending(false)
         }
-    }, [connection, sending, draft, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
+    }, [connection, sending, draft, isStreaming, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
 
     const getAndSetMessages = useCallback(async () => {
         if (!connection?.url || !connection?.token) return
@@ -594,11 +657,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     : raw
 
             const existing = getMessagesBySession(sessionId!)
-            const localMessages = existing.filter(m => m.id.startsWith("local-"))
+            const localMessages = existing.filter((m) => m.id.startsWith("local-") || m.id.startsWith("error-"))
             const map = new Map<string, Message>()
             for (const m of data) map.set(m.id, m)
             for (const m of localMessages) map.set(m.id, m)
-            setMessages(sessionId!, Array.from(map.values()))
+            const merged = Array.from(map.values()).sort((a, b) => a.time.created - b.time.created)
+            setMessages(sessionId!, merged)
 
             if (data.length < MESSAGES_PER_PAGE) {
                 setHasMoreMessages(false)
@@ -614,7 +678,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         setIsLoadingMore(true)
         
         const existing = getMessagesBySession(sessionId!)
-        const offset = existing.length
+        // Optimistic local-/error- messages aren't on the server; counting
+        // them in offset would skip real messages and create holes.
+        const offset = existing.filter((m) => !m.id.startsWith("local-") && !m.id.startsWith("error-")).length
         
         const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE, offset)
         if (raw) {
@@ -759,6 +825,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         })
     }, [rawMessages, pendingPermissions])
 
+    // Optimistic messages queued while streaming (local-only, unconfirmed).
+    // Server confirmation via message.updated replaces them and drops `queued`.
+    const queuedCount = useMemo(
+        () => rawMessages.filter((m) => m.role === "user" && m.id.startsWith("local-") && m.queued).length,
+        [rawMessages]
+    )
+
     const renderItem = useCallback(
         ({ item }: { item: Message }) => {
             const hasQuestionTool = item.parts?.some(
@@ -780,6 +853,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     pendingPermissions={messagePermissions}
                     onPermissionReply={handlePermissionReply}
                     streaming={isStreamingMsg}
+                    queued={item.role === "user" && item.id.startsWith("local-") && !!item.queued}
                 />
             )
         },
@@ -806,10 +880,13 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         const after = sorted.slice(lastUserIdx + 1)
         const assistantMsgs = after.filter((m) => m.role === "assistant")
+        const lastUser = sorted[lastUserIdx]
+        const lastUserAgent = lastUser.role === "user" ? (lastUser as { agent?: string }).agent ?? null : null
+        const optimisticAgent = lastUserAgent ?? selectedAgent
 
         if (assistantMsgs.length === 0) {
             const startAt = sorted[lastUserIdx].time?.created ?? null
-            return startAt == null ? null : { startAt, endAt: null as number | null }
+            return startAt == null ? null : { startAt, endAt: null as number | null, agent: optimisticAgent }
         }
 
         const startAt = assistantMsgs[0].time?.created ?? null
@@ -825,15 +902,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             endAt = max || null
         }
 
-        return { startAt, endAt }
-    }, [rawMessages, isStreaming])
+        return { startAt, endAt, agent: (assistantMsgs[0] as { mode?: string }).mode ?? optimisticAgent }
+    }, [rawMessages, isStreaming, selectedAgent])
 
     // The list is inverted, so the header renders visually below the newest message
     const StreamingIndicator = useMemo(() => {
         if (!turn || turn.startAt == null) return null
         return (
             <View className="pt-1 pb-2">
-                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} agentName={turn.agent} />
             </View>
         )
     }, [turn])
@@ -913,18 +990,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 paddingTop={insets.top}
             />
 
-            {(connectionStatus === "connecting" || connectionStatus === "reconnecting" || connectionStatus === "connectivity-issues") && (
-                <View className="flex-row items-center gap-2 px-4 py-1.5 bg-accent/50 border-b border-accent">
-                    <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
-                    <Text className="text-xs text-muted-foreground">
-                        {connectionStatus === "connecting"
-                            ? "Connecting..."
-                            : connectionStatus === "reconnecting"
-                                ? "Reconnecting..."
-                                : "Connectivity issues, retrying..."}
-                    </Text>
-                </View>
-            )}
+            <ConnectionBanner theme={theme} />
 
             {messages.length > 0 ? (
                 <FlatList
@@ -944,10 +1010,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                     ListHeaderComponent={StreamingIndicator}
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
+                    updateCellsBatchingPeriod={50}
                     windowSize={10}
                     initialNumToRender={15}
+                    disableIntervalMomentum
                     inverted
-                    onEndReached={loadMoreMessages}
+                    onEndReached={isStreaming ? undefined : loadMoreMessages}
                     onEndReachedThreshold={0.5}
                 />
             ) : (
@@ -967,7 +1035,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
             {turn && turn.startAt != null && messages.length === 0 && (
                 <View className="px-4 py-2">
-                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} />
+                    <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} agentName={turn.agent} />
                 </View>
             )}
 
@@ -1030,7 +1098,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 connectionUrl={connection?.url}
                 connectionToken={connection?.token}
                 theme={theme}
-                modelByAgent={currentAgentModel ? { [selectedAgent]: currentAgentModel } : {}}
+                modelByAgent={modelByAgentProp}
                 onModelSelect={handleModelSelect}
                 onVariantSelect={handleVariantSelect}
                 onSessionModelUpdate={handleSessionModelUpdate}
@@ -1043,6 +1111,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 onStopVoice={handleStopVoice}
                 streaming={isStreaming}
                 onStop={abortStreaming}
+                queuedCount={queuedCount}
             />
         </View>
     )

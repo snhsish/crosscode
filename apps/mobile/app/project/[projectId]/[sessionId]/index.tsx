@@ -364,7 +364,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
             }
-<            if (getServerVersion(connectionUrl) >= 2) {
+            if (getServerVersion(connectionUrl) >= 2) {
                 return sendPromptV2(connectionUrl, connectionToken, targetSessionId, {
                     text,
                     agent: agentOverride ?? agent,

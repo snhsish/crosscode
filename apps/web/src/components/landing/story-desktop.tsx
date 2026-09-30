@@ -2,11 +2,10 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { AnimatePresence, motion } from "motion/react";
-import { DownloadIcon, HeroTitle } from "@/components/landing/hero-title";
+import { HeroTitle } from "@/components/landing/hero-title";
 import {
   MorphMockupFrame,
   type MockupDensity,
@@ -171,19 +170,6 @@ export function StoryDesktop() {
       </section>
 
       <ExtraFeatures />
-
-      <section className="border-t border-[#ececec] bg-white px-6 py-16 text-center">
-        <p className="text-[15px] text-[#8e8e8e]">Ready when you are</p>
-        <div className="mt-5 flex justify-center">
-          <Link
-            href="/download"
-            className="flex items-center gap-4 rounded-[10px] bg-[#1d1d1d] py-2 pl-6 pr-2 text-[19px] font-medium text-white transition-colors hover:bg-black"
-          >
-            Download for Android
-            <DownloadIcon />
-          </Link>
-        </div>
-      </section>
     </>
   );
 }

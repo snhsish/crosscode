@@ -49,7 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to server
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -65,4 +65,3 @@ jobs:
               --env-file /home/deploy/crosscode/packages/tunnel-server/.env \
               ghcr.io/${{ github.repository }}/tunnel-server:latest
             docker image prune -f || true
-            exit 0

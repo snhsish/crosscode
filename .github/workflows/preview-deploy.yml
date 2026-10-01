@@ -73,7 +73,7 @@ jobs:
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
 
       - name: Deploy web preview
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -118,7 +118,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Deploy tunnel preview
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}

@@ -12,7 +12,8 @@ import { useAllowsMultipleConnections } from "@/lib/entitlement"
 import { useAuth } from "@/store/auth.store"
 import { usePaywall } from "@/store/paywall.store"
 import { isAtTunnelLimit, requestPaywall } from "@/lib/paywall"
-import { cn, formatDirectory, getAuthHeader } from "@/lib/utils"
+import { cn, formatDirectory } from "@/lib/utils"
+import { detectServerVersion } from "@/lib/server-version"
 import { getCurrentProject } from "@/lib/projects"
 import AlertTriangle from "lucide-react-native/dist/esm/icons/triangle-alert"
 import ArrowUpDown from "lucide-react-native/dist/esm/icons/arrow-up-down"
@@ -287,13 +288,11 @@ export default function HomeScreen() {
     await Promise.all(connections.map(async (conn) => {
       if (!conn.url || !conn.token) return
       try {
-        const res = await fetch(`${conn.url}/global/health`, {
-          method: "GET",
-          headers: {
-            "Authorization": getAuthHeader(conn.token)
-          }
-        })
-        setConnectionHealth(conn.id, res.ok)
+        // Detecting the version doubles as the health check: a version
+        // means the server answered on a known API route. Always probe
+        // live here (already throttled above) so version and health stay fresh.
+        const version = await detectServerVersion(conn.url, conn.token, { force: true })
+        setConnectionHealth(conn.id, version !== null)
       } catch {
         setConnectionHealth(conn.id, false)
       }

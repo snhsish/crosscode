@@ -9,7 +9,8 @@ import { Text } from "@/components/ui/text"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import XIcon from "lucide-react-native/dist/esm/icons/x"
-import { cn, getAuthHeader } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { cacheServerVersion, detectServerVersion, type ServerVersion } from "@/lib/server-version"
 import { THEME } from "@/lib/theme"
 import { useColorScheme } from "nativewind"
 import { consumePendingConnection, peekPendingConnection } from "@/lib/pending-connection"
@@ -28,6 +29,7 @@ export default function Connect() {
     const [name, setName] = useState(`Connection ${new Date().toLocaleString()}`)
     const [testing, setTesting] = useState<boolean>(false)
     const [tested, setTested] = useState<{ msg: string, error: boolean } | null>(null)
+    const [serverVersion, setServerVersion] = useState<ServerVersion | null>(null)
 
     const theme = colorScheme ?? "light"
 
@@ -37,29 +39,22 @@ export default function Connect() {
         try {
             validateConnectionUrl(url)
             validateAuthToken(token)
-            const controller = new AbortController()
-            const timer = setTimeout(() => controller.abort(), 10000)
-            try {
-                const res = await fetch(`${url}/global/health`, {
-                    method: "GET",
-                    headers: {
-                        "Authorization": getAuthHeader(token)
-                    },
-                    signal: controller.signal,
+            // Detect the opencode API major: v2 answers /api/info, v1 answers
+            // /global/health. Reachable either way means the server is up.
+            const version = await detectServerVersion(url, token, { force: true })
+            if (version) {
+                cacheServerVersion(url, version)
+                setServerVersion(version)
+                setTested({
+                    msg: version >= 2 ? "Remote server reachable (opencode v2)" : "Remote server reachable",
+                    error: false
                 })
-                if (res.ok) {
-                    setTested({
-                        msg: "Remote server reachable",
-                        error: false
-                    })
-                } else {
-                    setTested({
-                        msg: "Remote server unreachable",
-                        error: true
-                    })
-                }
-            } finally {
-                clearTimeout(timer)
+            } else {
+                setServerVersion(null)
+                setTested({
+                    msg: "Remote server unreachable",
+                    error: true
+                })
             }
         } catch {
             setTested({
@@ -87,8 +82,10 @@ export default function Connect() {
         addConnection({
             url,
             name,
-            token
+            token,
+            serverVersion: serverVersion ?? undefined,
         })
+        cacheServerVersion(url, serverVersion ?? 1)
         consumePendingConnection()
         router.replace("/")
     }

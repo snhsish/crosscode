@@ -24,6 +24,9 @@ export type Config = {
     sessionToken?: string
     projectId?: string
     telemetry?: boolean
+    // Name (or path) of the opencode executable to run, e.g. "opencode-v2".
+    // The subcommand and flags are appended by crosscode ("$bin serve ...").
+    opencodeBin?: string
     cloudflaredTunnel?: CloudflaredTunnel
     projects?: Record<string, ProjectConfig>
     auth?: {
@@ -31,6 +34,12 @@ export type Config = {
         sessionToken?: string
         tier?: string
     }
+}
+
+// Which opencode executable to spawn. Env wins over the config file so one
+// machine can pin a different binary without editing shared config.
+export function resolveOpencodeBin(config: Config): string {
+    return process.env.CROSSCODE_OPENCODE_BIN?.trim() || config.opencodeBin?.trim() || "opencode"
 }
 
 export function readConfig(): Config {

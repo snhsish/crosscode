@@ -6,7 +6,7 @@ import qrcode from "qrcode-terminal"
 import { encodeQrPayload } from "@crosscode/shared"
 import { debug, checkDep, setLogWriter, getFreePort } from "./util"
 import { logCrosscode, closeAllLogs, crosscodeLogFile, cloudflaredLogFile, opencodeLogFile } from "./log"
-import { readConfig, saveConfig, getProjectConfig, ensureSessionToken } from "./config"
+import { readConfig, saveConfig, getProjectConfig, ensureSessionToken, resolveOpencodeBin } from "./config"
 import { initSentry, captureCliError } from "./sentry"
 import * as Sentry from "@sentry/node"
 import { loginFlow, refreshTier } from "./auth"
@@ -141,9 +141,14 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     logCrosscode(`CrossCode starting up (tunnel: ${tunnelProvider}, debug: ${process.env.CROSSCODE_DEBUG === "1"})`)
     debug("startup config", { tunnelProvider, port, hasAuth: !!config.auth?.sessionToken })
 
-    if (!checkDep("opencode")) {
-        console.error(chalk.red("[DEPENDENCY ERROR] opencode not found. Install opencode and try again."))
-        logCrosscode("Dependency check failed: opencode")
+    const opencodeBin = resolveOpencodeBin(config)
+    logCrosscode(`Using opencode binary: ${opencodeBin}`)
+    debug("opencode binary", { opencodeBin })
+
+    if (!checkDep(opencodeBin)) {
+        console.error(chalk.red(`[DEPENDENCY ERROR] ${opencodeBin} not found. Install opencode and try again.`))
+        console.log(chalk.dim(`Override the binary with "opencodeBin" in ~/.crosscode/config.json or CROSSCODE_OPENCODE_BIN.`))
+        logCrosscode(`Dependency check failed: ${opencodeBin}`)
         missingDep = true
     }
 

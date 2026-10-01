@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
     }
 
     const u = users[0]
-    const tier = effectiveTier(u.tier, u.subscriptionStatus)
+    const tier = effectiveTier(u.tier, u.subscriptionStatus, {
+      cancelAtPeriodEnd: u.subscriptionCancelAtPeriodEnd,
+      renewsAt: u.subscriptionRenewsAt,
+    })
     logger.info("API", `POST /api/auth/api-key/validate - Valid key for email=${u.email}, tier=${tier}`)
 
     return NextResponse.json({

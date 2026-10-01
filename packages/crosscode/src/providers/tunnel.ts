@@ -8,7 +8,7 @@ import { createOpencodeProxy, proxyAgent } from "../proxy"
 import { startOpencode } from "../opencode"
 import { connectTunnel } from "../tunnel-client"
 import type { Config, ProjectConfig } from "../config"
-import { ensureSessionToken, ensureProjectId } from "../config"
+import { ensureSessionToken, ensureProjectId, resolveOpencodeBin } from "../config"
 
 export type TunnelCallbacks = {
     onTunnelUrl: (url: string) => void
@@ -25,19 +25,20 @@ export async function startTunnelProvider(
 ) {
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
+    const opencodeBin = resolveOpencodeBin(config)
 
-    const { detectedPort } = await startOpencode({ port, sessionToken, spinner, children })
+    const { detectedPort, serverVersion } = await startOpencode({ port, sessionToken, spinner, children, opencodeBin })
 
     let proxyPort = await getFreePort()
     while (proxyPort === port) proxyPort = await getFreePort()
 
-    const proxy = createOpencodeProxy(detectedPort, sessionToken, "tunnel")
+    const proxy = createOpencodeProxy(detectedPort, sessionToken, "tunnel", serverVersion)
 
     proxy.listen(proxyPort, "127.0.0.1", () => {
         logCrosscode(`SSE proxy started on port ${proxyPort}`)
         debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
 
-        const testReq = http.request(`http://127.0.0.1:${detectedPort}/global/health`, {
+        const testReq = http.request(`http://127.0.0.1:${detectedPort}${serverVersion >= 2 ? "/api/info" : "/global/health"}`, {
             method: "GET",
             headers: {
                 "Authorization": `Basic ${Buffer.from(`opencode:${sessionToken}`).toString("base64")}`,
@@ -53,7 +54,7 @@ export async function startTunnelProvider(
         })
         testReq.end()
 
-        spinner.text = chalk.green.italic("opencode serve running") + chalk.yellow.italic("  •  Connecting to tunnel server...")
+        spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Connecting to tunnel server...")
 
         const projectId = ensureProjectId(config, project)
         logCrosscode(`Project ID: ${projectId}`)

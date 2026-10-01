@@ -114,6 +114,7 @@ Config file: `~/.crosscode/config.json`
 {
   "ngrokToken": "string — ngrok auth token (saved on first use)",
   "port": "number — local opencode port (default: 4096)",
+  "opencodeBin": "string — opencode executable to run, e.g. \"opencode-v2\" (default: \"opencode\")",
   "auth": {
     "email": "string — logged-in email",
     "sessionToken": "string — API key",
@@ -121,6 +122,10 @@ Config file: `~/.crosscode/config.json`
   }
 }
 ```
+
+Set `"opencodeBin": "opencode-v2"` if v2 lives under a different command on
+your machine. Crosscode detects the server version from `$bin --version` and
+uses the matching flags and API paths automatically.
 
 ## Log Files
 
@@ -137,6 +142,7 @@ All logs are stored in `~/.crosscode/`:
 
 | Variable | Default | Description |
 |---|---|---|
+| `CROSSCODE_OPENCODE_BIN` | `opencode` | Opencode executable to run (overrides `opencodeBin` in config) |
 | `CROSSCODE_WEB_URL` | `https://crosscode.site` | Web dashboard base URL |
 | `CROSSCODE_AUTH_URL` | `${CROSSCODE_WEB_URL}/api/auth` | Authentication API URL |
 | `CROSSCODE_TUNNEL_WS_URL` | `wss://tunnel.sish.work/ws` | Tunnel server WebSocket URL |

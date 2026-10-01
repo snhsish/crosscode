@@ -18,6 +18,9 @@ export type Connection = {
     name: string
     added: number
     healthy?: boolean | null
+    // Detected opencode API major (1 = classic paths, 2 = /api/* paths).
+    // Unknown means v1 so old CLIs keep working untouched.
+    serverVersion?: 1 | 2 | null
 }
 
 type ConnectionStore = {

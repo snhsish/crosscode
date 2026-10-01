@@ -47,19 +47,39 @@ export async function POST(req: NextRequest) {
           : null
     if (!currentUser) return NextResponse.json({ received: true })
 
-    const status = event.type.startsWith("subscription.")
-      ? event.type.replace("subscription.", "")
-      : currentUser.subscriptionStatus
-    const ended = ["cancelled", "expired"].includes(status || "")
+    // Only subscription lifecycle events carry subscription state. Other
+    // events (payment.*, customer.*, etc.) must not rewrite tier/status —
+    // previously any "subscription.<anything>" event type (e.g.
+    // "subscription.updated") was stored verbatim as the status, so
+    // effectiveTier() saw "updated" instead of "active" and the CLI
+    // reported "free" while the dashboard (raw tier column) still showed
+    // the paid plan (issue #129).
+    if (!event.type.startsWith("subscription.")) return NextResponse.json({ received: true })
+
+    // The real subscription status lives in the payload, not the event
+    // name. Fall back to the previous value when the payload omits it.
+    const payloadStatus =
+        (typeof data.status === "string" && data.status) ||
+        (typeof data.subscription_status === "string" && data.subscription_status) ||
+        null
+    const eventSuffix = event.type.replace("subscription.", "")
+    const status = (payloadStatus || currentUser.subscriptionStatus || eventSuffix).toLowerCase()
+    const renewsAt = data.next_billing_date ? new Date(String(data.next_billing_date)) : currentUser.subscriptionRenewsAt
+    const cancelAtPeriodEnd = typeof data.cancel_at_period_end === "boolean"
+        ? data.cancel_at_period_end
+        : currentUser.subscriptionCancelAtPeriodEnd
+    // A cancelled subscription still grants access until the period ends.
+    const inGracePeriod = !!cancelAtPeriodEnd && !!renewsAt && renewsAt.getTime() > Date.now()
+    const ended = ["cancelled", "canceled", "expired", "terminated"].includes(status) && !inGracePeriod
     await db.update(user).set({
-      dodoCustomerId: customerId || currentUser.dodoCustomerId,
-      dodoSubscriptionId: subscriptionId || currentUser.dodoSubscriptionId,
-      subscriptionProductId: productId || currentUser.subscriptionProductId,
-      subscriptionStatus: status,
-      subscriptionRenewsAt: data.next_billing_date ? new Date(String(data.next_billing_date)) : currentUser.subscriptionRenewsAt,
-      subscriptionCancelAtPeriodEnd: Boolean(data.cancel_at_period_end),
-      tier: ended ? "free" : tier || currentUser.tier,
-      updatedAt: new Date(),
+        dodoCustomerId: customerId || currentUser.dodoCustomerId,
+        dodoSubscriptionId: subscriptionId || currentUser.dodoSubscriptionId,
+        subscriptionProductId: productId || currentUser.subscriptionProductId,
+        subscriptionStatus: payloadStatus ? status : currentUser.subscriptionStatus,
+        subscriptionRenewsAt: renewsAt,
+        subscriptionCancelAtPeriodEnd: Boolean(cancelAtPeriodEnd),
+        tier: ended ? "free" : tier || currentUser.tier,
+        updatedAt: new Date(),
     }).where(eq(user.id, currentUser.id))
 
     return NextResponse.json({ received: true })

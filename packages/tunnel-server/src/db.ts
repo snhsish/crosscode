@@ -42,14 +42,17 @@ export async function validateApiKey(apiKey: string): Promise<{ userId: string; 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const rows = await sql`
-        SELECT id, email, tier, subscription_status
+        SELECT id, email, tier, subscription_status, subscription_cancel_at_period_end, subscription_renews_at
         FROM "user" WHERE api_key = ${apiKey} LIMIT 1
       `
       if (rows.length === 0) {
         logger.warn("API key not found in database", { apiKey: apiKey.substring(0, 8) + "..." })
         return null
       }
-      const tier = effectiveTier(rows[0].tier, rows[0].subscription_status)
+      const tier = effectiveTier(rows[0].tier, rows[0].subscription_status, {
+        cancelAtPeriodEnd: rows[0].subscription_cancel_at_period_end,
+        renewsAt: rows[0].subscription_renews_at,
+      })
       logger.info("API key validated", { userId: rows[0].id, email: rows[0].email, tier })
       return { userId: rows[0].id, email: rows[0].email, tier }
     } catch (err) {

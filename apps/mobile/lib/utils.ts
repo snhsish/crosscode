@@ -44,6 +44,13 @@ export function clearAuthCache(token?: string): void {
     authCache.clear()
 }
 
+// v2 moved the API under /api/*; v1 serves routes from the root.
+export function apiUrl(url: string, version: 1 | 2, path: string): string {
+    const base = url.replace(/\/+$/, "")
+    const clean = path.startsWith("/") ? path : `/${path}`
+    return version >= 2 ? `${base}/api${clean}` : `${base}${clean}`
+}
+
 export function formatDirectory(path: string | undefined | null): string {
     if (!path) return ""
     const cleaned = path.replace(/\/+$/, '')

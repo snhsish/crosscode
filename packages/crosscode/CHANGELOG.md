@@ -1,5 +1,25 @@
 # crosscode
 
+## 0.7.0
+
+### Minor Changes
+
+- 73ac357: Release 0.7.0 with opt-in error monitoring plus reliability and security hardening.
+
+  - Add opt-in Sentry error monitoring (`@sentry/node`) for the CLI.
+  - Security: increase projectId entropy to prevent tunnel enumeration attacks.
+  - Fix tunnel client double-reconnect, add a heartbeat, and auto-restart dropped named tunnels.
+  - Fix OpenCode v2 startup on Windows and repair tier display / v2 health checks.
+  - Fix port detection hanging when the OpenCode process exits early.
+  - Fix the keypress listener leak and clean it up properly.
+  - Harden the git remote username check with a timing-safe comparison.
+  - Refactor `cli.ts` into focused modules (auth, config, log, proxy, providers, sentry, util, qr).
+  - Build: bundle `@crosscode/shared` via the tsup config and list it as a devDependency so the private workspace package is not published as a runtime dependency.
+
+### Patch Changes
+
+- 3a016da: Fix Apple Terminal QR codes failing to scan. Replace half-block glyph rendering with full-cell ANSI background rendering plus spec quiet zone, so the code scans regardless of terminal line spacing, font, or light/dark theme. Adds `--no-qr` and `--small-qr` options.
+
 ## 0.6.9
 
 ### Patch Changes

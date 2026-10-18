@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, FlatList, Pressable, View } from "react-native"
-import { useLocalSearchParams, useRouter } from "expo-router"
+import { useCallback, useMemo, useRef, useState } from "react"
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from "react-native"
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useColorScheme } from "nativewind"
 import type { LucideIcon } from "lucide-react-native"
@@ -75,6 +75,7 @@ export default function ModelsPage() {
     const [selectedProviderId, setSelectedProviderId] = useState(currentProviderId ?? "")
     const updatingRef = useRef<string | null>(null)
     const [updating, setUpdating] = useState<string | null>(null)
+    const [refreshing, setRefreshing] = useState(false)
 
     const providerMap = useMemo(() => {
         const map: Record<string, string> = {}
@@ -89,9 +90,23 @@ export default function ModelsPage() {
         [models, selectedId, selectedProviderId]
     )
 
-    useEffect(() => {
-        if (connection) fetchAll(connection.url, connection.token)
-    }, [connection?.id, fetchAll])
+    // Refresh on every focus so providers/models added on the OpenCode host
+    // show up immediately instead of waiting out the stale window.
+    useFocusEffect(
+        useCallback(() => {
+            if (connection) fetchAll(connection.url, connection.token, { force: true })
+        }, [connection?.id, fetchAll])
+    )
+
+    const handleRefresh = useCallback(async () => {
+        if (!connection) return
+        setRefreshing(true)
+        try {
+            await fetchAll(connection.url, connection.token, { force: true })
+        } finally {
+            setRefreshing(false)
+        }
+    }, [connection, fetchAll])
 
     const filtered = useMemo(() => {
         let list = [...models]
@@ -452,6 +467,13 @@ export default function ModelsPage() {
                     renderItem={renderItem}
                     contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}
                     keyboardShouldPersistTaps="handled"
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            tintColor={THEME[theme].mutedForeground}
+                        />
+                    }
                     removeClippedSubviews
                     maxToRenderPerBatch={10}
                     windowSize={10}

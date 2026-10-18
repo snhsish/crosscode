@@ -933,7 +933,9 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
 
         if (assistantMsgs.length === 0) {
             const startAt = sorted[lastUserIdx].time?.created ?? null
-            return startAt == null ? null : { startAt, endAt: null as number | null, agent: optimisticAgent }
+            if (startAt == null) return null
+            const isOptimistic = lastUser.id.startsWith("local-")
+            return { startAt, endAt: null as number | null, agent: optimisticAgent, isSending: isOptimistic }
         }
 
         const startAt = assistantMsgs[0].time?.created ?? null
@@ -955,12 +957,22 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     // The list is inverted, so the header renders visually below the newest message
     const StreamingIndicator = useMemo(() => {
         if (!turn || turn.startAt == null) return null
+        if (turn.isSending) {
+            return (
+                <View className="pt-1 pb-2">
+                    <View className="flex flex-row items-center gap-2">
+                        <ActivityIndicator size="small" color={THEME[theme].mutedForeground} />
+                        <Text className="text-xs text-muted-foreground">Sending message...</Text>
+                    </View>
+                </View>
+            )
+        }
         return (
             <View className="pt-1 pb-2">
                 <WorkingIndicator startedAt={turn.startAt} endedAt={turn.endAt} agentName={turn.agent} />
             </View>
         )
-    }, [turn])
+    }, [turn, theme])
 
     const ListFooterComponent = useMemo(() => {
         if (!isLoadingMore) return null

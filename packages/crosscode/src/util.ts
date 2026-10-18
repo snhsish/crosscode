@@ -77,8 +77,8 @@ export async function terminateChild(proc: ChildProcess): Promise<void> {
     })
 }
 
-export function openBrowser(url: string): void {
-    if (!url.startsWith("https://") && !url.startsWith("http://")) return
+export function openBrowser(url: string): boolean {
+    if (!url.startsWith("https://") && !url.startsWith("http://")) return false
     const platform = process.platform
     try {
         if (platform === "darwin") {
@@ -88,5 +88,8 @@ export function openBrowser(url: string): void {
         } else {
             execFileSync("xdg-open", [url])
         }
-    } catch {}
+        return true
+    } catch {
+        return false
+    }
 }

@@ -95,9 +95,22 @@ crosscode -h
 |---|---|
 | `--cloudflared` | Force Cloudflare tunnel (`cloudflared` binary required) |
 | `--ngrok` | Force ngrok tunnel (`ngrok` binary + auth token required) |
+| `--no-open` | Don't auto-open the connection page in a browser |
 | `--no-qr` | Skip QR graphic, print URL only (useful when piping output) |
 | `--small-qr` | Compact QR graphic with smaller quiet zone (same scannable full-cell rendering) |
 | `--help`, `-h` | Show help message |
+
+## Connection Page
+
+When the tunnel is ready, CrossCode starts a local-only page at
+`http://127.0.0.1:<port>/` and opens it in your browser. The page shows a
+scannable QR code (with a download button), the tunnel URL, and the auth token
+(hidden by default, with copy buttons). You can close the browser tab once your
+app is connected — keep the terminal running.
+
+The page is bound to loopback only, so the auth token is never reachable through
+the tunnel. In headless environments (SSH, Docker, `--no-open`, or when no
+browser is available) CrossCode prints the QR code in the terminal instead.
 
 ## Interactive Controls
 

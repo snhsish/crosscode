@@ -1,5 +1,19 @@
 # crosscode
 
+## 0.8.0
+
+### Minor Changes
+
+- 1f13bc5: Add a browser-based connection page shown by default when the tunnel is ready.
+  The local-only page (`http://127.0.0.1:<port>/`) displays a scannable QR code
+  with a download button, the tunnel URL, and the auth token with copy buttons,
+  so the QR is no longer limited to the terminal. The terminal QR remains as a
+  fallback for headless environments and via the new `--no-open` flag.
+
+### Patch Changes
+
+- 3a016da: Fix Apple Terminal QR codes failing to scan. Replace half-block glyph rendering with full-cell ANSI background rendering plus spec quiet zone, so the code scans regardless of terminal line spacing, font, or light/dark theme. Adds `--no-qr` and `--small-qr` options.
+
 ## 0.6.9
 
 ### Patch Changes

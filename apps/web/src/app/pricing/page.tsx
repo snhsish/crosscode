@@ -10,7 +10,7 @@ import Link from "next/link";
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { paidPlans, type BillingCurrency, type BillingCycle, type PaidTier } from "@crosscode/shared";
+import { founderPlan, paidPlans, type BillingCurrency, type BillingCycle, type PaidTier } from "@crosscode/shared";
 
 function detectCurrency(): BillingCurrency {
   if (typeof window === "undefined") return "usd";
@@ -32,76 +32,39 @@ const tiers = [
   {
     name: "Free",
     tier: null,
-    description: "For trying out CrossCode",
+    description: "Your agent, in your pocket.",
     features: [
-      { label: "Cloudflare/ngrok tunnel (no connect.crosscode.site tunnel)", included: true },
-      { label: "1 active tunnel", included: true },
-      { label: "Fair-use traffic", included: true },
-      { label: "Best-effort uptime", included: true },
-      { label: "No custom subdomain", included: false },
-      { label: "No custom domain", included: false },
-      { label: "No SLA", included: false },
-      { label: "Community support", included: true },
+      { label: "QR connect, chat, streaming, markdown/code blocks", included: true },
+      { label: "Approvals, inline diffs, git graph, session sharing", included: true },
+      { label: "Voice input, push notifications, quick prompts", included: true },
+      { label: "1 active tunnel (bring-your-own cloudflared/ngrok)", included: true },
+      { label: "Light/dark themes, biometric lock, up to 2 saved servers", included: true },
+      { label: "Hosted CrossCode relay (stable URL)", included: false },
+      { label: "File browser, side-by-side diff, global search", included: false },
+      { label: "Session export, approval rules, usage dashboard", included: false },
     ],
     cta: "Get Started",
     ctaHref: "/login",
     highlighted: false,
   },
   {
-    name: "Starter",
-    tier: "starter" as PaidTier,
-    description: "For individual developers",
+    name: "Pro",
+    tier: "pro" as PaidTier,
+    description: "Your agent, always reachable and under your control.",
     features: [
-      { label: "Custom VPS tunnel", included: true },
-      { label: "2 active tunnels", included: true },
-      { label: "Unlimited fair-use traffic", included: true, href: "/legal/fair-usage" },
-      { label: "Shared infrastructure", included: true },
-      { label: "*.tunnel.crosscode.site subdomain", included: true },
-      { label: "Best-effort uptime", included: true },
-      { label: "Community support", included: true },
-      { label: "No custom domain", included: false },
-      { label: "No SLA", included: false },
-    ],
-    cta: "Upgrade to Starter",
-    ctaHref: "/login",
-    highlighted: false,
-  },
-  {
-    name: "Builder",
-    tier: "builder" as PaidTier,
-    description: "For power users and small teams",
-    features: [
-      { label: "Custom VPS tunnel", included: true },
+      { label: "Everything in Free", included: true },
+      { label: "Hosted CrossCode relay (stable URL, low latency)", included: true },
       { label: "5 active tunnels", included: true },
+      { label: "File-tree browser + file viewer", included: true },
+      { label: "Side-by-side diff, global search, session export", included: true },
+      { label: "Approval rules / auto-approve policies", included: true },
+      { label: "Token/cost dashboard, unlimited saved connections", included: true },
+      { label: "Extra themes, custom domain", included: true },
       { label: "Unlimited fair-use traffic", included: true, href: "/legal/fair-usage" },
-      { label: "Shared infrastructure", included: true },
-      { label: "*.tunnel.crosscode.site subdomain", included: true },
-      { label: "1 custom domain", included: true },
-      { label: "Best-effort uptime", included: true },
-      { label: "Email support", included: true },
-      { label: "No dedicated capacity", included: false },
-      { label: "No SLA", included: false },
     ],
-    cta: "Upgrade to Builder",
+    cta: "Upgrade to Pro",
     ctaHref: "/login",
     highlighted: true,
-  },
-  {
-    name: "Enterprise",
-    tier: null,
-    description: "For teams with tailored requirements",
-    features: [
-      { label: "Custom tunnel limits", included: true },
-      { label: "Custom domains", included: true },
-      { label: "Dedicated capacity", included: true },
-      { label: "Priority support", included: true },
-      { label: "Custom SLA", included: true },
-      { label: "Annual invoicing", included: true },
-      { label: "Custom onboarding", included: true },
-    ],
-    cta: "Contact us",
-    ctaHref: "mailto:crosscode@sish.work?subject=CrossCode%20Enterprise",
-    highlighted: false,
   },
 ];
 
@@ -112,34 +75,39 @@ function discountPercent(tier: PaidTier, currency: "usd" | "inr") {
 
 const comparisonFeatures = [
   {
-    category: "Tunnel",
+    category: "Core (always free)",
     rows: [
-      { label: "Tunnel type", values: ["Cloudflare/ngrok (ephemeral)", "Custom VPS tunnel", "Custom VPS tunnel", "Custom relay"] },
-      { label: "Active tunnels", values: ["1", "2", "5", "Custom"] },
-      { label: "Traffic", values: ["Fair use", "Unlimited fair use", "Unlimited fair use", "Custom"] },
-      { label: "Tunnel uptime", values: ["Best-effort", "Best-effort", "Best-effort", "Custom SLA"] },
+      { label: "Chat, streaming, approvals, diffs, git", values: ["Yes", "Yes"] },
+      { label: "Voice input, push notifications, biometric lock", values: ["Yes", "Yes"] },
+      { label: "Light/dark themes, up to 2 saved servers", values: ["Yes", "Yes"] },
     ],
   },
   {
-    category: "Customization",
+    category: "Relay & Tunnels",
     rows: [
-      { label: "CrossCode subdomain", values: ["No", "Yes", "Yes", "Yes"] },
-      { label: "Custom domain", values: ["No", "No", "1 domain", "Custom"] },
+      { label: "Tunnel", values: ["Bring-your-own (cloudflared/ngrok)", "Hosted relay + BYO"] },
+      { label: "Active tunnels", values: ["1", "5"] },
+      { label: "Stable URL", values: ["No", "Yes"] },
+      { label: "Traffic", values: ["Fair use", "Unlimited fair use"] },
     ],
   },
   {
-    category: "Infrastructure",
+    category: "Power features",
     rows: [
-      { label: "Infrastructure", values: ["Cloudflare", "Shared", "Shared", "Dedicated or reserved"] },
-      { label: "Priority support", values: ["No", "No", "Email", "Yes"] },
+      { label: "File browser + viewer", values: ["No", "Yes"] },
+      { label: "Side-by-side diff", values: ["No", "Yes"] },
+      { label: "Global search across sessions", values: ["No", "Yes"] },
+      { label: "Session export (Markdown/JSON)", values: ["No", "Yes"] },
+      { label: "Approval rules / auto-approve", values: ["No", "Yes"] },
+      { label: "Token/cost dashboard", values: ["No", "Yes"] },
+      { label: "Unlimited saved connections", values: ["No", "Yes"] },
+      { label: "Extra themes, custom domain", values: ["No", "Yes"] },
     ],
   },
   {
-    category: "Billing & Support",
+    category: "Support",
     rows: [
-      { label: "Annual invoicing", values: ["No", "No", "No", "Yes"] },
-      { label: "Custom onboarding", values: ["No", "No", "No", "Yes"] },
-      { label: "SLA", values: ["No", "No", "No", "Custom"] },
+      { label: "Support", values: ["Community", "Email"] },
     ],
   },
 ];
@@ -150,7 +118,17 @@ export default function PricingPage() {
   const [currency, setCurrency] = useState<BillingCurrency | null>(null);
   const detectedCurrency = useDetectedCurrency();
   const effectiveCurrency = currency ?? detectedCurrency;
-  const [checkoutTier, setCheckoutTier] = useState<PaidTier | null>(null);
+  const [checkoutTier, setCheckoutTier] = useState<string | null>(null);
+  const [founderCount, setFounderCount] = useState<{ count: number; cap: number; remaining: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/billing/founder-count")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && typeof d.count === "number") setFounderCount(d);
+      })
+      .catch(() => {});
+  }, []);
 
   const startCheckout = useCallback(async (tier: PaidTier, selectedCycle: BillingCycle = cycle, selectedCurrency: BillingCurrency = effectiveCurrency) => {
     setCheckoutTier(tier);
@@ -174,17 +152,46 @@ export default function PricingPage() {
     }
   }, [cycle, effectiveCurrency, router]);
 
+  const startFounderCheckout = useCallback(async () => {
+    setCheckoutTier("founder");
+    try {
+      const { data } = await authClient.getSession();
+      if (!data?.session) {
+        router.push(`/login?next=${encodeURIComponent(`/pricing?plan=founder&currency=${effectiveCurrency}`)}`);
+        return;
+      }
+      const response = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: "founder", currency: effectiveCurrency }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.checkoutUrl) throw new Error(result.error || "Checkout failed");
+      window.location.assign(result.checkoutUrl);
+    } catch (error) {
+      console.error("Unable to start lifetime checkout", error);
+      setCheckoutTier(null);
+    }
+  }, [effectiveCurrency, router]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const requestedTier = params.get("plan");
     const requestedCycle = params.get("cycle");
     const requestedCurrency = params.get("currency");
-    if ((requestedTier === "starter" || requestedTier === "builder") && (requestedCycle === "monthly" || requestedCycle === "yearly")) {
+    const currency = requestedCurrency === "inr" ? "inr" : "usd";
+    if ((requestedTier === "pro" || requestedTier === "starter" || requestedTier === "builder") && (requestedCycle === "monthly" || requestedCycle === "yearly")) {
       authClient.getSession().then(({ data }) => {
-        if (data?.session) startCheckout(requestedTier, requestedCycle, requestedCurrency === "inr" ? "inr" : "usd");
+        if (data?.session) startCheckout("pro", requestedCycle, currency);
+      });
+    } else if (requestedTier === "founder") {
+      authClient.getSession().then(({ data }) => {
+        if (data?.session) startFounderCheckout();
       });
     }
-  }, [startCheckout]);
+  }, [startCheckout, startFounderCheckout]);
+
+  const founderPrice = effectiveCurrency === "inr" ? `₹${founderPlan.price.inr.toLocaleString("en-IN")}` : `$${founderPlan.price.usd}`;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -193,10 +200,10 @@ export default function PricingPage() {
         <div className="container py-12 md:py-20">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-              Tunnels for every stage of your workflow
+              Your agent, in your pocket — or always reachable
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Start free and scale as you grow. No hidden fees, no surprises.
+              Start free with your own tunnel. Upgrade to Pro for the hosted relay and power features.
             </p>
           </div>
 
@@ -211,7 +218,7 @@ export default function PricingPage() {
                   className={`cursor-pointer rounded-md px-4 py-2 text-sm font-medium transition-colors ${cycle === option ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {option === "monthly" ? "Monthly" : "Yearly"}
-                  {option === "yearly" && <span className="ml-2 text-xs text-primary">Save ~17%</span>}
+                  {option === "yearly" && <span className="ml-2 text-xs text-primary">Save {discountPercent("pro", effectiveCurrency)}%</span>}
                 </button>
               ))}
             </div>
@@ -230,7 +237,7 @@ export default function PricingPage() {
             </div>
           </div>
 
-          <div className="mx-auto mt-8 grid max-w-7xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mx-auto mt-8 grid max-w-5xl gap-6 sm:grid-cols-2">
             {tiers.map((tier) => (
               <Card
                 key={tier.name}
@@ -251,17 +258,15 @@ export default function PricingPage() {
                     <span className="text-3xl font-bold">
                       {tier.tier
                         ? `${effectiveCurrency === "inr" ? "₹" : "$"}${paidPlans[tier.tier][cycle][effectiveCurrency]}`
-                        : tier.name === "Free"
-                          ? effectiveCurrency === "inr" ? "₹0" : "$0"
-                          : "Custom"}
+                        : effectiveCurrency === "inr" ? "₹0" : "$0"}
                     </span>
-                    {tier.name !== "Enterprise" && <span className="text-sm text-muted-foreground">/{cycle === "monthly" ? "mo" : "yr"}</span>}
+                    <span className="text-sm text-muted-foreground">/{cycle === "monthly" ? "mo" : "yr"}</span>
                   </div>
                   {tier.tier && (
                     <>
                       {effectiveCurrency === "inr" && (
                         <p className="text-xs text-muted-foreground">
-                          {`≈ $${paidPlans[tier.tier][cycle].usd}/yr`}
+                          {`≈ $${paidPlans[tier.tier][cycle].usd}/${cycle === "monthly" ? "mo" : "yr"}`}
                         </p>
                       )}
                       {cycle === "yearly" && (
@@ -326,7 +331,37 @@ export default function PricingPage() {
             ))}
           </div>
 
-          <div className="mx-auto mt-20 max-w-7xl px-4">
+          <div className="mx-auto mt-8 max-w-5xl">
+            <Card className="border-amber-500/40 bg-amber-500/5">
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-lg">Pro Lifetime — one-time purchase</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Pay once, keep Pro forever — hosted relay + power features for as long as CrossCode operates, subject to fair use.
+                      {founderCount ? ` ${founderCount.remaining} of ${founderCount.cap} left.` : ` Limited to ${founderPlan.cap}.`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-3xl font-bold">{founderPrice}</div>
+                    <div className="text-xs text-muted-foreground">one-time</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardFooter>
+                <Button
+                  className="w-full"
+                  variant="outline"
+                  disabled={Boolean(checkoutTier) || (founderCount?.remaining ?? 1) <= 0}
+                  onClick={startFounderCheckout}
+                >
+                  {checkoutTier === "founder" ? "Opening checkout..." : (founderCount?.remaining ?? 1) <= 0 ? "Sold out" : "Claim Pro Lifetime"}
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
+          <div className="mx-auto mt-20 max-w-5xl px-4">
             <h2 className="text-2xl font-bold">Compare plans</h2>
             <div className="mt-8 overflow-x-auto">
               <table className="w-full text-sm">
@@ -334,16 +369,14 @@ export default function PricingPage() {
                   <tr className="border-b">
                     <th className="py-3 pr-4 pl-6 text-left font-medium text-muted-foreground">Feature</th>
                     <th className="px-4 py-3 text-left font-medium">Free</th>
-                    <th className="px-4 py-3 text-left font-medium">Starter</th>
-                    <th className="px-4 py-3 text-left font-medium">Builder</th>
-                    <th className="py-3 pl-4 pr-6 text-left font-medium">Enterprise</th>
+                    <th className="py-3 pl-4 pr-6 text-left font-medium">Pro</th>
                   </tr>
                 </thead>
                 <tbody>
                   {comparisonFeatures.map((section) => (
                     <React.Fragment key={section.category}>
                       <tr key={section.category} className="border-b bg-muted/50">
-                        <td colSpan={5} className="py-2 pr-4 pl-6 font-semibold">
+                        <td colSpan={3} className="py-2 pr-4 pl-6 font-semibold">
                           {section.category}
                         </td>
                       </tr>
@@ -351,7 +384,7 @@ export default function PricingPage() {
                         <tr key={row.label} className="border-b">
                           <td className="py-3 pr-4 pl-6 text-muted-foreground">{row.label}</td>
                           {row.values.map((value, i) => (
-                            <td key={i} className={`py-3 text-left ${i === 0 ? "pl-4 pr-4" : i === row.values.length - 1 ? "pl-4 pr-6" : "px-4"}`}>
+                            <td key={i} className={`py-3 text-left ${i === 0 ? "pl-4 pr-4" : "pl-4 pr-6"}`}>
                               {value}
                             </td>
                           ))}
@@ -362,6 +395,9 @@ export default function PricingPage() {
                 </tbody>
               </table>
             </div>
+            <p className="mt-4 text-sm text-muted-foreground">
+              Pro Lifetime unlocks everything in Pro, forever. Grandfathered Starter/Builder subscribers now show as Pro.
+            </p>
           </div>
         </div>
       </main>

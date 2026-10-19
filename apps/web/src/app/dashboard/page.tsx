@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [deviceName, setDeviceName] = useState<string | null>(null)
   const [portalLoading, setPortalLoading] = useState(false)
   const [billingError, setBillingError] = useState("")
+  const [founderCount, setFounderCount] = useState<{ count: number; cap: number; remaining: number } | null>(null)
   const pollRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,12 @@ export default function DashboardPage() {
       setUser(data.user)
       const billingResponse = await fetch("/api/billing/subscription")
       if (billingResponse.ok) setSubscription(await billingResponse.json())
+      fetch("/api/billing/founder-count")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d && typeof d.count === "number") setFounderCount(d)
+        })
+        .catch(() => {})
       setLoading(false)
     }
     checkAuth()
@@ -70,7 +77,7 @@ export default function DashboardPage() {
     router.push("/login")
   }
 
-  const openCheckout = async (tier: "starter" | "builder") => {
+  const openCheckout = async (tier: "pro" | "team") => {
     const response = await fetch("/api/billing/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -78,6 +85,22 @@ export default function DashboardPage() {
     })
     const data = await response.json()
     if (response.ok && data.checkoutUrl) window.location.assign(data.checkoutUrl)
+  }
+
+  const openFounderCheckout = async () => {
+    const response = await fetch("/api/billing/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier: "founder" }),
+    })
+    const data = await response.json()
+    if (response.ok && data.checkoutUrl) window.location.assign(data.checkoutUrl)
+  }
+
+  const displayTier = (t?: string | null) => {
+    if (t === "starter" || t === "builder") return "Pro (grandfathered)"
+    if (t === "founder") return "Pro Lifetime"
+    return t || "free"
   }
 
   const openPortal = async () => {
@@ -220,7 +243,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Tier:</span>
-              <span className="font-medium capitalize">{subscription.tier || "free"}</span>
+              <span className="font-medium capitalize">{displayTier(subscription.tier)}</span>
             </div>
           </CardContent>
         </Card>
@@ -233,7 +256,7 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Plan:</span>
-              <span className="font-medium capitalize">{subscription.tier || "free"}</span>
+              <span className="font-medium capitalize">{displayTier(subscription.tier)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Status:</span>
@@ -251,8 +274,16 @@ export default function DashboardPage() {
             <div className="flex flex-wrap gap-2">
               {(!subscription.tier || subscription.tier === "free") ? (
                 <>
-                  <Button onClick={() => openCheckout("starter")}>Subscribe to Starter</Button>
-                  <Button variant="outline" onClick={() => openCheckout("builder")}>Subscribe to Builder</Button>
+                  <Button onClick={() => openCheckout("pro")}>Subscribe to Pro</Button>
+                  <Button
+                    variant="outline"
+                    onClick={openFounderCheckout}
+                    disabled={(founderCount?.remaining ?? 1) <= 0}
+                  >
+                    {(founderCount?.remaining ?? 1) <= 0
+                      ? "Pro Lifetime sold out"
+                      : `Claim Pro Lifetime${founderCount ? ` (${founderCount.remaining} left)` : ""}`}
+                  </Button>
                 </>
               ) : (
                 <Button variant="outline" onClick={openPortal} disabled={portalLoading}>

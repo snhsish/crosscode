@@ -350,6 +350,19 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                         }
 
                         const msg = existing[msgIdx]
+                        if (msg.role === "user") {
+                            existing.push({
+                                id: messageID,
+                                sessionID: currentSessionId,
+                                role: "assistant",
+                                time: { created: Date.now() },
+                                agent: "build",
+                                model: { providerID: "...", modelID: "..." },
+                                parts: [{ id: partID, type: "text", text: delta } as Part],
+                            } as unknown as Message)
+                            scheduleFlush()
+                            break
+                        }
                         const parts = msg.parts ?? []
                         const partIdx = parts.findIndex(p => p.id === partID)
                         if (partIdx >= 0) {
@@ -375,16 +388,15 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                     let msgIdx = existing.findIndex(m => m.id === part.messageID)
 
                     if (msgIdx < 0) {
-                        // Part arrived before its message (common for user file parts).
-                        // Create a placeholder instead of dropping it.
                         let incoming = part as Part
                         if (incoming.type === "file" && localFileUriBackup.length > 0) {
                             incoming = { ...incoming, url: localFileUriBackup.shift()! } as Part
                         }
+                        const partRole = incoming.type === "text" ? "assistant" : "user"
                         existing.push({
                             id: part.messageID,
                             sessionID: currentSessionId,
-                            role: "user",
+                            role: partRole,
                             time: { created: Date.now() },
                             agent: "build",
                             model: { providerID: "...", modelID: "..." },
@@ -643,7 +655,11 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
             reconnectAttempts++
             const delay = reconnectDelays[Math.min(reconnectAttempts - 1, reconnectDelays.length - 1)]
 
+            // Only show reconnecting/connectivity-issues after repeated failures
+            // to avoid banner flicker on brief, self-healing stream drops
             if (reconnectAttempts <= 2) {
+                // Keep "connected" — the stream may recover on its own
+            } else if (reconnectAttempts <= 4) {
                 setConnectionStatus("reconnecting")
             } else {
                 setConnectionStatus("connectivity-issues")

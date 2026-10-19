@@ -80,7 +80,7 @@ function SessionHeaderInner({
             className="flex flex-row gap-2 items-center border-b border-accent pb-2 px-4"
             style={{ paddingTop: paddingTop + 10 }}
         >
-            <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.push(project ? { pathname: "/sessions", params: { connectionId: project.connectionId } } : "/sessions")}>
+            <Button variant="ghost" className="w-10 h-10 text-white" onPress={() => router.back()}>
                 <ArrowLeftIcon size={20} color={THEME[theme].foreground} />
             </Button>
 

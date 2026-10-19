@@ -438,7 +438,7 @@ function ChatInputInner({
 
                         {isQueueMode ? (
                             <Text className="text-[11px] px-3 pb-1.5 text-amber-600 dark:text-amber-400">
-                                Queues after the current response — clear the input to stop instead.
+                                Queues after the current response. Clear the input to stop instead.
                             </Text>
                         ) : null}
 

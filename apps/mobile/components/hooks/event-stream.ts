@@ -182,7 +182,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
         let pendingMessages: Message[] | null = null
         // Phone-local file:// uris salvaged from optimistic messages. Server echoes
         // user images back as data: URLs or server-local paths which often fail to
-        // render on device — replay the local uri instead, exactly like chat input.
+        // render on device. Replay the local uri instead, exactly like chat input.
         let localFileUriBackup: string[] = []
         let flushScheduled = false
         const countedMessageIds = new Set<string>()
@@ -231,7 +231,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
                     // server-local paths), while the optimistic message holds
                     // the renderable file:// uri. The old code merged first
                     // (backup still empty, so server urls won) and only
-                    // patched things up afterwards — leaving blank image boxes
+                    // patched things up afterwards, leaving blank image boxes
                     // whenever the patch-up missed.
                     let salvagedLocalFileUrls: string[] = []
                     if (info.role === "user") {
@@ -658,7 +658,7 @@ export function useEventStream(url?: string, sessionId?: string, token?: string,
             // Only show reconnecting/connectivity-issues after repeated failures
             // to avoid banner flicker on brief, self-healing stream drops
             if (reconnectAttempts <= 2) {
-                // Keep "connected" — the stream may recover on its own
+                // Keep "connected". The stream may recover on its own
             } else if (reconnectAttempts <= 4) {
                 setConnectionStatus("reconnecting")
             } else {

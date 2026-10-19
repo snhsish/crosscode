@@ -84,7 +84,7 @@ function MentionAutocompleteInner({ visible, loading, agents, files, onSelect, t
                             </View>
                         ) : (
                             <Text className="text-xs text-muted-foreground text-center py-4">
-                                No matches — keep typing or pick a subagent
+                                No matches. Keep typing or pick a subagent
                             </Text>
                         )
                     }

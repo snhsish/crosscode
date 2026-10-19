@@ -81,7 +81,7 @@ function getErrorLabel(name?: string): string {
 function normalizeImageUri(uri: string, mime?: string): string {
     if (!uri) return uri
     if (/^(data:|file:\/\/|content:\/\/|ph:\/\/|asset:\/\/|http:\/\/|https:\/\/)/.test(uri)) return uri
-    // Bare base64 payload (some servers strip the data: prefix) — rebuild it.
+    // Bare base64 payload (some servers strip the data: prefix). Rebuild it.
     if (mime?.startsWith("image/") && /^[A-Za-z0-9+/=\s]+$/.test(uri) && uri.length > 100) {
         return `data:${mime};base64,${uri.replace(/\s/g, "")}`
     }
@@ -816,7 +816,7 @@ function MessageItemInner({ message, theme, projectId, sessionId, pendingQuestio
                 <View className="flex-row items-center gap-1 mb-0.5">
                     <View className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30">
                         <Text className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                            Queued — sends after current response
+                            Queued: sends after current response
                         </Text>
                     </View>
                 </View>

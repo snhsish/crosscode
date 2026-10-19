@@ -1,4 +1,5 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export type FileDiff = {
     file: string
@@ -31,21 +32,37 @@ function normalizeFileDiff(value: unknown): FileDiff | null {
 
 export async function fetchSessionDiffs(url: string, token: string, sessionId: string, messageID?: string): Promise<FileDiff[]> {
     try {
+        const version = getServerVersion(url)
         const query = messageID ? `?messageID=${encodeURIComponent(messageID)}` : ""
-        const res = await fetch(`${url}/session/${sessionId}/diff${query}`, {
-            method: "GET",
-            headers: {
-                "Authorization": getAuthHeader(token),
-            },
-        })
-        if (!res.ok) return []
-        const data = await res.json()
-        const records = Array.isArray(data)
-            ? data
-            : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).diffs)
-                ? (data as { diffs: unknown[] }).diffs
-                : []
-        return records.map(normalizeFileDiff).filter((diff): diff is FileDiff => diff !== null)
+        // v2 moved diffs under the session revert/vcs surface; try legacy first.
+        const endpoints = [
+            `${apiUrl(url, version, "/session")}/${sessionId}/diff${query}`,
+            `${apiUrl(url, version >= 2 ? 1 : 2, "/session")}/${sessionId}/diff${query}`,
+        ]
+        for (const endpoint of endpoints) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": getAuthHeader(token),
+                    },
+                })
+                if (!res.ok) continue
+                const data = await res.json()
+                const records = unwrapList<unknown>(data).length > 0
+                    ? unwrapList<unknown>(data)
+                    : Array.isArray(data)
+                      ? data
+                      : data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).diffs)
+                        ? (data as { diffs: unknown[] }).diffs
+                        : []
+                const diffs = (records as unknown[]).map(normalizeFileDiff).filter((diff): diff is FileDiff => diff !== null)
+                if (diffs.length > 0) return diffs
+            } catch {
+                continue
+            }
+        }
+        return []
     } catch {
         return []
     }

@@ -1,4 +1,5 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 export type MentionKind = "file" | "agent"
 
@@ -66,17 +67,41 @@ export const fetchFileSuggestions = async (
     opts?: { limit?: number; signal?: AbortSignal },
 ): Promise<string[]> => {
     try {
+        const version = getServerVersion(url)
         const params = new URLSearchParams({
             query,
             limit: String(opts?.limit ?? 20),
         })
-        const res = await fetch(`${url}/find/file?${params.toString()}`, {
-            headers: { Authorization: getAuthHeader(token) },
-            signal: opts?.signal,
-        })
-        if (!res.ok) return []
-        const data = (await res.json()) as unknown
-        return Array.isArray(data) ? data.filter((p): p is string => typeof p === "string") : []
+        const endpoints =
+            version >= 2
+                ? [apiUrl(url, 2, "/fs/find"), apiUrl(url, 1, "/find/file")]
+                : [apiUrl(url, 1, "/find/file"), apiUrl(url, 2, "/fs/find")]
+        for (const base of endpoints) {
+            try {
+                const res = await fetch(`${base}?${params.toString()}`, {
+                    headers: { Authorization: getAuthHeader(token) },
+                    signal: opts?.signal,
+                })
+                if (!res.ok) continue
+                const data = (await res.json()) as unknown
+                const list = unwrapList<unknown>(data)
+                const paths = (Array.isArray(list) ? list : []).map((p) =>
+                    typeof p === "string"
+                        ? p
+                        : p && typeof p === "object" && typeof (p as Record<string, unknown>).path === "string"
+                          ? ((p as Record<string, unknown>).path as string)
+                          : null
+                ).filter((p): p is string => typeof p === "string")
+                if (paths.length > 0) return paths
+                if (Array.isArray(data)) {
+                    const bare = data.filter((p): p is string => typeof p === "string")
+                    if (bare.length > 0) return bare
+                }
+            } catch {
+                continue
+            }
+        }
+        return []
     } catch {
         return []
     }
@@ -98,14 +123,9 @@ export const fetchMentionFilePart = async (
     path: string,
 ): Promise<MentionFilePart | null> => {
     try {
-        const params = new URLSearchParams({ path })
-        const res = await fetch(`${url}/file/content?${params.toString()}`, {
-            headers: { Authorization: getAuthHeader(token) },
-        })
-        if (!res.ok) return null
-        const data = (await res.json()) as { content?: unknown; text?: unknown }
-        const content = typeof data.content === "string" ? data.content : typeof data.text === "string" ? data.text : null
-        if (content === null || content.length === 0 || content.length > MAX_MENTION_BYTES) return null
+        const { readFileContent } = await import("@/lib/file-browser")
+        const content = await readFileContent(url, token, path)
+        if (!content || content.length === 0 || content.length > MAX_MENTION_BYTES) return null
         if (content.includes("\0")) return null
         return {
             mime: "text/plain",

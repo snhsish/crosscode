@@ -1,4 +1,5 @@
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader, unwrapList } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 import { normalizeLanguage } from "@/lib/prism"
 
 export type FileEntryType = "file" | "directory"
@@ -17,7 +18,12 @@ const MAX_CONTENT_BYTES = 200 * 1024
 function normalizeFileEntry(value: unknown): FileEntry | null {
     if (!value || typeof value !== "object") return null
     const entry = value as Record<string, unknown>
-    const path = typeof entry.path === "string" ? entry.path : typeof entry.name === "string" ? entry.name : undefined
+    const path =
+        typeof entry.path === "string"
+            ? entry.path
+            : typeof entry.name === "string"
+              ? entry.name
+              : undefined
     if (!path) return null
     const rawType = typeof entry.type === "string" ? entry.type : ""
     const type: FileEntryType = rawType === "directory" ? "directory" : rawType === "file" ? "file" : path.endsWith("/") ? "directory" : "file"
@@ -35,26 +41,65 @@ export function sortEntries(entries: FileEntry[]): FileEntry[] {
 }
 
 export async function listDirectory(url: string, token: string, path?: string): Promise<FileEntry[]> {
-    try {
-        const query = `?path=${encodeURIComponent(path || ".")}`
-        const res = await fetch(`${url}/file${query}`, {
-            method: "GET",
-            headers: {
-                "Authorization": getAuthHeader(token),
-            },
-        })
-        if (!res.ok) throw new Error(`Failed to list directory (${res.status})`)
-        const data = await res.json()
-        if (!Array.isArray(data)) throw new Error("Unexpected directory listing response")
-        const entries = data.map(normalizeFileEntry).filter((entry): entry is FileEntry => entry !== null)
-        return sortEntries(entries)
-    } catch (err) {
-        throw err instanceof Error ? err : new Error("Failed to list directory")
+    const version = getServerVersion(url)
+    const dir = path || "."
+    // v2 canonical: GET /api/fs/list?path= ; v1: GET /file?path=
+    const endpoints =
+        version >= 2
+            ? [`${apiUrl(url, 2, "/fs/list")}?path=${encodeURIComponent(dir)}`, `${apiUrl(url, 1, "/file")}?path=${encodeURIComponent(dir)}`]
+            : [`${apiUrl(url, 1, "/file")}?path=${encodeURIComponent(dir)}`, `${apiUrl(url, 2, "/fs/list")}?path=${encodeURIComponent(dir)}`]
+    let lastError: unknown = null
+    for (const endpoint of endpoints) {
+        try {
+            const res = await fetch(endpoint, {
+                method: "GET",
+                headers: {
+                    "Authorization": getAuthHeader(token),
+                },
+            })
+            if (!res.ok) {
+                lastError = new Error(`Failed to list directory (${res.status})`)
+                continue
+            }
+            const data = await res.json()
+            const list = unwrapList<unknown>(data)
+            if (!Array.isArray(list)) throw new Error("Unexpected directory listing response")
+            const entries = list.map(normalizeFileEntry).filter((entry): entry is FileEntry => entry !== null)
+            return sortEntries(entries)
+        } catch (err) {
+            lastError = err
+        }
     }
+    throw lastError instanceof Error ? lastError : new Error("Failed to list directory")
 }
 
 export async function readFileContent(url: string, token: string, path: string): Promise<string> {
-    const res = await fetch(`${url}/file/content?path=${encodeURIComponent(path)}`, {
+    const version = getServerVersion(url)
+    // v2 serves raw bytes at /api/fs/read/*; legacy JSON at /file/content.
+    if (version >= 2) {
+        try {
+            const res = await fetch(`${apiUrl(url, 2, "/fs/read")}/${path.split("/").map(encodeURIComponent).join("/")}`, {
+                method: "GET",
+                headers: { "Authorization": getAuthHeader(token) },
+            })
+            if (res.ok) {
+                const text = await res.text()
+                // The raw endpoint may still return JSON { content } on some builds.
+                try {
+                    const data = JSON.parse(text) as { content?: unknown; text?: unknown; data?: unknown }
+                    if (typeof data.content === "string") return data.content.slice(0, MAX_CONTENT_BYTES)
+                    if (typeof data.text === "string") return data.text.slice(0, MAX_CONTENT_BYTES)
+                    if (typeof data.data === "string") return data.data.slice(0, MAX_CONTENT_BYTES)
+                } catch {
+                    // Not JSON, treat as raw text.
+                }
+                return text.length > MAX_CONTENT_BYTES ? text.slice(0, MAX_CONTENT_BYTES) : text
+            }
+        } catch {
+            // Fall through to the legacy endpoint.
+        }
+    }
+    const res = await fetch(`${apiUrl(url, 1, "/file/content")}?path=${encodeURIComponent(path)}`, {
         method: "GET",
         headers: {
             "Authorization": getAuthHeader(token),
@@ -75,50 +120,87 @@ export async function readFileContent(url: string, token: string, path: string):
 }
 
 export async function searchFiles(url: string, token: string, query: string): Promise<string[]> {
-    try {
-        const res = await fetch(`${url}/find/file?query=${encodeURIComponent(query)}`, {
-            method: "GET",
-            headers: {
-                "Authorization": getAuthHeader(token),
-            },
-        })
-        if (!res.ok) return []
-        const data = await res.json()
-        if (!Array.isArray(data)) return []
-        return data.filter((item): item is string => typeof item === "string")
-    } catch {
-        return []
+    const version = getServerVersion(url)
+    const endpoints =
+        version >= 2
+            ? [`${apiUrl(url, 2, "/fs/find")}?query=${encodeURIComponent(query)}`, `${apiUrl(url, 1, "/find/file")}?query=${encodeURIComponent(query)}`]
+            : [`${apiUrl(url, 1, "/find/file")}?query=${encodeURIComponent(query)}`, `${apiUrl(url, 2, "/fs/find")}?query=${encodeURIComponent(query)}`]
+    for (const endpoint of endpoints) {
+        try {
+            const res = await fetch(endpoint, {
+                method: "GET",
+                headers: {
+                    "Authorization": getAuthHeader(token),
+                },
+            })
+            if (!res.ok) continue
+            const data = await res.json()
+            const list = unwrapList<unknown>(data)
+            if (!Array.isArray(list)) continue
+            // v2 returns Entry objects; v1 returns plain path strings.
+            const paths = list
+                .map((item) =>
+                    typeof item === "string"
+                        ? item
+                        : item && typeof item === "object" && typeof (item as Record<string, unknown>).path === "string"
+                          ? ((item as Record<string, unknown>).path as string)
+                          : null
+                )
+                .filter((item): item is string => typeof item === "string")
+            if (paths.length > 0 || version >= 2) return paths
+            return paths
+        } catch {
+            continue
+        }
     }
+    return []
 }
 
 export async function fetchFileStatuses(url: string, token: string): Promise<FileStatuses> {
     try {
-        const res = await fetch(`${url}/file/status`, {
-            method: "GET",
-            headers: {
-                "Authorization": getAuthHeader(token),
-            },
-        })
-        if (!res.ok) return {}
-        const data = await res.json()
-        if (!data || typeof data !== "object") return {}
+        // v2 has no direct file-status route on some builds; try legacy first,
+        // then the v2 fs status alias when present.
+        const version = getServerVersion(url)
+        const endpoints =
+            version >= 2
+                ? [apiUrl(url, 1, "/file/status"), apiUrl(url, 2, "/fs/status")]
+                : [apiUrl(url, 1, "/file/status")]
+        for (const endpoint of endpoints) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: "GET",
+                    headers: {
+                        "Authorization": getAuthHeader(token),
+                    },
+                })
+                if (!res.ok) continue
+                const data = await res.json()
+                const unwrapped = unwrapList<unknown>(data).length > 0 ? unwrapList<unknown>(data) : data
+                if (!unwrapped || typeof unwrapped !== "object") continue
 
-        const records: Array<[string, unknown]> = Array.isArray(data)
-            ? data.filter((item) => item && typeof item === "object" && typeof (item as Record<string, unknown>).path === "string")
-                  .map((item) => [(item as Record<string, unknown>).path as string, item])
-            : Object.entries(data as Record<string, unknown>)
+                const records: Array<[string, unknown]> = Array.isArray(unwrapped)
+                    ? (unwrapped as unknown[])
+                          .filter((item) => item && typeof item === "object" && typeof (item as Record<string, unknown>).path === "string")
+                          .map((item) => [(item as Record<string, unknown>).path as string, item])
+                    : Object.entries(unwrapped as Record<string, unknown>)
 
-        const result: FileStatuses = {}
-        for (const [key, value] of records) {
-            let status: unknown = value
-            if (value && typeof value === "object") {
-                status = (value as Record<string, unknown>).status
-            }
-            if (status === "added" || status === "modified" || status === "deleted") {
-                result[key] = status
+                const result: FileStatuses = {}
+                for (const [key, value] of records) {
+                    let status: unknown = value
+                    if (value && typeof value === "object") {
+                        const v = value as Record<string, unknown>
+                        status = v.status ?? v.state ?? v.kind
+                    }
+                    if (status === "added" || status === "modified" || status === "deleted") {
+                        result[key] = status
+                    }
+                }
+                return result
+            } catch {
+                continue
             }
         }
-        return result
+        return {}
     } catch {
         return {}
     }

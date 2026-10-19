@@ -12,6 +12,9 @@ import XIcon from "lucide-react-native/dist/esm/icons/x"
 import { Button } from "@/components/ui/button"
 import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
+import { hasEntitlement } from "@crosscode/shared"
+import { useAuth } from "@/store/auth.store"
+import { requestPaywall } from "@/lib/paywall"
 import { useProjectConnection } from "@/lib/project-connection"
 import { useProjects } from "@/store/projects.store"
 import {
@@ -77,6 +80,14 @@ export default function BrowserPage() {
 
     const { connection } = useProjectConnection(projectId)
     const connected = !!(connection?.url && connection?.token)
+    const tier = useAuth((s) => s.user?.tier ?? "free")
+    const allowed = hasEntitlement(tier, "file_browser")
+
+    React.useEffect(() => {
+        if (connected && !allowed) {
+            void requestPaywall("file_browser")
+        }
+    }, [connected, allowed])
     const project = useProjects((s) => s.projects.find((p) => p.id === projectId))
     const rootLabel = useMemo(() => {
         if (project?.name) return project.name
@@ -281,6 +292,37 @@ export default function BrowserPage() {
         return (
             <View className="flex-1 bg-background items-center justify-center px-8">
                 <Text className="text-sm text-muted-foreground text-center">Not connected</Text>
+            </View>
+        )
+    }
+
+    if (!allowed) {
+        return (
+            <View className="flex-1 bg-background">
+                <View
+                    className="flex-row items-center gap-2 border-b border-accent px-4"
+                    style={{ paddingTop: insets.top + 10, paddingBottom: 10 }}
+                >
+                    <Button variant="ghost" className="w-10 h-10 rounded-full" onPress={() => router.back()}>
+                        <ArrowLeftIcon size={20} color={t.foreground} />
+                    </Button>
+                    <Text className="text-base font-semibold flex-1">Files</Text>
+                </View>
+                <View className="flex-1 items-center justify-center px-8">
+                    <Text className="text-lg font-semibold tracking-tight text-center mb-2">
+                        File browser is Pro
+                    </Text>
+                    <Text className="text-sm text-muted-foreground text-center leading-5">
+                        Browse the whole repo from your phone with Pro.
+                    </Text>
+                    <Button
+                        size="sm"
+                        className="mt-4 rounded-full"
+                        onPress={() => requestPaywall("file_browser", { force: true })}
+                    >
+                        <Text className="text-sm">Upgrade to Pro</Text>
+                    </Button>
+                </View>
             </View>
         )
     }

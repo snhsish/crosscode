@@ -5,7 +5,7 @@ import { useColorScheme } from "nativewind"
 import Zap from "lucide-react-native/dist/esm/icons/zap"
 import X from "lucide-react-native/dist/esm/icons/x"
 import Check from "lucide-react-native/dist/esm/icons/check"
-import { paidPlans, tierTunnelLimits, type BillingCycle, type PaidTier } from "@crosscode/shared"
+import { paidPlans, tierTunnelLimits, type BillingCurrency, type BillingCycle, type PaidTier } from "@crosscode/shared"
 import { Text } from "@/components/ui/text"
 import { Button } from "@/components/ui/button"
 import { THEME } from "@/lib/theme"
@@ -15,7 +15,26 @@ import { usePaywall } from "@/store/paywall.store"
 import { createBillingCheckout } from "@/lib/billing"
 import { getPaywallCopy, recordPaywallDismiss, refreshTier } from "@/lib/paywall"
 
-const TIERS: PaidTier[] = ["starter", "builder"]
+const TIERS: PaidTier[] = ["pro"]
+
+function detectCurrency(): BillingCurrency {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+    if (tz.includes("Kolkata") || tz.includes("Calcutta")) return "inr"
+  } catch {}
+  return "usd"
+}
+
+function discountPercent(tier: PaidTier, currency: BillingCurrency): number {
+  const plan = paidPlans[tier]
+  return Math.round((1 - plan.yearly[currency] / (plan.monthly[currency] * 12)) * 100)
+}
+
+function formatPrice(tier: PaidTier, cycle: BillingCycle, currency: BillingCurrency): string {
+  const plan = paidPlans[tier]
+  const amount = cycle === "monthly" ? plan.monthly[currency] : plan.yearly[currency]
+  return `${currency === "inr" ? "₹" : "$"}${amount.toLocaleString(currency === "inr" ? "en-IN" : "en-US")}`
+}
 
 export function PaywallSheet() {
   const { colorScheme } = useColorScheme()
@@ -27,6 +46,7 @@ export function PaywallSheet() {
   const serverUrl = useAuth((s) => s.serverUrl)
   const sessionToken = useAuth((s) => s.sessionToken)
   const [cycle, setCycle] = React.useState<BillingCycle>("monthly")
+  const [currency] = React.useState<BillingCurrency>(detectCurrency)
   const [pendingTier, setPendingTier] = React.useState<PaidTier | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -118,7 +138,7 @@ export function PaywallSheet() {
                     className="text-sm font-medium capitalize"
                     style={{ color: selected ? THEME[theme].foreground : THEME[theme].mutedForeground }}
                   >
-                    {c === "yearly" ? "Yearly · save ~17%" : "Monthly"}
+                    {c === "yearly" ? `Yearly · save ${discountPercent("pro", currency)}%` : "Monthly"}
                   </Text>
                 </Pressable>
               )
@@ -128,26 +148,22 @@ export function PaywallSheet() {
           <View className="mt-3 gap-2">
             {TIERS.map((tier) => {
               const plan = paidPlans[tier]
-              const price = cycle === "monthly" ? plan.monthly.usd : plan.yearly.usd
+              const price = formatPrice(tier, cycle, currency)
               const per = cycle === "monthly" ? "/mo" : "/yr"
-              const isCurrent = currentTier === tier
-              const isPopular = tier === "builder"
+              const isCurrent = currentTier === tier || currentTier === "founder"
               return (
                 <View
                   key={tier}
                   className={cn(
-                    "rounded-2xl border p-4",
-                    isPopular ? "border-primary/60 bg-primary/5" : "border-border bg-muted/20"
+                    "rounded-2xl border p-4 border-primary/60 bg-primary/5"
                   )}
                 >
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center gap-2">
                       <Text className="text-base font-semibold">{plan.name}</Text>
-                      {isPopular ? (
-                        <View className="rounded-full bg-primary px-2 py-0.5">
-                          <Text className="text-[11px] font-semibold text-primary-foreground">Most tunnels</Text>
-                        </View>
-                      ) : null}
+                      <View className="rounded-full bg-primary px-2 py-0.5">
+                        <Text className="text-[11px] font-semibold text-primary-foreground">Reliability + power</Text>
+                      </View>
                       {isCurrent ? (
                         <View className="rounded-full bg-muted px-2 py-0.5">
                           <Text className="text-[11px] font-medium text-muted-foreground">Current</Text>
@@ -155,27 +171,27 @@ export function PaywallSheet() {
                       ) : null}
                     </View>
                     <Text className="text-base font-bold">
-                      ${price}
+                      {price}
                       <Text className="text-xs font-normal text-muted-foreground">{per}</Text>
                     </Text>
                   </View>
                   <View className="mt-2 flex-row items-center gap-1.5">
                     <Check size={14} color={THEME[theme].primary} />
                     <Text className="text-sm text-muted-foreground">
-                      {tierTunnelLimits[tier]} active tunnel{tierTunnelLimits[tier] === 1 ? "" : "s"} · everything in Free
+                      {tierTunnelLimits[tier]} active tunnels · hosted relay + power features
                     </Text>
                   </View>
                   <Button
                     className="mt-3 h-11 rounded-full"
-                    variant={isPopular ? "default" : "outline"}
+                    variant="default"
                     disabled={isCurrent || pendingTier !== null}
                     onPress={() => openCheckout(tier)}
                   >
                     {pendingTier === tier ? (
                       <ActivityIndicator size="small" />
                     ) : (
-                      <Text className={cn("text-sm font-semibold", !isPopular && "text-foreground")}>
-                        {isCurrent ? `You're on ${plan.name}` : `Upgrade to ${plan.name}`}
+                      <Text className="text-sm font-semibold">
+                        {isCurrent ? `You're on ${currentTier === "founder" ? "Pro Lifetime" : plan.name}` : `Upgrade to ${plan.name}`}
                       </Text>
                     )}
                   </Button>

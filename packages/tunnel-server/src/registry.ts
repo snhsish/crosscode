@@ -143,6 +143,36 @@ export function recordRequestEnd(projectId: string, durationMs: number, failed: 
   entry.totalLatencyMs += durationMs
 }
 
+// reqIds whose HTTP response already closed (usually the mobile app's SSE
+// reconnect timing out a /mobile-event stream). The CLI keeps forwarding
+// late chunks for them; treat those as expected noise instead of warnings.
+const recentlyClosed = new Map<string, number>()
+const RECENTLY_CLOSED_TTL_MS = 120_000
+const RECENTLY_CLOSED_MAX = 5_000
+
+function sweepRecentlyClosed(now: number) {
+  if (recentlyClosed.size < RECENTLY_CLOSED_MAX) return
+  for (const [reqId, at] of recentlyClosed) {
+    if (now - at > RECENTLY_CLOSED_TTL_MS) recentlyClosed.delete(reqId)
+    if (recentlyClosed.size < RECENTLY_CLOSED_MAX / 2) break
+  }
+}
+
+export function noteClosedRequest(reqId: string): void {
+  sweepRecentlyClosed(Date.now())
+  recentlyClosed.set(reqId, Date.now())
+}
+
+export function wasRecentlyClosed(reqId: string): boolean {
+  const at = recentlyClosed.get(reqId)
+  if (at === undefined) return false
+  if (Date.now() - at > RECENTLY_CLOSED_TTL_MS) {
+    recentlyClosed.delete(reqId)
+    return false
+  }
+  return true
+}
+
 export function getRegistryStats(): {
   totalClients: number
   totalPendingRequests: number

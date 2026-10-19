@@ -6,7 +6,7 @@ import { logger } from "./logger.js"
 import { getRegistryStats } from "./registry.js"
 
 const PORT = parseInt(process.env.PORT || "3100", 10)
-const VERSION = "0.2.0"
+const VERSION = "0.2.4"
 
 logger.info("Starting tunnel-server", { version: VERSION, port: PORT, nodeEnv: process.env.NODE_ENV, tunnelDomain: process.env.TUNNEL_DOMAIN || "connect.crosscode.site", tunnelUrlMode: process.env.TUNNEL_URL_MODE || "path" })
 

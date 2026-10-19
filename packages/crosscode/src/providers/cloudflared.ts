@@ -11,17 +11,36 @@ import { createOpencodeProxy } from "../proxy"
 import { startOpencode } from "../opencode"
 import type { Config, ProjectConfig, CloudflaredTunnel } from "../config"
 import { ensureSessionToken, ensureProjectId, saveProjectConfig, resolveOpencodeBin } from "../config"
+import { promptInput } from "../auth"
+
+export type CloudflaredMode = "auto" | "named" | "quick"
 
 // Use a persistent named cloudflared tunnel so the public URL is stable
 // (<tunnelId>.cfargotunnel.com) across restarts and reconnects, instead of
 // the random ephemeral quick tunnel that rotates its URL on every (re)start.
+async function ensureCloudflaredLogin(): Promise<boolean> {
+    if (existsSync(cfCertPath)) return true
+    console.log(chalk.cyan("\n Cloudflared Named Tunnel needs a one-time login.\n"))
+    console.log(" 1. Run this in another terminal: " + chalk.cyan("cloudflared tunnel login"))
+    console.log(chalk.dim(" 2. Complete the browser login, then return here.\n"))
+    const answer = (await promptInput(" Press Enter once done, or type 'cancel' to use Quick Tunnel instead: ")).trim().toLowerCase()
+    if (answer === "cancel" || answer === "c" || answer === "q") return false
+    if (existsSync(cfCertPath)) return true
+    console.log(chalk.yellow(" Still no cert.pem found. Falling back to Quick Tunnel.\n"))
+    debug("cloudflared login not completed; falling back to quick tunnel")
+    return false
+}
+
 async function ensureCloudflaredNamedTunnel(
     config: Config,
     project?: ProjectConfig,
 ): Promise<CloudflaredTunnel | null> {
     if (!existsSync(cfCertPath)) {
-        debug("cloudflared not logged in (no cert.pem); falling back to quick tunnel")
-        return null
+        const loggedIn = await ensureCloudflaredLogin()
+        if (!loggedIn) {
+            debug("cloudflared not logged in (no cert.pem); falling back to quick tunnel")
+            return null
+        }
     }
     const target = project ?? (() => { throw new Error("project required") })()
     if (target.cloudflaredTunnel && existsSync(target.cloudflaredTunnel.credentialsPath)) {
@@ -62,6 +81,7 @@ export async function startCloudflaredProvider(
     isShuttingDown: () => boolean,
     onTunnelUrl: (url: string) => void,
     printQr: (url: string, token: string, opencodePort: number, requestedPort: number) => void,
+    opts: { mode?: CloudflaredMode; onAuthComplete?: () => Promise<void> } = {},
 ) {
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
@@ -79,10 +99,17 @@ export async function startCloudflaredProvider(
         debug("proxy listening", { port: proxyPort, targetPort: detectedPort })
         spinner.text = chalk.green.italic(`${opencodeBin} serve running`) + chalk.yellow.italic("  •  Waiting for Cloudflare tunnel...")
 
-        const namedTunnel = await ensureCloudflaredNamedTunnel(config, project)
+        const mode: CloudflaredMode = opts.mode ?? "auto"
+        const namedTunnel = mode === "quick" ? null : await ensureCloudflaredNamedTunnel(config, project)
         if (!namedTunnel) {
+            if (mode === "named") {
+                console.log(chalk.yellow("\n Could not set up Named Tunnel, using Quick Tunnel instead.\n"))
+            }
             logCrosscode("Using ephemeral quick tunnel (URL changes on restart). Run `cloudflared tunnel login` once for a stable, persistent URL.")
         }
+        // Config is complete here: quick needs nothing, named just
+        // finished its login + tunnel create. Ask to remember now.
+        await opts.onAuthComplete?.()
 
         let tunnelUrl = ""
 
@@ -103,7 +130,9 @@ export async function startCloudflaredProvider(
                 writeFileSync(cfgPath, `url: http://127.0.0.1:${proxyPort}\ntunnel: ${namedTunnel.name}\ncredentials-file: ${namedTunnel.credentialsPath}\n`, { mode: 0o600 })
                 cfArgs = ["tunnel", "--no-autoupdate", "--config", cfgPath, "run"]
             } else {
-                cfArgs = ["tunnel", "--no-autoupdate", "--config", "/dev/null", "--url", `http://127.0.0.1:${proxyPort}`]
+                // Quick tunnel: no config file. (Older code passed
+                // --config /dev/null which breaks on Windows.)
+                cfArgs = ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${proxyPort}`]
             }
 
             const cf = spawnCmd("cloudflared", cfArgs, { stdio: ["ignore", "pipe", "pipe"] })
@@ -132,10 +161,10 @@ export async function startCloudflaredProvider(
                 if (isShuttingDown()) return
                 if (namedTunnel) {
                     logCrosscode("Restarting cloudflared (named tunnel keeps stable URL)")
-                    console.log(chalk.yellow("\n Cloudflare tunnel dropped — reconnecting (URL unchanged)...\n"))
+                    console.log(chalk.yellow("\n Cloudflare tunnel dropped. Reconnecting (URL unchanged)...\n"))
                     startCloudflared()
                 } else {
-                    console.log(chalk.red("\n Cloudflare tunnel exited. The session URL may have changed — restart crosscode to reconnect.\n"))
+                    console.log(chalk.red("\n Cloudflare tunnel exited. The session URL may have changed. Restart crosscode to reconnect.\n"))
                 }
             })
 

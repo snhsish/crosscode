@@ -1,6 +1,6 @@
 import { WebSocket } from "ws"
 import { validateApiKey } from "./db.js"
-import { register, deregister, get, removePendingRequest, countByUserId } from "./registry.js"
+import { register, deregister, get, removePendingRequest, countByUserId, wasRecentlyClosed } from "./registry.js"
 import type { TunnelC2S, TunnelS2C } from "@crosscode/shared"
 import { tierTunnelLimits } from "@crosscode/shared"
 import crypto from "crypto"
@@ -71,6 +71,8 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         const pending = entry?.pendingRequests.get(msg.reqId)
         if (pending) {
           pending.onChunk(Buffer.from(msg.data, "base64"))
+        } else if (wasRecentlyClosed(msg.reqId)) {
+          logger.debug("Response chunk arrived after HTTP response closed", { projectId, reqId: msg.reqId })
         } else {
           logger.warn("Response chunk for unknown reqId", { projectId, reqId: msg.reqId })
         }
@@ -82,6 +84,8 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         if (pending) {
           logger.debug("Response end received", { projectId, reqId: msg.reqId })
           pending.onEnd()
+        } else if (wasRecentlyClosed(msg.reqId)) {
+          logger.debug("Response end arrived after HTTP response closed", { projectId, reqId: msg.reqId })
         } else {
           logger.warn("Response end for unknown reqId", { projectId, reqId: msg.reqId })
         }
@@ -93,6 +97,8 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         if (pending) {
           logger.warn("Response error from tunnel client", { projectId, reqId: msg.reqId, error: msg.message })
           pending.onError(msg.message)
+        } else if (wasRecentlyClosed(msg.reqId)) {
+          logger.debug("Response error arrived after HTTP response closed", { projectId, reqId: msg.reqId })
         } else {
           logger.warn("Response error for unknown reqId", { projectId, reqId: msg.reqId })
         }
@@ -104,20 +110,26 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
     }
   })
 
+  // 'error' is usually followed by 'close' for the same socket. Deregister
+  // only once so the logs don't claim an unknown project on the second event.
+  let deregistered = false
+  const deregisterOnce = () => {
+    if (authenticated && !deregistered) {
+      deregistered = true
+      deregister(projectId)
+    }
+  }
+
   ws.on("close", (code, reason) => {
     cleanup()
     logger.info("WebSocket connection closed", { projectId, remoteAddr, code, reason: reason.toString() })
-    if (authenticated) {
-      deregister(projectId)
-    }
+    deregisterOnce()
   })
 
   ws.on("error", (err) => {
     logger.error("WebSocket error", { projectId, remoteAddr, error: err.message })
     cleanup()
-    if (authenticated) {
-      deregister(projectId)
-    }
+    deregisterOnce()
   })
 
   function handleAuth(apiKey: string, projId: string) {
@@ -139,7 +151,14 @@ export function handleWebSocket(ws: WebSocket, req: import("http").IncomingMessa
         return
       }
 
-       const activeTunnels = countByUserId(result.userId)
+       // A reconnect for the same project replaces its own registry entry
+       // (see register()), so it must not consume a tunnel-limit slot.
+       // Without this, a flaky network that reconnects while the stale
+       // socket hasn't fired 'close' yet gets a false "tunnel limit
+       // reached" and the CLI falls back to cloudflared while the app
+       // keeps polling the dead CrossCode URL.
+       const selfCount = get(projId)?.userId === result.userId ? 1 : 0
+       const activeTunnels = countByUserId(result.userId) - selfCount
        const tunnelLimit = tierTunnelLimits[result.tier] ?? tierTunnelLimits.free
        if (activeTunnels >= tunnelLimit) {
          logger.warn("Auth failed: tunnel limit reached", { projectId: projId, userId: result.userId, tier: result.tier, activeTunnels, tunnelLimit })

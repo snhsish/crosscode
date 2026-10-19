@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-import { readFile } from "fs/promises"
 import chalk from "chalk"
-import { debug, checkDep, setLogWriter, getFreePort, terminateChild, openBrowser } from "./util"
-import { logCrosscode, closeAllLogs, crosscodeLogFile, cloudflaredLogFile, opencodeLogFile } from "./log"
+import { debug, checkDep, setLogWriter, getFreePort, terminateChild, openBrowser, maskEmail } from "./util"
+import { logCrosscode, closeAllLogs } from "./log"
 import { startConnectionServer, closeConnectionServer, connectionPageUrl, setConnectionInfo } from "./connection-page"
 import { readConfig, saveConfig, getProjectConfig, ensureSessionToken, resolveOpencodeBin } from "./config"
+import type { TunnelPreference } from "./config"
+import { promptTunnelChoice, maybeRememberTunnelChoice, shouldShowProUpsell } from "./tunnel-setup"
 import { initSentry, captureCliError } from "./sentry"
 import * as Sentry from "@sentry/node"
 import { loginFlow, refreshTier } from "./auth"
 import { printTunnelQr as renderTunnelQr } from "./qr"
 import { proxyAgent } from "./proxy"
-import { onKeypress, cleanupKeypress } from "./keypress"
 import { startTunnelProvider } from "./providers/tunnel"
 import { startCloudflaredProvider } from "./providers/cloudflared"
 import { startNgrokProvider } from "./providers/ngrok"
@@ -41,8 +41,8 @@ function printTunnelQr(url: string, token: string, opencodePort: number, request
         console.log(chalk.green(`   Browser opened: ${pageUrl}`))
         console.log(chalk.dim("   Scan the QR, or copy the URL/token from that page."))
         console.log(chalk.grey(`   URL: ${url}`))
-        console.log(chalk.yellow.bold("   Don't close this terminal — closing it disconnects the app."))
-        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+        console.log(chalk.yellow.bold("   Don't close this terminal. Closing it disconnects the app."))
+        console.log(chalk.dim("   Press Ctrl+C to exit."))
         return
     }
 
@@ -51,15 +51,12 @@ function printTunnelQr(url: string, token: string, opencodePort: number, request
         disabled: argv.includes("--no-qr"),
         small: argv.includes("--small-qr") || process.env.CROSSCODE_QR_SMALL === "1",
     })
-    console.log(chalk.yellow.bold("   Don't close this terminal — closing it disconnects the app."))
+    console.log(chalk.yellow.bold("   Don't close this terminal. Closing it disconnects the app."))
+    console.log(chalk.dim("   Press Ctrl+C to exit."))
 }
 
-function printHelp() {
-    console.log(chalk.cyan("\n CrossCode Keybindings:\n"))
-    console.log(`  ${chalk.green("l")}  Toggle log viewer`)
-    console.log(`  ${chalk.green("h")}  Show this help`)
-    console.log(`  ${chalk.green("Ctrl+C")}  Shut down`)
-    console.log()
+function printProUpsell() {
+    console.log(chalk.dim("   Upgrade to CrossCode Pro for a stable URL and unlimited connections: https://crosscode.site/pricing"))
 }
 
 async function main() {
@@ -91,7 +88,7 @@ async function main() {
 
     if (command === "logout") {
         if (config.auth) {
-            console.log(chalk.yellow(`\n Logged out ${config.auth.email}\n`))
+            console.log(chalk.yellow(`\n Logged out ${maskEmail(config.auth.email)}\n`))
             delete config.auth
             saveConfig(config)
         } else {
@@ -102,7 +99,7 @@ async function main() {
 
     if (command === "status") {
         if (config.auth?.sessionToken) {
-            console.log(chalk.green(`\n Logged in as ${config.auth.email}`))
+            console.log(chalk.green(`\n Logged in as ${maskEmail(config.auth.email)}`))
             console.log(chalk.dim(` Tier: ${config.auth.tier || "free"}\n`))
         } else {
             console.log(chalk.dim("\n Not logged in (using cloudflared tunnel)\n"))
@@ -125,23 +122,24 @@ ${chalk.yellow.bold("COMMANDS:")}
   ${chalk.green("help")}               Show this help message
 
 ${chalk.yellow.bold("OPTIONS:")}
-  ${chalk.green("--cloudflared")}      Use Cloudflare tunnel (default for free tier)
+  ${chalk.green("--cloudflared")}      Use Cloudflare tunnel
   ${chalk.green("--ngrok")}            Use ngrok tunnel (requires auth token)
+  ${chalk.green("--tunnel")}           Use CrossCode dedicated tunnel (login required)
   ${chalk.green("--no-open")}          Don't auto-open the connection page in a browser
   ${chalk.green("--no-qr")}            Skip QR graphic, print URL only
   ${chalk.green("--small-qr")}         Compact QR graphic (smaller margin)
   ${chalk.green("--help, -h")}         Show this help message
 
 ${chalk.yellow.bold("EXAMPLES:")}
-  ${chalk.dim("$")} crosscode                   Start with auto-selected tunnel
+  ${chalk.dim("$")} crosscode                   Start (prompts for tunnel when logged out)
   ${chalk.dim("$")} crosscode --ngrok           Start with ngrok tunnel
   ${chalk.dim("$")} crosscode --cloudflared     Start with Cloudflare tunnel
   ${chalk.dim("$")} crosscode login             Authenticate for paid tier features
   ${chalk.dim("$")} crosscode status            Check authentication status
 
 ${chalk.yellow.bold("TUNNEL PROVIDERS:")}
-  ${chalk.blue("Free tier")}       Cloudflare tunnel (default when not logged in)
-  ${chalk.blue("Paid tier")}       CrossCode tunnel (default when logged in)
+  ${chalk.blue("CrossCode")}       Dedicated tunnel (login required, stable URL)
+  ${chalk.blue("Cloudflare")}      Named tunnel (stable URL) or Quick tunnel (URL changes)
   ${chalk.blue("ngrok")}           Alternative tunnel (requires ngrok auth token)
 
 ${chalk.dim("Default behavior: uses connect.crosscode.site when logged in with a paid tier.")}
@@ -152,15 +150,63 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
     const useNgrok = args.includes("--ngrok")
     const useCloudflared = args.includes("--cloudflared")
+    const useCrosscodeTunnel = args.includes("--tunnel") || args.includes("--crosscode")
     const canUseTunnel = !!(config.auth?.sessionToken)
-    const tunnelProvider = useNgrok ? "ngrok" : (useCloudflared ? "cloudflared" : (canUseTunnel ? "tunnel" : "cloudflared"))
+
+    let tunnelChoice: TunnelPreference | null = null
+    let choiceFromPrompt = false
+    let cloudflaredMode: "auto" | "named" | "quick" = "auto"
+    if (useNgrok) tunnelChoice = "ngrok"
+    else if (useCloudflared) { tunnelChoice = "cloudflared-quick"; cloudflaredMode = "auto" }
+    else if (useCrosscodeTunnel) tunnelChoice = "crosscode"
+    else if (config.tunnelPreference) {
+        tunnelChoice = config.tunnelPreference
+        if (tunnelChoice === "cloudflared-named") cloudflaredMode = "named"
+        else if (tunnelChoice === "cloudflared-quick") cloudflaredMode = "quick"
+    }
+    else if (canUseTunnel) tunnelChoice = "crosscode"
+    else if (process.stdout.isTTY && process.stdin.isTTY) {
+        tunnelChoice = await promptTunnelChoice()
+        choiceFromPrompt = true
+        if (tunnelChoice === "cloudflared-named") cloudflaredMode = "named"
+        else if (tunnelChoice === "cloudflared-quick") cloudflaredMode = "quick"
+    } else {
+        tunnelChoice = "cloudflared-quick"
+        cloudflaredMode = "quick"
+    }
+
+    // Remember only after the tunnel's own setup (login / token / cert)
+    // succeeds. Providers call handleAuthComplete once their config is done.
+    let rememberHandled = false
+    const handleAuthComplete = async () => {
+        if (choiceFromPrompt && !rememberHandled && tunnelChoice) {
+            rememberHandled = true
+            await maybeRememberTunnelChoice(config, () => {
+                saveConfig(config)
+                logCrosscode(`Tunnel preference saved: ${tunnelChoice}`)
+            }, tunnelChoice, true)
+        }
+    }
+
+    // CrossCode dedicated tunnel requires login. Offer it inline so the
+    // user never has to leave the flow to figure out the `login` command.
+    if (tunnelChoice === "crosscode" && !config.auth?.sessionToken) {
+        const success = await loginFlow(config)
+        if (!success) {
+            console.log(chalk.red("\n Login required for CrossCode tunnel.\n"))
+            process.exit(1)
+        }
+        await refreshTier(config)
+        await handleAuthComplete()
+    }
+
+    const tunnelProvider = tunnelChoice === "ngrok" ? "ngrok" : (tunnelChoice === "crosscode" ? "tunnel" : "cloudflared")
     initSentry(config, { tunnelProvider })
     Sentry.setTag("tunnelProvider", tunnelProvider)
     const project = getProjectConfig(config)
     const port = project.port || await getFreePort()
 
     let missingDep = false
-    let logsVisible = false
     let tunnelUrl = ""
 
     logCrosscode(`CrossCode starting up (tunnel: ${tunnelProvider}, debug: ${process.env.CROSSCODE_DEBUG === "1"})`)
@@ -208,12 +254,17 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     }
 
     if (config.auth?.sessionToken) {
-        console.log(chalk.green(`\n Logged in as ${config.auth.email}`))
+        console.log(chalk.green(`\n Logged in as ${maskEmail(config.auth.email)}`))
         console.log(chalk.dim(` Tier: ${config.auth.tier || "free"}\n`))
     } else {
         console.log(chalk.cyan(" Tip:") + chalk.dim(" run ") +
             chalk.cyan("npx crosscode login") +
             chalk.dim(" to use the free built-in CrossCode tunnel.\n"))
+    }
+
+    const printQrWithUpsell = (url: string, token: string, opencodePort: number, requestedPort: number) => {
+        printTunnelQr(url, token, opencodePort, requestedPort)
+        if (shouldShowProUpsell(config.auth?.tier, tunnelProvider)) printProUpsell()
     }
 
     // Fix C1: cloudflared fallback is invoked as a function, not gated behind an
@@ -225,60 +276,32 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             config, project, port, children,
             () => isShuttingDown,
             (url) => { tunnelUrl = url },
-            printTunnelQr,
+            printQrWithUpsell,
+            { mode: cloudflaredMode === "named" ? "named" : "quick" },
         )
     }
 
     if (tunnelProvider === "tunnel") {
         await startTunnelProvider(config, project, port, children, {
             onTunnelUrl: (url) => { tunnelUrl = url },
-            printQr: printTunnelQr,
+            printQr: printQrWithUpsell,
             onFallbackNeeded: () => { void launchCloudflaredFallback().catch(handleFatalError) },
         })
     } else if (tunnelProvider === "ngrok") {
         await startNgrokProvider(
             config, project, port, children,
             (url) => { tunnelUrl = url },
-            printTunnelQr,
+            printQrWithUpsell,
+            { onAuthComplete: handleAuthComplete },
         )
     } else {
         await startCloudflaredProvider(
             config, project, port, children,
             () => isShuttingDown,
             (url) => { tunnelUrl = url },
-            printTunnelQr,
+            printQrWithUpsell,
+            { mode: cloudflaredMode, onAuthComplete: handleAuthComplete },
         )
-    }
-
-    const toggleLogs = async () => {
-        logsVisible = !logsVisible
-        if (logsVisible) {
-            try {
-                const [crosscodeContent, cloudflaredContent, opencodeContent] = await Promise.all([
-                    readFile(crosscodeLogFile, "utf-8").catch(() => ""),
-                    readFile(cloudflaredLogFile, "utf-8").catch(() => ""),
-                    readFile(opencodeLogFile, "utf-8").catch(() => ""),
-                ])
-
-                const crosscodeLines = crosscodeContent.split("\n").filter(Boolean).slice(-20)
-                const cloudflaredLines = cloudflaredContent.split("\n").filter(Boolean).slice(-20)
-                const opencodeLines = opencodeContent.split("\n").filter(Boolean).slice(-20)
-
-                console.log("\n" + chalk.cyan.bold("═══ CROSSCODE LOGS ═══"))
-                console.log(chalk.dim(crosscodeLines.join("\n")))
-                console.log("\n" + chalk.yellow.bold("═══ TUNNEL LOGS ═══"))
-                console.log(chalk.dim(cloudflaredLines.join("\n")))
-                console.log("\n" + chalk.magenta.bold("═══ OPENCODE LOGS ═══"))
-                console.log(chalk.dim(opencodeLines.join("\n")))
-                console.log(chalk.dim("──────────────────────────────────────"))
-            }
-            catch {
-                console.log(chalk.red("Could not read log files"))
-            }
-        }
-        else {
-            console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
-        }
     }
 
     // Fix I1: await log stream flush before exiting
@@ -289,7 +312,6 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         logCrosscode(`Shutting down... (source: ${source || "unknown"})`)
         debug("shutdown initiated", { source: source || "unknown" })
         await Promise.all(children.map(terminateChild))
-        cleanupKeypress()
         closeConnectionServer()
         proxyAgent.destroy()
         await closeAllLogs()
@@ -300,24 +322,6 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
     process.on("SIGTERM", () => shutdown("SIGTERM"))
     process.on("exit", (code) => {
         logCrosscode(`Process exit event (code: ${code})`)
-    })
-    process.stdin.on("end", () => {
-        logCrosscode("stdin end event")
-        debug("stdin end event")
-    })
-    process.stdin.on("close", () => {
-        logCrosscode("stdin close event")
-        debug("stdin close event")
-    })
-
-    // Fix M2: 'h' keypress now handled
-    onKeypress((key: string) => {
-        if (key === "l")
-            toggleLogs()
-        else if (key === "h")
-            printHelp()
-        else if (key === "ctrl-c")
-            shutdown("ctrl-c keypress")
     })
 }
 

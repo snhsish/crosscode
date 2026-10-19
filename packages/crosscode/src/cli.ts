@@ -2,10 +2,12 @@
 
 import { readFile } from "fs/promises"
 import chalk from "chalk"
-import { debug, checkDep, setLogWriter, getFreePort, terminateChild, openBrowser } from "./util"
+import { debug, checkDep, setLogWriter, getFreePort, terminateChild, openBrowser, maskEmail } from "./util"
 import { logCrosscode, closeAllLogs, crosscodeLogFile, cloudflaredLogFile, opencodeLogFile } from "./log"
 import { startConnectionServer, closeConnectionServer, connectionPageUrl, setConnectionInfo } from "./connection-page"
 import { readConfig, saveConfig, getProjectConfig, ensureSessionToken, resolveOpencodeBin } from "./config"
+import type { TunnelPreference } from "./config"
+import { promptTunnelChoice, promptRememberChoice } from "./tunnel-setup"
 import { initSentry, captureCliError } from "./sentry"
 import * as Sentry from "@sentry/node"
 import { loginFlow, refreshTier } from "./auth"
@@ -91,7 +93,7 @@ async function main() {
 
     if (command === "logout") {
         if (config.auth) {
-            console.log(chalk.yellow(`\n Logged out ${config.auth.email}\n`))
+            console.log(chalk.yellow(`\n Logged out ${maskEmail(config.auth.email)}\n`))
             delete config.auth
             saveConfig(config)
         } else {
@@ -102,7 +104,7 @@ async function main() {
 
     if (command === "status") {
         if (config.auth?.sessionToken) {
-            console.log(chalk.green(`\n Logged in as ${config.auth.email}`))
+            console.log(chalk.green(`\n Logged in as ${maskEmail(config.auth.email)}`))
             console.log(chalk.dim(` Tier: ${config.auth.tier || "free"}\n`))
         } else {
             console.log(chalk.dim("\n Not logged in (using cloudflared tunnel)\n"))
@@ -152,8 +154,47 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
     const useNgrok = args.includes("--ngrok")
     const useCloudflared = args.includes("--cloudflared")
+    const useCrosscodeTunnel = args.includes("--tunnel") || args.includes("--crosscode")
     const canUseTunnel = !!(config.auth?.sessionToken)
-    const tunnelProvider = useNgrok ? "ngrok" : (useCloudflared ? "cloudflared" : (canUseTunnel ? "tunnel" : "cloudflared"))
+
+    let tunnelChoice: TunnelPreference | null = null
+    let choiceFromPrompt = false
+    if (useNgrok) tunnelChoice = "ngrok"
+    else if (useCloudflared) tunnelChoice = "cloudflared-quick"
+    else if (useCrosscodeTunnel) tunnelChoice = "crosscode"
+    else if (config.tunnelPreference) tunnelChoice = config.tunnelPreference
+    else if (canUseTunnel) tunnelChoice = "crosscode"
+    else if (process.stdout.isTTY && process.stdin.isTTY) {
+        tunnelChoice = await promptTunnelChoice()
+        choiceFromPrompt = true
+    } else {
+        tunnelChoice = "cloudflared-quick"
+    }
+
+    // CrossCode dedicated tunnel requires login. Offer it inline so the
+    // user never has to leave the flow to figure out the `login` command.
+    if (tunnelChoice === "crosscode" && !config.auth?.sessionToken) {
+        const success = await loginFlow(config)
+        if (!success) {
+            console.log(chalk.red("\n Login required for CrossCode tunnel.\n"))
+            process.exit(1)
+        }
+        await refreshTier(config)
+    }
+
+    if (choiceFromPrompt && tunnelChoice) {
+        try {
+            if (await promptRememberChoice()) {
+                config.tunnelPreference = tunnelChoice
+                saveConfig(config)
+                logCrosscode(`Tunnel preference saved: ${tunnelChoice}`)
+            }
+        } catch {
+            // Non-fatal: continue with the one-time choice.
+        }
+    }
+
+    const tunnelProvider = tunnelChoice === "ngrok" ? "ngrok" : (tunnelChoice === "crosscode" ? "tunnel" : "cloudflared")
     initSentry(config, { tunnelProvider })
     Sentry.setTag("tunnelProvider", tunnelProvider)
     const project = getProjectConfig(config)

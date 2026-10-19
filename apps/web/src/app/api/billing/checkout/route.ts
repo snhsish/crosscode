@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { eq } from "drizzle-orm"
+import { count, eq } from "drizzle-orm"
 import { getBillingUser } from "@/lib/billing-auth"
-import { appUrl, getDodo, getProductId } from "@/lib/dodo"
+import { appUrl, getDodo, getFounderProductId, getProductId } from "@/lib/dodo"
 import { db } from "@/lib/db"
 import { user } from "@/lib/db/schema"
-import type { BillingCurrency, BillingCycle, PaidTier } from "@crosscode/shared"
+import { founderPlan, type BillingCurrency, type BillingCycle } from "@crosscode/shared"
 import { checkRateLimit, rateLimitedResponse } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
@@ -19,10 +19,13 @@ export async function POST(req: NextRequest) {
     if (!userRl.success) return rateLimitedResponse(userRl)
 
     const body = await req.json() as { tier?: string; cycle?: string; currency?: string }
-    const tier = body.tier as PaidTier
+    const tier = body.tier
     const cycle = body.cycle as BillingCycle
     const currency = body.currency as BillingCurrency | undefined
-    if (!["starter", "builder"].includes(tier) || !["monthly", "yearly"].includes(cycle)) {
+    if (tier !== "pro" && tier !== "team" && tier !== "founder") {
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
+    }
+    if ((tier === "pro" || tier === "team") && !["monthly", "yearly"].includes(cycle)) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 })
     }
 
@@ -47,7 +50,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const productId = getProductId(tier, cycle)
+    if (tier === "founder") {
+      const soldRows = await db.select({ value: count() }).from(user).where(eq(user.tier, "founder"))
+      const sold = soldRows[0]?.value ?? 0
+      if (sold >= founderPlan.cap) {
+        return NextResponse.json({ error: "Pro Lifetime is sold out" }, { status: 400 })
+      }
+      const productId = getFounderProductId()
+      const checkout = await dodo.checkoutSessions.create({
+        product_cart: [{ product_id: productId, quantity: 1 }],
+        customer: { customer_id: customerId },
+        allowed_payment_method_types: ["upi_collect", "upi_intent", "credit", "debit"],
+        ...(currency === "inr" ? { billing_currency: "INR", billing_address: { country: "IN" } } : {}),
+        return_url: appUrl("/billing/success"),
+        cancel_url: appUrl("/billing/cancelled"),
+        metadata: {
+          user_id: currentUser.id,
+          tier: "founder",
+        },
+        feature_flags: { redirect_immediately: true },
+      })
+      return NextResponse.json({ checkoutUrl: checkout.checkout_url, sessionId: checkout.session_id })
+    }
+
+    const productId = getProductId(tier as "pro" | "team", cycle)
     const checkout = await dodo.checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { customer_id: customerId },

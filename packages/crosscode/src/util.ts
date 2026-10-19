@@ -34,6 +34,17 @@ export function censorToken(val: string): string {
     return `${val.substring(0, 8)}...${val.substring(val.length - 4)}`
 }
 
+export function maskEmail(email: string | undefined): string {
+    if (!email || !email.includes("@")) return "***"
+    const [local, domain] = email.split("@")
+    if (!local || !domain) return "***"
+    const maskedLocal = `${local[0]}***`
+    const domainParts = domain.split(".")
+    if (domainParts.length === 1 || !domainParts[0]) return `${maskedLocal}@***`
+    const maskedFirst = `${domainParts[0][0]}***`
+    return `${maskedLocal}@${[maskedFirst, ...domainParts.slice(1)].join(".")}`
+}
+
 export function checkDep(name: string): boolean {
     const finder = process.platform === "win32" ? "where" : "which"
     try {

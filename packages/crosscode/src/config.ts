@@ -17,6 +17,8 @@ export type ProjectConfig = {
     port?: number
 }
 
+export type TunnelPreference = "crosscode" | "cloudflared-named" | "cloudflared-quick" | "ngrok"
+
 export type Config = {
     ngrokToken?: string
     port?: number
@@ -24,6 +26,7 @@ export type Config = {
     sessionToken?: string
     projectId?: string
     telemetry?: boolean
+    tunnelPreference?: TunnelPreference
     // Name (or path) of the opencode executable to run, e.g. "opencode-v2".
     opencodeBin?: string
     cloudflaredTunnel?: CloudflaredTunnel

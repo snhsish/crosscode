@@ -53,7 +53,7 @@ export function printTunnelQr(
         console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
         console.log(chalk.grey(`URL: ${url}`))
         console.log(chalk.dim("QR display disabled (--no-qr). Enter the URL manually in the app."))
-        console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+        console.log(chalk.dim("Press Ctrl+C to exit."))
         return
     }
     console.log(chalk.cyanBright("\n Scan with CrossCode App:"))
@@ -71,5 +71,5 @@ export function printTunnelQr(
     if (process.env.TERM_PROGRAM === "Apple_Terminal") {
         console.log(chalk.dim("Terminal.app tip: if the code won't scan, zoom out (Cmd+-) and keep the whole code visible."))
     }
-    console.log(chalk.dim.bold("[Press 'l' for logs  •  'h' for help  •  Ctrl+C to exit]"))
+    console.log(chalk.dim("Press Ctrl+C to exit."))
 }

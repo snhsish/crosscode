@@ -2,7 +2,7 @@ import chalk from "chalk"
 import ora from "ora"
 import type { Config } from "./config"
 import { saveConfig } from "./config"
-import { debug, openBrowser } from "./util"
+import { debug, openBrowser, maskEmail } from "./util"
 
 const WEB_URL = process.env.CROSSCODE_WEB_URL || "https://crosscode.site"
 const AUTH_API_URL = process.env.CROSSCODE_AUTH_URL || `${WEB_URL}/api/auth`
@@ -118,7 +118,7 @@ export async function loginFlow(config: Config): Promise<boolean> {
     }
     saveConfig(config)
 
-    console.log(chalk.green(`\n Logged in as ${result.email}`))
+    console.log(chalk.green(`\n Logged in as ${maskEmail(result.email)}`))
     console.log(chalk.dim(` Tier: ${result.tier}\n`))
     return true
 }

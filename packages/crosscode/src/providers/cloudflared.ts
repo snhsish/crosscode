@@ -158,10 +158,10 @@ export async function startCloudflaredProvider(
                 if (isShuttingDown()) return
                 if (namedTunnel) {
                     logCrosscode("Restarting cloudflared (named tunnel keeps stable URL)")
-                    console.log(chalk.yellow("\n Cloudflare tunnel dropped — reconnecting (URL unchanged)...\n"))
+                    console.log(chalk.yellow("\n Cloudflare tunnel dropped. Reconnecting (URL unchanged)...\n"))
                     startCloudflared()
                 } else {
-                    console.log(chalk.red("\n Cloudflare tunnel exited. The session URL may have changed — restart crosscode to reconnect.\n"))
+                    console.log(chalk.red("\n Cloudflare tunnel exited. The session URL may have changed. Restart crosscode to reconnect.\n"))
                 }
             })
 

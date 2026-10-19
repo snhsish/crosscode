@@ -68,22 +68,27 @@ export async function startNgrokProvider(
             let data = ""
             res.on("data", chunk => data += chunk)
             res.on("end", () => {
-                debug("ngrok API response", { size: data.length })
-                try {
-                    const json = JSON.parse(data)
-                    if (json.tunnels && json.tunnels.length > 0 && !tunnelUrl) {
-                        tunnelUrl = json.tunnels[0].public_url
-                        spinner.succeed(chalk.green("Tunnel ready"))
-                        logCrosscode("ngrok tunnel ready: " + tunnelUrl)
-                        debug("ngrok tunnel ready", { tunnelUrl })
-                        onTunnelUrl(tunnelUrl)
-                        printQr(tunnelUrl, sessionToken, detectedPort, port)
+                    debug("ngrok API response", { size: data.length })
+                    try {
+                        const json = JSON.parse(data)
+                        if (json.tunnels && json.tunnels.length > 0 && !tunnelUrl) {
+                            tunnelUrl = json.tunnels[0].public_url
+                            spinner.succeed(chalk.green("Tunnel ready"))
+                            logCrosscode("ngrok tunnel ready: " + tunnelUrl)
+                            debug("ngrok tunnel ready", { tunnelUrl })
+                            onTunnelUrl(tunnelUrl)
+                            printQr(tunnelUrl, sessionToken, detectedPort, port)
+                            return
+                        }
+                        debug("ngrok API has no tunnels yet, retrying", { tunnels: json.tunnels?.length ?? 0 })
+                    } catch (e) {
+                        debug("ngrok API parse error", { error: e instanceof Error ? e.message : String(e) })
                     }
-                } catch (e) {
-                    debug("ngrok API parse error", { error: e instanceof Error ? e.message : String(e) })
-                    setTimeout(pollNgrokApi, 500)
-                }
-            })
+                    // ngrok takes a few seconds to establish the tunnel: a
+                    // 200 with an empty list is not fatal, keep polling until
+                    // a public URL appears.
+                    if (!tunnelUrl) setTimeout(pollNgrokApi, 500)
+                })
         })
         req.on("error", (e) => {
             debug("ngrok API request error", { error: e.message })

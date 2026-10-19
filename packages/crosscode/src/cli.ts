@@ -159,16 +159,24 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
 
     let tunnelChoice: TunnelPreference | null = null
     let choiceFromPrompt = false
+    let cloudflaredMode: "auto" | "named" | "quick" = "auto"
     if (useNgrok) tunnelChoice = "ngrok"
-    else if (useCloudflared) tunnelChoice = "cloudflared-quick"
+    else if (useCloudflared) { tunnelChoice = "cloudflared-quick"; cloudflaredMode = "auto" }
     else if (useCrosscodeTunnel) tunnelChoice = "crosscode"
-    else if (config.tunnelPreference) tunnelChoice = config.tunnelPreference
+    else if (config.tunnelPreference) {
+        tunnelChoice = config.tunnelPreference
+        if (tunnelChoice === "cloudflared-named") cloudflaredMode = "named"
+        else if (tunnelChoice === "cloudflared-quick") cloudflaredMode = "quick"
+    }
     else if (canUseTunnel) tunnelChoice = "crosscode"
     else if (process.stdout.isTTY && process.stdin.isTTY) {
         tunnelChoice = await promptTunnelChoice()
         choiceFromPrompt = true
+        if (tunnelChoice === "cloudflared-named") cloudflaredMode = "named"
+        else if (tunnelChoice === "cloudflared-quick") cloudflaredMode = "quick"
     } else {
         tunnelChoice = "cloudflared-quick"
+        cloudflaredMode = "quick"
     }
 
     // CrossCode dedicated tunnel requires login. Offer it inline so the
@@ -288,6 +296,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             () => isShuttingDown,
             (url) => { tunnelUrl = url },
             printTunnelQr,
+            { mode: cloudflaredMode },
         )
     }
 

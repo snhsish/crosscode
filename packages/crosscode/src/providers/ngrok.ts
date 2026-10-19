@@ -17,15 +17,23 @@ export async function startNgrokProvider(
     children: ChildProcess[],
     onTunnelUrl: (url: string) => void,
     printQr: (url: string, token: string, opencodePort: number, requestedPort: number) => void,
+    opts: { onAuthComplete?: () => Promise<void> } = {},
 ) {
     let ngrokToken = config.ngrokToken
 
     if (!ngrokToken) {
         ngrokToken = await setupNgrokToken()
+        if (!ngrokToken.trim()) {
+            console.log(chalk.red("\n ngrok auth token is required.\n"))
+            process.exit(1)
+        }
         config.ngrokToken = ngrokToken
         saveConfig(config)
         logCrosscode("ngrok auth token saved")
         debug("ngrok token saved")
+        await opts.onAuthComplete?.()
+    } else {
+        await opts.onAuthComplete?.()
     }
 
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()

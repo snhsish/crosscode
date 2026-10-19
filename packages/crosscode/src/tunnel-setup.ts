@@ -41,6 +41,23 @@ export async function promptRememberChoice(): Promise<boolean> {
     }
 }
 
+export async function maybeRememberTunnelChoice(
+    config: { tunnelPreference?: TunnelPreference },
+    save: () => void,
+    choice: TunnelPreference | null,
+    shouldAsk: boolean,
+): Promise<void> {
+    if (!shouldAsk || !choice) return
+    try {
+        if (await promptRememberChoice()) {
+            config.tunnelPreference = choice
+            save()
+        }
+    } catch {
+        // Non-fatal: continue with the one-time choice.
+    }
+}
+
 export function isPaidTier(tier: string | undefined): boolean {
     if (!tier) return false
     return tier.toLowerCase() !== "free"

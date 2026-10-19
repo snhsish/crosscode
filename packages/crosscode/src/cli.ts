@@ -6,7 +6,7 @@ import { logCrosscode, closeAllLogs } from "./log"
 import { startConnectionServer, closeConnectionServer, connectionPageUrl, setConnectionInfo } from "./connection-page"
 import { readConfig, saveConfig, getProjectConfig, ensureSessionToken, resolveOpencodeBin } from "./config"
 import type { TunnelPreference } from "./config"
-import { promptTunnelChoice, promptRememberChoice, shouldShowProUpsell } from "./tunnel-setup"
+import { promptTunnelChoice, maybeRememberTunnelChoice, shouldShowProUpsell } from "./tunnel-setup"
 import { initSentry, captureCliError } from "./sentry"
 import * as Sentry from "@sentry/node"
 import { loginFlow, refreshTier } from "./auth"
@@ -175,6 +175,19 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
         cloudflaredMode = "quick"
     }
 
+    // Remember only after the tunnel's own setup (login / token / cert)
+    // succeeds. Providers call handleAuthComplete once their config is done.
+    let rememberHandled = false
+    const handleAuthComplete = async () => {
+        if (choiceFromPrompt && !rememberHandled && tunnelChoice) {
+            rememberHandled = true
+            await maybeRememberTunnelChoice(config, () => {
+                saveConfig(config)
+                logCrosscode(`Tunnel preference saved: ${tunnelChoice}`)
+            }, tunnelChoice, true)
+        }
+    }
+
     // CrossCode dedicated tunnel requires login. Offer it inline so the
     // user never has to leave the flow to figure out the `login` command.
     if (tunnelChoice === "crosscode" && !config.auth?.sessionToken) {
@@ -184,18 +197,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             process.exit(1)
         }
         await refreshTier(config)
-    }
-
-    if (choiceFromPrompt && tunnelChoice) {
-        try {
-            if (await promptRememberChoice()) {
-                config.tunnelPreference = tunnelChoice
-                saveConfig(config)
-                logCrosscode(`Tunnel preference saved: ${tunnelChoice}`)
-            }
-        } catch {
-            // Non-fatal: continue with the one-time choice.
-        }
+        await handleAuthComplete()
     }
 
     const tunnelProvider = tunnelChoice === "ngrok" ? "ngrok" : (tunnelChoice === "crosscode" ? "tunnel" : "cloudflared")
@@ -290,6 +292,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             config, project, port, children,
             (url) => { tunnelUrl = url },
             printQrWithUpsell,
+            { onAuthComplete: handleAuthComplete },
         )
     } else {
         await startCloudflaredProvider(
@@ -297,7 +300,7 @@ ${chalk.dim("Documentation: https://github.com/snhsish/crosscode")}
             () => isShuttingDown,
             (url) => { tunnelUrl = url },
             printQrWithUpsell,
-            { mode: cloudflaredMode },
+            { mode: cloudflaredMode, onAuthComplete: handleAuthComplete },
         )
     }
 

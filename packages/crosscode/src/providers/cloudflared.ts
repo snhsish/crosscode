@@ -81,7 +81,7 @@ export async function startCloudflaredProvider(
     isShuttingDown: () => boolean,
     onTunnelUrl: (url: string) => void,
     printQr: (url: string, token: string, opencodePort: number, requestedPort: number) => void,
-    opts: { mode?: CloudflaredMode } = {},
+    opts: { mode?: CloudflaredMode; onAuthComplete?: () => Promise<void> } = {},
 ) {
     const spinner = ora(chalk.blue("Starting ", chalk.italic("opencode serve"))).start()
     const sessionToken = ensureSessionToken(config, project)
@@ -107,6 +107,9 @@ export async function startCloudflaredProvider(
             }
             logCrosscode("Using ephemeral quick tunnel (URL changes on restart). Run `cloudflared tunnel login` once for a stable, persistent URL.")
         }
+        // Config is complete here: quick needs nothing, named just
+        // finished its login + tunnel create. Ask to remember now.
+        await opts.onAuthComplete?.()
 
         let tunnelUrl = ""
 

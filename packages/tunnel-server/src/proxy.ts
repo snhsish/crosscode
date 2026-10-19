@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "http"
 import {
   get,
   addPendingRequest,
+  noteClosedRequest,
+  removePendingRequest,
   recordRequestBytes,
   recordRequestEnd,
   recordRequestStart,
@@ -68,7 +70,7 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
   if (!entry) {
     logger.warn("Tunnel not active for project", { projectId, path, method })
     res.writeHead(503, { "Content-Type": "application/json" })
-    res.end(JSON.stringify({ error: "Tunnel not active" }))
+    res.end(JSON.stringify({ error: "Tunnel not active", code: "TUNNEL_NOT_ACTIVE", projectId }))
     return
   }
 
@@ -175,7 +177,18 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
       body,
     }
 
-    sendToClient(entry.ws, msg, projectId, reqId)
+    if (!sendToClient(entry.ws, msg, projectId, reqId)) {
+      // The registry entry exists but its socket is already dead (e.g. a
+      // transient 'error' before 'close' fires). Fail fast instead of
+      // leaving the app hanging until it times out.
+      removePendingRequest(projectId, reqId)
+      recordRequestEnd(projectId, Date.now() - startTime, true)
+      if (!res.destroyed) {
+        res.writeHead(502, { "Content-Type": "application/json" })
+        res.end(JSON.stringify({ error: "Tunnel endpoint unavailable", code: "TUNNEL_ENDPOINT_UNAVAILABLE", projectId }))
+      }
+      return
+    }
   })
 
   req.on("error", (err) => {
@@ -192,17 +205,21 @@ export function handleProxy(req: IncomingMessage, res: ServerResponse): void {
     if (entry) {
       const wasPending = entry.pendingRequests.delete(reqId)
       if (wasPending) {
+        // The CLI may still deliver late chunks for this reqId; remember it
+        // so they are logged at debug instead of warning.
+        noteClosedRequest(reqId)
         logger.warn("Response closed before completion", { projectId, reqId, method, path, duration })
       }
     }
   })
 }
 
-function sendToClient(ws: WebSocket, msg: TunnelS2C, projectId: string, reqId: string) {
+function sendToClient(ws: WebSocket, msg: TunnelS2C, projectId: string, reqId: string): boolean {
   if (ws.readyState === ws.OPEN) {
     ws.send(JSON.stringify(msg))
     logger.debug("Request forwarded to tunnel client", { projectId, reqId })
-  } else {
-    logger.error("Cannot forward request: WebSocket not open", { projectId, reqId, readyState: ws.readyState })
+    return true
   }
+  logger.error("Cannot forward request: WebSocket not open", { projectId, reqId, readyState: ws.readyState })
+  return false
 }

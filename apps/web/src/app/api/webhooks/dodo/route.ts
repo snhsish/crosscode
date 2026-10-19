@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     const customerEmail = typeof customer?.email === "string" ? customer.email : null
     const subscriptionId = typeof data.subscription_id === "string" ? data.subscription_id : null
     const productId = typeof data.product_id === "string" ? data.product_id : null
-    const tier = productId ? tierFromProductId(productId) : null
+    const productTier: string | null = productId ? tierFromProductId(productId) : null
+    const tier = productTier
 
     const currentUser = userId
       ? await db.query.user.findFirst({ where: eq(user.id, userId) })

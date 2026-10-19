@@ -83,7 +83,7 @@ export default function BrowserPage() {
     const tier = useAuth((s) => s.user?.tier ?? "free")
     const allowed = hasEntitlement(tier, "file_browser")
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (connected && !allowed) {
             void requestPaywall("file_browser")
         }

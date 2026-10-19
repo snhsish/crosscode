@@ -1,7 +1,7 @@
 export async function createBillingCheckout(
   serverUrl: string,
   sessionToken: string,
-  tier: "starter" | "builder",
+  tier: "pro" | "team",
   cycle: "monthly" | "yearly" = "monthly",
 ): Promise<string | null> {
   const response = await fetch(`${serverUrl}/api/billing/checkout`, {

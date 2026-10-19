@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { tierTunnelLimits } from "@crosscode/shared"
+import { tierTunnelLimits, type Entitlement } from "@crosscode/shared"
 import { useAuth } from "@/store/auth.store"
 import { usePaywall } from "@/store/paywall.store"
+import { can } from "@/lib/entitlement"
 
 export type PaywallTrigger =
   | "connection_limit"
@@ -10,13 +11,33 @@ export type PaywallTrigger =
   | "session_nudge"
   | "onboarding"
   | "manual"
+  | "file_browser"
+  | "saved_connections_cap"
+  | "approval_rules"
+  | "stable_url"
+  | "global_search"
 
 export type PaywallCopy = {
   title: string
   description: string
 }
 
-const HARD_TRIGGERS: PaywallTrigger[] = ["connection_limit", "tunnel_limit", "manual"]
+const HARD_TRIGGERS: PaywallTrigger[] = [
+  "connection_limit",
+  "tunnel_limit",
+  "manual",
+  "file_browser",
+  "saved_connections_cap",
+]
+
+const TRIGGER_ENTITLEMENT: Partial<Record<PaywallTrigger, Entitlement>> = {
+  file_browser: "file_browser",
+  saved_connections_cap: "unlimited_connections",
+  connection_limit: "unlimited_connections",
+  approval_rules: "approval_rules",
+  stable_url: "hosted_relay",
+  global_search: "global_search",
+}
 
 const SHOWS_KEY = "crosscode-paywall-shows"
 const DISMISS_KEY = "crosscode-paywall-dismisses"
@@ -58,32 +79,57 @@ export function getPaywallCopy(trigger: PaywallTrigger): PaywallCopy {
     case "connection_limit":
       return {
         title: "You've hit your connection limit",
-        description: "Free includes 1 tunnel. Upgrade to run more projects in parallel.",
+        description: "Free includes 1 tunnel. Upgrade to Pro to run more projects in parallel.",
+      }
+    case "saved_connections_cap":
+      return {
+        title: "Run every machine you own",
+        description: "Pro unlocks unlimited saved connections — every machine, one phone.",
       }
     case "tunnel_limit":
       return {
         title: "Tunnel limit reached",
-        description: "Your plan is at capacity. Upgrade for more active tunnels.",
+        description: "Your plan is at capacity. Upgrade to Pro for 5 active tunnels.",
+      }
+    case "file_browser":
+      return {
+        title: "Browse the whole repo from your phone",
+        description: "The file browser and viewer are Pro — explore any repo, anywhere.",
+      }
+    case "approval_rules":
+      return {
+        title: "Let safe commands run themselves",
+        description: "Pro approval rules auto-approve the safe stuff and ping you for the rest.",
+      }
+    case "stable_url":
+      return {
+        title: "Stop re-scanning the QR",
+        description: "Pro's hosted relay gives you a stable URL — connect once, stay connected.",
+      }
+    case "global_search":
+      return {
+        title: "Find that fix from last week",
+        description: "Pro searches across every session at once — never lose work again.",
       }
     case "session_nudge":
       return {
         title: "Power through more sessions",
-        description: "Keep every project live at once with extra tunnels.",
+        description: "Keep every project live at once with Pro's extra tunnels.",
       }
     case "onboarding":
       return {
         title: "Do more with CrossCode",
-        description: "Start free with 1 tunnel, upgrade whenever you need more.",
+        description: "Start free with 1 tunnel, upgrade to Pro whenever you need more.",
       }
     case "usage_nudge":
       return {
         title: "Running out of room?",
-        description: "You're using your full tunnel quota. Upgrade to add another project.",
+        description: "You're using your full tunnel quota. Upgrade to Pro to add another project.",
       }
     default:
       return {
-        title: "Upgrade your plan",
-        description: "Add more tunnels and run multiple projects side by side.",
+        title: "Upgrade to Pro",
+        description: "Hosted relay, 5 tunnels, and power features for your agent.",
       }
   }
 }
@@ -104,7 +150,12 @@ export async function shouldShowPaywall(trigger: PaywallTrigger): Promise<boolea
 
 export async function requestPaywall(trigger: PaywallTrigger, opts?: { force?: boolean }): Promise<boolean> {
   const tier = useAuth.getState().user?.tier ?? "free"
-  if (tier === "builder" || tier === "enterprise") return false
+  const needed = TRIGGER_ENTITLEMENT[trigger]
+  if (needed && can(needed, tier)) return false
+  if (!needed && (tier === "pro" || tier === "founder" || tier === "team" || tier === "enterprise")) {
+    // Legacy catch-all: users with Pro-level+ never see generic nudges.
+    if (trigger === "usage_nudge" || trigger === "session_nudge" || trigger === "onboarding") return false
+  }
   if (!opts?.force && !(await shouldShowPaywall(trigger))) return false
   await pushStamp(SHOWS_KEY, Date.now())
   usePaywall.getState().show(trigger)

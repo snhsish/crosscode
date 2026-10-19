@@ -14,16 +14,26 @@ export function getDodo() {
   })
 }
 
-export function getProductId(tier: "starter" | "builder", cycle: "monthly" | "yearly") {
+export function getProductId(tier: "pro" | "team", cycle: "monthly" | "yearly") {
   const key = `DODO_PRODUCT_${tier.toUpperCase()}_${cycle.toUpperCase()}` as const
   const productId = process.env[key]
   if (!productId) throw new Error(`${key} is not configured`)
   return productId
 }
 
-export function tierFromProductId(productId: string): "starter" | "builder" | null {
-  if (productId === process.env.DODO_PRODUCT_STARTER_MONTHLY || productId === process.env.DODO_PRODUCT_STARTER_YEARLY) return "starter"
-  if (productId === process.env.DODO_PRODUCT_BUILDER_MONTHLY || productId === process.env.DODO_PRODUCT_BUILDER_YEARLY) return "builder"
+export function getFounderProductId() {
+  const productId = process.env.DODO_PRODUCT_FOUNDER_LIFETIME
+  if (!productId) throw new Error("DODO_PRODUCT_FOUNDER_LIFETIME is not configured")
+  return productId
+}
+
+export function tierFromProductId(productId: string): "pro" | "team" | "founder" | null {
+  if (productId === process.env.DODO_PRODUCT_PRO_MONTHLY || productId === process.env.DODO_PRODUCT_PRO_YEARLY) return "pro"
+  if (productId === process.env.DODO_PRODUCT_TEAM_MONTHLY || productId === process.env.DODO_PRODUCT_TEAM_YEARLY) return "team"
+  if (productId === process.env.DODO_PRODUCT_FOUNDER_LIFETIME) return "founder"
+  // Legacy mapping: starter/builder subscriptions grandfather into pro.
+  if (productId === process.env.DODO_PRODUCT_STARTER_MONTHLY || productId === process.env.DODO_PRODUCT_STARTER_YEARLY) return "pro"
+  if (productId === process.env.DODO_PRODUCT_BUILDER_MONTHLY || productId === process.env.DODO_PRODUCT_BUILDER_YEARLY) return "pro"
   return null
 }
 

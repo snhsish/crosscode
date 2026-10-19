@@ -26,6 +26,7 @@ import { PermissionRequest } from "@/store/permissions.store"
 import { revertMessage, forkSession } from "@/lib/sessions"
 import { useProjectConnection } from "@/lib/project-connection"
 import { useSessions } from "@/store/sessions.store"
+import { useConnections } from "@/store/connection.store"
 import { useModels } from "@/store/models.store"
 import { useSelectiveCopy } from "@/store/selective-copy.store"
 

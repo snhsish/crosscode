@@ -253,7 +253,7 @@ export default function HomeScreen() {
 
   const handleAddConnection = React.useCallback(() => {
     if (atLimit) {
-      void requestPaywall("connection_limit")
+      void requestPaywall("saved_connections_cap")
       return
     }
     router.push("/new-connection")

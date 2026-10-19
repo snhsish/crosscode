@@ -85,7 +85,7 @@ export default function Connect() {
         }
         const tier = useAuth.getState().user?.tier ?? "free"
         if (isAtTunnelLimit(tier, connections.length)) {
-            void requestPaywall("connection_limit")
+            void requestPaywall("saved_connections_cap")
             return
         }
         const id = addConnection({

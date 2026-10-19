@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
     const customerEmail = typeof customer?.email === "string" ? customer.email : null
     const subscriptionId = typeof data.subscription_id === "string" ? data.subscription_id : null
     const productId = typeof data.product_id === "string" ? data.product_id : null
-    const tier = productId ? tierFromProductId(productId) : null
+    const productTier: string | null = productId ? tierFromProductId(productId) : null
+    const tier = productTier
 
     const currentUser = userId
       ? await db.query.user.findFirst({ where: eq(user.id, userId) })
@@ -54,6 +55,28 @@ export async function POST(req: NextRequest) {
     // effectiveTier() saw "updated" instead of "active" and the CLI
     // reported "free" while the dashboard (raw tier column) still showed
     // the paid plan (issue #129).
+    //
+    // Exception: a one-time Pro Lifetime purchase never creates a
+    // subscription — it arrives as a payment event. It must persist as
+    // paid and never be downgraded by ended logic.
+    if (tier === "founder") {
+      const founderStatus =
+        (typeof data.status === "string" && data.status) ||
+        (typeof data.subscription_status === "string" && data.subscription_status) ||
+        currentUser.subscriptionStatus ||
+        "lifetime"
+      await db.update(user).set({
+        dodoCustomerId: customerId || currentUser.dodoCustomerId,
+        dodoSubscriptionId: subscriptionId || currentUser.dodoSubscriptionId,
+        subscriptionProductId: productId || currentUser.subscriptionProductId,
+        subscriptionStatus: founderStatus,
+        subscriptionRenewsAt: currentUser.subscriptionRenewsAt,
+        subscriptionCancelAtPeriodEnd: false,
+        tier: "founder",
+        updatedAt: new Date(),
+      }).where(eq(user.id, currentUser.id))
+      return NextResponse.json({ received: true })
+    }
     if (!event.type.startsWith("subscription.")) return NextResponse.json({ received: true })
 
     // The real subscription status lives in the payload, not the event
@@ -71,6 +94,10 @@ export async function POST(req: NextRequest) {
     // A cancelled subscription still grants access until the period ends.
     const inGracePeriod = !!cancelAtPeriodEnd && !!renewsAt && renewsAt.getTime() > Date.now()
     const ended = ["cancelled", "canceled", "expired", "terminated"].includes(status) && !inGracePeriod
+    // A lifetime purchase must never be overwritten to free by ended logic.
+    const nextTier = ended
+      ? (currentUser.tier === "founder" || tier === "founder" ? "founder" : "free")
+      : tier || currentUser.tier
     await db.update(user).set({
         dodoCustomerId: customerId || currentUser.dodoCustomerId,
         dodoSubscriptionId: subscriptionId || currentUser.dodoSubscriptionId,
@@ -78,7 +105,7 @@ export async function POST(req: NextRequest) {
         subscriptionStatus: payloadStatus ? status : currentUser.subscriptionStatus,
         subscriptionRenewsAt: renewsAt,
         subscriptionCancelAtPeriodEnd: Boolean(cancelAtPeriodEnd),
-        tier: ended ? "free" : tier || currentUser.tier,
+        tier: nextTier,
         updatedAt: new Date(),
     }).where(eq(user.id, currentUser.id))
 

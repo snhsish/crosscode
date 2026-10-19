@@ -13,6 +13,9 @@ import { Text } from "@/components/ui/text"
 import { THEME } from "@/lib/theme"
 import { useProjectConnection } from "@/lib/project-connection"
 import { isBinaryPath, languageFromPath, readFileContent } from "@/lib/file-browser"
+import { hasEntitlement } from "@crosscode/shared"
+import { useAuth } from "@/store/auth.store"
+import { requestPaywall } from "@/lib/paywall"
 import { CodeBlock } from "@/components/code-block"
 
 const MAX_LINES = 5000
@@ -27,6 +30,15 @@ export default function ViewerPage() {
     const filePath = typeof path === "string" ? path : ""
 
     const { connection } = useProjectConnection(projectId)
+
+    const tier = useAuth((s) => s.user?.tier ?? "free")
+    const allowed = hasEntitlement(tier, "file_browser")
+
+    useEffect(() => {
+        if (connection?.url && connection?.token && !allowed) {
+            void requestPaywall("file_browser")
+        }
+    }, [connection?.url, connection?.token, allowed])
 
     const [content, setContent] = useState<string | null>(null)
     const [truncated, setTruncated] = useState(false)
@@ -107,7 +119,21 @@ export default function ViewerPage() {
                 )}
             </View>
 
-            {!connection || !projectId ? null : loading ? (
+            {!connection || !projectId ? null : !allowed ? (
+                <View className="flex-1 items-center justify-center px-8">
+                    <Text className="text-lg font-semibold tracking-tight text-center mb-2">File viewer is Pro</Text>
+                    <Text className="text-sm text-muted-foreground text-center leading-5">
+                        View any file from your phone with Pro.
+                    </Text>
+                    <Button
+                        size="sm"
+                        className="mt-4 rounded-full"
+                        onPress={() => requestPaywall("file_browser", { force: true })}
+                    >
+                        <Text className="text-sm">Upgrade to Pro</Text>
+                    </Button>
+                </View>
+            ) : loading ? (
                 <View className="flex-1 items-center justify-center">
                     <ActivityIndicator size="large" color={t.mutedForeground} />
                     <Text className="text-xs text-muted-foreground mt-3">Loading file...</Text>

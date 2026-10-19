@@ -1,17 +1,17 @@
 export type BillingCycle = "monthly" | "yearly"
 export type BillingCurrency = "usd" | "inr"
-export type PaidTier = "starter" | "builder"
+export type PaidTier = "pro" | "team"
 
 export const paidPlans = {
-  starter: {
-    name: "Starter",
-    monthly: { usd: 2, inr: 175 },
-    yearly: { usd: 20, inr: 1899 },
+  pro: {
+    name: "Pro",
+    monthly: { usd: 3.99, inr: 299 },
+    yearly: { usd: 29, inr: 2499 },
   },
-  builder: {
-    name: "Builder",
-    monthly: { usd: 5, inr: 475 },
-    yearly: { usd: 50, inr: 4799 },
+  team: {
+    name: "Team",
+    monthly: { usd: 18, inr: 1499 },
+    yearly: { usd: 179, inr: 14999 },
   },
 } as const satisfies Record<PaidTier, {
   name: string
@@ -19,14 +19,21 @@ export const paidPlans = {
   yearly: { usd: number; inr: number }
 }>
 
+export const founderPlan = {
+  name: "Pro Lifetime",
+  price: { usd: 24, inr: 1999 },
+  cap: 100,
+} as const
+
 export const tierTunnelLimits: Record<string, number> = {
   free: 1,
-  starter: 2,
-  builder: 5,
+  pro: 5,
+  team: Number.POSITIVE_INFINITY,
+  founder: 5,
   enterprise: Number.POSITIVE_INFINITY,
 }
 
-const PAID_TIERS = new Set(["starter", "builder", "enterprise"])
+const PAID_TIERS = new Set(["pro", "team", "founder", "enterprise"])
 
 // Dodo subscription statuses that still grant paid access. "active" is the
 // steady state; "trialing" covers trials. A subscription cancelled with
@@ -60,6 +67,12 @@ export function effectiveTier(
     opts?: EffectiveTierOpts,
 ): string {
     if (!tier) return "free"
+    // Legacy normalization: starter/builder were replaced by pro.
+    // Existing DB rows keep working without a data migration.
+    if (tier === "starter" || tier === "builder") tier = "pro"
+    // A one-time lifetime purchase has no subscription status to check —
+    // it must never fall back to "free".
+    if (tier === "founder") return "founder"
     if (!PAID_TIERS.has(tier)) return tier
     const status = (subscriptionStatus ?? "").toLowerCase()
     if (ACTIVE_STATUSES.has(status)) return tier
@@ -74,4 +87,46 @@ export function effectiveTier(
     // until a real status arrives.
     if (status && !KNOWN_STATUSES.has(status) && renewsInFuture) return tier
     return "free"
+}
+
+export type Entitlement =
+  | "hosted_relay" | "unlimited_connections" | "file_browser" | "split_diff"
+  | "global_search" | "session_export" | "approval_rules" | "usage_dashboard"
+  | "extra_themes" | "custom_domain" | "fleet_view" | "audit_log" | "sso" | "priority_support"
+
+export const entitlements: Record<Entitlement, "free" | "pro" | "team"> = {
+  hosted_relay: "pro",
+  unlimited_connections: "pro",
+  file_browser: "pro",
+  split_diff: "pro",
+  global_search: "pro",
+  session_export: "pro",
+  approval_rules: "pro",
+  usage_dashboard: "pro",
+  extra_themes: "pro",
+  custom_domain: "pro",
+  fleet_view: "team",
+  audit_log: "team",
+  sso: "team",
+  priority_support: "team",
+}
+
+export function tierRank(tier?: string | null): number {
+  if (!tier) return 0
+  // Legacy tiers resolve to pro-level.
+  if (tier === "starter" || tier === "builder") return 1
+  switch (tier) {
+    case "free": return 0
+    case "pro":
+    case "founder": return 1
+    case "team":
+    case "enterprise": return 2
+    default: return 0
+  }
+}
+
+export function hasEntitlement(tier: string | null | undefined, e: Entitlement): boolean {
+  // Legacy tiers resolve to pro-level everywhere.
+  const normalized = tier === "starter" || tier === "builder" ? "pro" : tier
+  return tierRank(normalized) >= tierRank(entitlements[e])
 }

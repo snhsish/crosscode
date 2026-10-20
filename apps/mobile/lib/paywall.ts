@@ -84,7 +84,7 @@ export function getPaywallCopy(trigger: PaywallTrigger): PaywallCopy {
     case "saved_connections_cap":
       return {
         title: "Run every machine you own",
-        description: "Pro unlocks unlimited saved connections — every machine, one phone.",
+        description: "Pro unlocks unlimited saved connections. Every machine, one phone.",
       }
     case "tunnel_limit":
       return {
@@ -94,7 +94,7 @@ export function getPaywallCopy(trigger: PaywallTrigger): PaywallCopy {
     case "file_browser":
       return {
         title: "Browse the whole repo from your phone",
-        description: "The file browser and viewer are Pro — explore any repo, anywhere.",
+        description: "The file browser and viewer are Pro. Explore any repo, anywhere.",
       }
     case "approval_rules":
       return {
@@ -104,12 +104,12 @@ export function getPaywallCopy(trigger: PaywallTrigger): PaywallCopy {
     case "stable_url":
       return {
         title: "Stop re-scanning the QR",
-        description: "Pro's hosted relay gives you a stable URL — connect once, stay connected.",
+        description: "Pro's hosted relay gives you a stable URL. Connect once, stay connected.",
       }
     case "global_search":
       return {
         title: "Find that fix from last week",
-        description: "Pro searches across every session at once — never lose work again.",
+        description: "Pro searches across every session at once, so you never lose work.",
       }
     case "session_nudge":
       return {

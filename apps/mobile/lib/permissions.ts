@@ -1,5 +1,6 @@
 import { PermissionRequest } from "@/store/permissions.store"
-import { getAuthHeader } from "@/lib/utils"
+import { apiUrl, getAuthHeader } from "@/lib/utils"
+import { getServerVersion } from "@/lib/server-version"
 
 type RawPermission = Record<string, unknown>
 
@@ -96,8 +97,8 @@ export const getPendingPermissions = async (
     _token: string,
     _sessionId?: string
 ): Promise<PermissionRequest[]> => {
-    // OpenCode exposes no GET /permission list endpoint (see /doc spec) —
-    // pending permissions arrive via the `permission.updated` SSE event.
+    // OpenCode exposes no GET /permission list endpoint (see /doc spec).
+    // Pending permissions arrive via the `permission.updated` SSE event.
     // Keep this stub so callers don't hit a 404 polling loop.
     return []
 }
@@ -114,15 +115,27 @@ export const replyToPermission = async (
     // body: { response: "once" | "always" | "reject" }
     if (!sessionId) return false
     try {
-        const res = await fetch(`${url}/session/${sessionId}/permissions/${requestId}`, {
-            method: "POST",
-            headers: {
-                Authorization: getAuthHeader(token),
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ response: reply }),
-        })
-        return res.ok
+        const version = getServerVersion(url)
+        const endpoints = [
+            `${apiUrl(url, version, "/session")}/${sessionId}/permissions/${requestId}`,
+            `${apiUrl(url, version >= 2 ? 1 : 2, "/session")}/${sessionId}/permissions/${requestId}`,
+        ]
+        for (const endpoint of endpoints) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        Authorization: getAuthHeader(token),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ response: reply }),
+                })
+                if (res.ok) return true
+            } catch {
+                continue
+            }
+        }
+        return false
     } catch {
         return false
     }

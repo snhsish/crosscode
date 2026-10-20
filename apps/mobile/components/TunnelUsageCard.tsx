@@ -169,7 +169,7 @@ export function TunnelUsageCard() {
               >
                 <Text className="text-sm font-semibold text-primary">
                   {stats.totalClients >= 1
-                    ? "At your Free limit — Pro gives 5 tunnels + hosted relay"
+                    ? "At your Free limit. Pro gives 5 tunnels + hosted relay"
                     : "Need more tunnels? Upgrade to Pro"}
                 </Text>
               </Button>

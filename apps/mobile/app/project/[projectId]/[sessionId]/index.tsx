@@ -113,6 +113,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const [hasMoreMessages, setHasMoreMessages] = useState(true)
     const [selectedImages, setSelectedImages] = useState<ImageAttachment[]>([])
     const [keyboardHeight, setKeyboardHeight] = useState(0)
+    const [loadError, setLoadError] = useState<{ title: string; hint?: string } | null>(null)
 
     const voice = useVoiceInput()
 
@@ -134,7 +135,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const theme = (colorScheme ?? "light") as "light" | "dark"
 
     const project = useMemo(() => projects.find((p) => p.id === projectId) ?? null, [projects, projectId])
-    const connection = useMemo(() => connections.find((c) => c.id === (project?.connectionId ?? current)) ?? null, [connections, current, project?.connectionId])
+    const connection = useMemo(() => {
+        const owned = connections.find((c) => c.id === (project?.connectionId ?? current)) ?? null
+        if (owned) return owned
+        // Same fallback as useProjectConnection: never leave chat/browser with
+        // no connection while a usable one exists (stale project mapping,
+        // fresh install, or deep link before project sync).
+        if (connections.length === 1) return connections[0] ?? null
+        return connections.find((c) => c.url && c.token) ?? null
+    }, [connections, current, project?.connectionId])
     const session = useMemo(() => sessions.find((s) => s.id === sessionId) ?? null, [sessions, sessionId])
 
     const isStreamingSelector = useMemo(
@@ -319,15 +328,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
         delivery?: "queue",
     ): Promise<{ ok: boolean; retryable: boolean; errorText?: string; errorName?: string; status?: number }> => {
         try {
-            const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
+            const { apiUrl } = await import("@/lib/utils")
+            const { getServerVersion } = await import("@/lib/server-version")
+            const version = getServerVersion(connectionUrl)
+            const base = connectionUrl.replace(/\/+$/, "")
+            const fileParts: Array<Record<string, unknown>> = []
             if (images && images.length > 0) {
                 for (const img of images) {
                     if (img.base64) {
-                        parts.push({
-                            type: "file",
-                            mime: img.mime,
-                            url: `data:${img.mime};base64,${img.base64}`,
-                            filename: img.fileName,
+                        fileParts.push({
+                            uri: `data:${img.mime};base64,${img.base64}`,
+                            name: img.fileName,
                         })
                     } else if (img.uri) {
                         try {
@@ -339,24 +350,67 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                                 reader.onerror = () => reject(new Error("read failed"))
                                 reader.readAsDataURL(blob)
                             })
-                            parts.push({
-                                type: "file",
-                                mime: img.mime,
-                                url: dataUrl,
-                                filename: img.fileName,
-                            })
+                            fileParts.push({ uri: dataUrl, name: img.fileName })
                         } catch {}
                     }
                 }
             }
             for (const file of mentionFiles) {
-                parts.push({
-                    type: "file",
-                    mime: file.mime,
-                    url: file.url,
-                    filename: file.filename,
-                })
+                fileParts.push({ uri: file.url, name: file.filename })
             }
+
+            const sendJson = async (endpoint: string, payload: Record<string, unknown>) => {
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": getAuthHeader(connectionToken),
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                })
+                return res
+            }
+
+            const parseError = async (res: Response) => {
+                let errorText = `${res.status} ${res.statusText}`
+                let errorName = "UnknownError"
+                try {
+                    const errorBody = await res.json()
+                    if ((errorBody as Record<string, unknown>).error) {
+                        errorText = String((errorBody as Record<string, unknown>).error)
+                        errorName = String((errorBody as Record<string, unknown>).name || "UnknownError")
+                    } else if ((errorBody as Record<string, unknown>).message) {
+                        errorText = String((errorBody as Record<string, unknown>).message)
+                        errorName = String((errorBody as Record<string, unknown>).name || "UnknownError")
+                    } else if ((errorBody as Record<string, unknown>).data) {
+                        errorText = JSON.stringify((errorBody as Record<string, unknown>).data).slice(0, 300)
+                    }
+                } catch {}
+                const retryable = res.status >= 500 || errorName === "APIError"
+                return { ok: false as const, retryable, errorText, errorName, status: res.status }
+            }
+
+            if (version >= 2) {
+                // v2: POST /api/session/:id/prompt { prompt: { text, files, agents }, delivery }
+                const prompt: Record<string, unknown> = { text }
+                if (fileParts.length > 0) prompt.files = fileParts
+                if (agentOverride) prompt.agents = [{ name: agentOverride }]
+                const body: Record<string, unknown> = { prompt }
+                if (delivery) body.delivery = delivery
+                let res = await sendJson(`${base}/api/session/${targetSessionId}/prompt`, body)
+                if (!res.ok && delivery && res.status === 400) {
+                    const { delivery: _omitted, ...fallbackBody } = body
+                    res = await sendJson(`${base}/api/session/${targetSessionId}/prompt`, fallbackBody)
+                }
+                if (!res.ok) return parseError(res)
+                return { ok: true, retryable: false }
+            }
+
+            const parts: Array<Record<string, unknown>> = [{ type: "text", text }]
+            for (const f of fileParts) {
+                parts.push({ type: "file", mime: "text/plain", url: (f as Record<string, unknown>).uri, filename: (f as Record<string, unknown>).name })
+            }
+            // Rebuild image parts with mime for v1 (fileParts lost mime for data urls).
             const body: Record<string, unknown> = { parts, agent: agentOverride ?? agent }
             if (modelId && providerId) {
                 body.model = { modelID: modelId, providerID: providerId }
@@ -383,23 +437,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 res = await send(fallbackBody)
             }
 
-            if (!res.ok) {
-                let errorText = `${res.status} ${res.statusText}`
-                let errorName = "UnknownError"
-                try {
-                    const errorBody = await res.json()
-                    if (errorBody.error) {
-                        errorText = errorBody.error
-                        errorName = errorBody.name || "UnknownError"
-                    } else if (errorBody.message) {
-                        errorText = errorBody.message
-                        errorName = errorBody.name || "UnknownError"
-                    }
-                } catch {}
-
-                const retryable = res.status >= 500 || errorName === "APIError"
-                return { ok: false, retryable, errorText, errorName, status: res.status }
-            }
+            if (!res.ok) return parseError(res)
 
             return { ok: true, retryable: false }
         } catch (err: unknown) {
@@ -523,7 +561,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     const abortStreaming = useCallback(async () => {
         if (!connection?.url || !isStreaming) return
         try {
-            await fetch(`${connection.url}/session/${sessionId}/abort`, {
+            const { apiUrl } = await import("@/lib/utils")
+            const { getServerVersion } = await import("@/lib/server-version")
+            const version = getServerVersion(connection.url)
+            // v2 interrupts via /interrupt; v1 aborts via /abort.
+            const endpoint =
+                version >= 2
+                    ? `${apiUrl(connection.url, version, "/session")}/${sessionId}/interrupt`
+                    : `${apiUrl(connection.url, version, "/session")}/${sessionId}/abort`
+            await fetch(endpoint, {
                 method: "POST",
                 headers: { Authorization: getAuthHeader(connection.token) },
             })
@@ -531,7 +577,15 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [connection, sessionId, isStreaming])
 
     const sendMessage = useCallback(async (mentions: SendMention[] = []) => {
-        if (!connection?.url || sending) return
+        if (sending) return
+        if (!connection?.url || !connection?.token) {
+            setSendError({
+                title: "Not connected",
+                hint: "No usable tunnel for this project. The message wasn't sent. Reconnect and retry.",
+                retryable: false,
+            })
+            return
+        }
 
         const text = draft.trim()
         if (!text) return
@@ -630,8 +684,17 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [connection, sending, draft, isStreaming, selectedModel, session, selectedAgent, sessionId, clearDraft, upsertMessages, attemptSendMessage, finalizeSendError, selectedImages, voice.recognizing, voice.stopRecognition, voice.resetTranscript])
 
     const getAndSetMessages = useCallback(async () => {
-        if (!connection?.url || !connection?.token) return
+        if (!connection?.url || !connection?.token) {
+            setLoadError({
+                title: "Not connected",
+                hint: "No usable tunnel for this project. Check your connections and retry.",
+            })
+            setRefreshing(false)
+            setInitialMessagesLoaded(true)
+            return
+        }
         setRefreshing(true)
+        setLoadError(null)
 
         const raw = await getMessages(connection.url, connection.token, sessionId!, MESSAGES_PER_PAGE)
         if (raw) {
@@ -651,6 +714,14 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             if (data.length < MESSAGES_PER_PAGE) {
                 setHasMoreMessages(false)
             }
+            setLoadError(null)
+        } else {
+            const { getServerVersion } = await import("@/lib/server-version")
+            const version = getServerVersion(connection.url)
+            setLoadError({
+                title: "Couldn't load messages",
+                hint: `The server didn't return messages (opencode v${version}). The tunnel may be down or the API version mismatched. Tap Retry.`,
+            })
         }
         setRefreshing(false)
         setInitialMessagesLoaded(true)
@@ -692,8 +763,12 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
     }, [connection, sessionId, isLoadingMore, hasMoreMessages, getMessagesBySession, setMessages])
 
     useEffect(() => {
-        if (session) getAndSetMessages()
-    }, [session?.id, getAndSetMessages])
+        // Load by sessionId + live connection, not by the cached session row:
+        // v2 session shapes / stale project mappings can leave `session` null
+        // while the id itself is perfectly valid. Gating on `session` here is
+        // what left messages/models permanently empty.
+        if (connection?.url && sessionId) getAndSetMessages()
+    }, [connection?.url, sessionId, getAndSetMessages])
 
     useEffect(() => {
         if (connection) fetchAgents(connection.url, connection.token)
@@ -992,6 +1067,27 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </View>
             )
         }
+        if (loadError) {
+            return (
+                <View className="flex-1 items-center justify-center px-8">
+                    <View className="w-16 h-16 rounded-full bg-destructive/15 items-center justify-center mb-6">
+                        <TriangleAlertIcon size={28} color={THEME[theme].destructive ?? "#ef4444"} />
+                    </View>
+                    <Text className="text-lg font-semibold tracking-tight text-center mb-2">
+                        {loadError.title}
+                    </Text>
+                    {loadError.hint && (
+                        <Text className="text-sm text-muted-foreground text-center leading-5 mb-4">
+                            {loadError.hint}
+                        </Text>
+                    )}
+                    <Button variant="secondary" size="sm" onPress={() => getAndSetMessages()}>
+                        <RefreshCwIcon size={14} color={THEME[theme].foreground} />
+                        <Text className="text-sm ml-1">Retry</Text>
+                    </Button>
+                </View>
+            )
+        }
         return (
             <View className="flex-1 items-center justify-center px-8">
                 <View className="w-16 h-16 rounded-full bg-accent items-center justify-center mb-6">
@@ -1005,7 +1101,7 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
                 </Text>
             </View>
         )
-    }, [refreshing, theme])
+    }, [refreshing, loadError, theme, getAndSetMessages])
 
     const handleAgentChange = useCallback((agent: string) => {
         setSelectedAgent(agent)
@@ -1050,6 +1146,33 @@ function SessionScreenInner({ projectId, sessionId }: { projectId: string; sessi
             />
 
             <ConnectionBanner theme={theme} />
+
+            {(!connection || loadError) && displayItems.length > 0 && (
+                <View className="px-4 pb-2">
+                    <View className="flex-row items-start gap-2 p-3 rounded-xl bg-destructive/15 border border-destructive/30">
+                        <TriangleAlertIcon size={14} color={THEME[theme].destructive ?? "#ef4444"} style={{ marginTop: 2 }} />
+                        <View className="flex-1 gap-1">
+                            <Text className="text-sm font-medium text-destructive">
+                                {!connection ? "Not connected" : loadError?.title}
+                            </Text>
+                            <Text className="text-xs text-destructive/70">
+                                {!connection
+                                    ? "No usable tunnel for this project. Messages and sending are paused."
+                                    : loadError?.hint}
+                            </Text>
+                        </View>
+                        <View className="flex-row gap-2">
+                            <Button variant="secondary" size="xs" onPress={() => getAndSetMessages()}>
+                                <RefreshCwIcon size={12} color={THEME[theme].foreground} />
+                                <Text className="text-xs ml-1">Retry</Text>
+                            </Button>
+                            <Pressable onPress={() => setLoadError(null)} hitSlop={8}>
+                                <XIcon size={12} color={THEME[theme].mutedForeground} />
+                            </Pressable>
+                        </View>
+                    </View>
+                </View>
+            )}
 
             {displayItems.length > 0 ? (
                 <FlatList

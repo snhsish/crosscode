@@ -268,7 +268,7 @@ export default function UserPage() {
                 </View>
                 <View className="min-w-0 flex-1">
                   <Text className="text-sm font-semibold">Free · 1 tunnel</Text>
-                  <Text className="mt-0.5 text-xs text-muted-foreground">Upgrade for 2–5 parallel tunnels</Text>
+                  <Text className="mt-0.5 text-xs text-muted-foreground">Upgrade for 2 to 5 parallel tunnels</Text>
                 </View>
                 <Button size="sm" className="rounded-full" onPress={() => requestPaywall("usage_nudge")}>
                   <Text>Upgrade</Text>

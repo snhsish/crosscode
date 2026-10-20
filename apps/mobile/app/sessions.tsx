@@ -255,7 +255,9 @@ export default function SessionsScreen() {
   }, [connection?.id, project?.id, fetchSessions])
 
   const sessionSections = React.useMemo<SessionSection[]>(() => {
-    let result = sessions.filter((s) => s.directory === project?.directory)
+    const dirOf = (s: Session) =>
+      s.directory ?? (s as unknown as { location?: { directory?: string } }).location?.directory ?? ""
+    let result = sessions.filter((s) => (project?.directory ? dirOf(s) === project.directory : true))
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -286,7 +288,9 @@ export default function SessionsScreen() {
 
   const visibleSessionCount = sessionSections.reduce((count, section) => count + section.data.length, 0)
   const categoryCounts = React.useMemo(() => {
-    const projectSessions = sessions.filter((s) => s.directory === project?.directory)
+    const dirOf = (s: Session) =>
+      s.directory ?? (s as unknown as { location?: { directory?: string } }).location?.directory ?? ""
+    const projectSessions = sessions.filter((s) => (project?.directory ? dirOf(s) === project.directory : true))
     return {
       all: projectSessions.length,
       agents: projectSessions.filter((s) => getSessionCategory(s) === "agents").length,

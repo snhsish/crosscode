@@ -197,6 +197,70 @@ async function fetchProviderCatalog(url: string, token: string): Promise<{ model
     }
 }
 
+function normalizeV2Model(raw: Record<string, unknown>, fallbackProviderID = ""): Model | null {
+    const id =
+        (typeof raw.modelID === "string" && raw.modelID) ||
+        (typeof raw.id === "string" && raw.id) ||
+        (typeof raw.apiID === "string" && raw.apiID)
+    if (!id) return null
+    const providerID =
+        (typeof raw.providerID === "string" && raw.providerID) ||
+        (typeof raw.provider === "string" && raw.provider) ||
+        fallbackProviderID
+    const name =
+        (typeof raw.name === "string" && raw.name) || id
+    // v2 uses `disabled: true` instead of status: "deprecated".
+    const disabled = raw.disabled === true
+    const status = disabled ? "deprecated" : normalizeStatus(typeof raw.status === "string" ? raw.status : "active")
+    const caps = (raw.capabilities ?? raw.capability ?? {}) as Record<string, unknown>
+    const tools =
+        typeof caps.tools === "boolean"
+            ? caps.tools
+            : typeof (raw as Record<string, unknown>).toolcall === "boolean"
+              ? ((raw as Record<string, unknown>).toolcall as boolean)
+              : true
+    const input = Array.isArray(caps.input) ? (caps.input as string[]) : modalityList(caps.input as Record<string, boolean> | undefined)
+    const output = Array.isArray(caps.output) ? (caps.output as string[]) : modalityList(caps.output as Record<string, boolean> | undefined)
+    const limit = (raw.limit ?? {}) as Record<string, unknown>
+    const costRaw = (raw.cost ?? {}) as Record<string, unknown>
+    const cacheRaw = (costRaw.cache ?? {}) as Record<string, unknown>
+    const variantsRaw = raw.variants
+    const variants = Array.isArray(variantsRaw)
+        ? variantsRaw
+              .map((v) => (typeof v === "string" ? { name: v } : v && typeof v === "object" && typeof (v as Record<string, unknown>).id === "string" ? { name: (v as Record<string, unknown>).id as string } : null))
+              .filter((v): v is { name: string } => v !== null)
+        : variantsRaw && typeof variantsRaw === "object"
+          ? Object.keys(variantsRaw as Record<string, unknown>).map((name) => ({ name }))
+          : []
+    return {
+        id,
+        apiID: (typeof raw.apiID === "string" && raw.apiID) || id,
+        providerID,
+        family: (typeof raw.family === "string" && raw.family) || "",
+        name,
+        endpoint: { type: "unknown" },
+        capabilities: { tools, input, output },
+        status,
+        enabled: !disabled,
+        limit: {
+            context: typeof limit.context === "number" ? limit.context : 0,
+            input: typeof limit.input === "number" ? limit.input : null,
+            output: typeof limit.output === "number" ? limit.output : 0,
+        },
+        cost: [{
+            input: typeof costRaw.input === "number" ? costRaw.input : 0,
+            output: typeof costRaw.output === "number" ? costRaw.output : 0,
+            cache: {
+                read: typeof cacheRaw.read === "number" ? cacheRaw.read : 0,
+                write: typeof cacheRaw.write === "number" ? cacheRaw.write : 0,
+            },
+        }],
+        variants,
+        options: { variant: null, ...((raw.options ?? raw.settings ?? {}) as Record<string, unknown>) } as ModelOptions,
+        time: { released: 0 },
+    }
+}
+
 async function fetchModelsV2(url: string, token: string): Promise<Model[]> {
     try {
         const res = await fetch(`${baseUrl(url)}/api/model`, {
@@ -208,12 +272,21 @@ async function fetchModelsV2(url: string, token: string): Promise<Model[]> {
             return []
         }
         const data = await res.json()
-        if (Array.isArray(data)) return data
-        if (data && typeof data === "object") {
-            if (Array.isArray(data.models)) return data.models
-            if (Array.isArray(data.data)) return data.data
+        let raw: unknown[] = []
+        if (Array.isArray(data)) raw = data
+        else if (data && typeof data === "object") {
+            if (Array.isArray((data as Record<string, unknown>).models)) raw = (data as Record<string, unknown>).models as unknown[]
+            else if (Array.isArray((data as Record<string, unknown>).data)) raw = (data as Record<string, unknown>).data as unknown[]
         }
-        return []
+        return raw
+            .map((item) => {
+                if (!item || typeof item !== "object") return null
+                // Already in app shape (has providerID + capabilities.tools)?
+                const r = item as Record<string, unknown>
+                if (typeof r.id === "string" && typeof r.providerID === "string" && r.capabilities) return item as Model
+                return normalizeV2Model(r)
+            })
+            .filter((m): m is Model => m !== null)
     } catch (error) {
         console.error("[fetchModels] Network error:", error)
         return []
@@ -228,9 +301,24 @@ async function fetchProvidersV2(url: string, token: string): Promise<Provider[]>
         })
         if (!res.ok) return []
         const data = await res.json()
-        if (Array.isArray(data)) return data
-        if (data && typeof data === "object" && Array.isArray(data.data)) return data.data
-        return []
+        let raw: unknown[] = []
+        if (Array.isArray(data)) raw = data
+        else if (data && typeof data === "object" && Array.isArray((data as Record<string, unknown>).data)) raw = (data as Record<string, unknown>).data as unknown[]
+        return raw
+            .map((item) => {
+                if (!item || typeof item !== "object") return null
+                const r = item as Record<string, unknown>
+                const id = typeof r.id === "string" ? r.id : typeof r.providerID === "string" ? (r.providerID as string) : null
+                if (!id) return null
+                return {
+                    id,
+                    name: (typeof r.name === "string" && r.name) || id,
+                    enabled: r.disabled === true ? false : true,
+                    env: Array.isArray(r.env) ? (r.env as string[]) : [],
+                    endpoint: { type: "unknown" },
+                } as Provider
+            })
+            .filter((p): p is Provider => p !== null)
     } catch (error) {
         console.error("[fetchProviders] Network error:", error)
         return []
@@ -267,13 +355,21 @@ export async function updateSessionModel(url: string, token: string, sessionId: 
         const version = getServerVersion(url)
         if (version >= 2) {
             // v2 sets the model via a dedicated endpoint (PATCH /session no longer accepts it).
+            // v2 Model.Ref is { providerID, modelID, variant? }. Send both
+            // `modelID` (canonical) and `id` (compat) so either shape works.
+            const ref: Record<string, unknown> = {
+                providerID: model.providerID,
+                modelID: model.id,
+                id: model.id,
+            }
+            if (model.variant) ref.variant = model.variant
             await fetch(`${apiUrl(url, version, "/session")}/${sessionId}/model`, {
                 method: "POST",
                 headers: {
                     "Authorization": getAuthHeader(token),
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({ model })
+                body: JSON.stringify({ model: ref })
             })
             return
         }

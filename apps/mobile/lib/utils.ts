@@ -51,6 +51,26 @@ export function apiUrl(url: string, version: 1 | 2, path: string): string {
     return version >= 2 ? `${base}/api${clean}` : `${base}${clean}`
 }
 
+// v2 wraps list payloads as { data: [...] } (sometimes { data: ..., cursor }).
+// v1 returns the bare array. Accept both so one code path works on either server.
+export function unwrapList<T>(json: unknown): T[] {
+    if (Array.isArray(json)) return json as T[]
+    if (json && typeof json === "object") {
+        const obj = json as Record<string, unknown>
+        if (Array.isArray(obj.data)) return obj.data as T[]
+        if (Array.isArray(obj.models)) return obj.models as T[]
+    }
+    return []
+}
+
+export function unwrapData<T>(json: unknown): T | null {
+    if (json && typeof json === "object") {
+        const obj = json as Record<string, unknown>
+        if ("data" in obj) return obj.data as T
+    }
+    return (json as T) ?? null
+}
+
 export function formatDirectory(path: string | undefined | null): string {
     if (!path) return ""
     const cleaned = path.replace(/\/+$/, '')

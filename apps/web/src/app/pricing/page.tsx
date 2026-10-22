@@ -192,6 +192,13 @@ export default function PricingPage() {
   }, [startCheckout, startFounderCheckout]);
 
   const founderPrice = effectiveCurrency === "inr" ? `₹${founderPlan.price.inr.toLocaleString("en-IN")}` : `$${founderPlan.price.usd}`;
+  const founderMonths = Math.round(
+    (founderPlan.price[effectiveCurrency] / paidPlans.pro.yearly[effectiveCurrency]) * 12
+  );
+  const founderSoldOut = (founderCount?.remaining ?? 1) <= 0;
+  const founderClaimedPct = founderCount && founderCount.cap
+    ? Math.min(100, Math.round((founderCount.count / founderCount.cap) * 100))
+    : 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -331,35 +338,74 @@ export default function PricingPage() {
             ))}
           </div>
 
-          <div className="mx-auto mt-8 max-w-5xl">
-            <Card className="border-amber-500/40 bg-amber-500/5">
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <CardTitle className="text-lg">Pro Lifetime — one-time purchase</CardTitle>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Pay once, keep Pro forever — hosted relay + power features for as long as CrossCode operates, subject to fair use.
-                      {founderCount ? ` ${founderCount.remaining} of ${founderCount.cap} left.` : ` Limited to ${founderPlan.cap}.`}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-3xl font-bold">{founderPrice}</div>
-                    <div className="text-xs text-muted-foreground">one-time</div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardFooter>
-                <Button
-                  className="w-full"
+          <Card className="relative mx-auto mt-6 max-w-5xl overflow-hidden border-primary/40 bg-gradient-to-br from-primary/[0.06] via-card to-card py-0">
+            <div
+              aria-hidden
+              className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+            />
+            <CardContent className="grid gap-8 p-6 sm:p-8 md:grid-cols-[1.4fr_1fr] md:items-center">
+              <div className="space-y-4">
+                <Badge
                   variant="outline"
-                  disabled={Boolean(checkoutTier) || (founderCount?.remaining ?? 1) <= 0}
+                  className="border-primary/30 bg-background/60 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                >
+                  {founderSoldOut ? "Sold out" : "One-time · Best value"}
+                </Badge>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-semibold tracking-tight md:text-2xl">Pro Lifetime</h3>
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    Pay once. Pro forever — hosted relay, every power feature, no renewals and no future price hikes.
+                  </p>
+                </div>
+                <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                  {["Everything in Pro", "5 hosted tunnels", "Price locked for life"].map((item) => (
+                    <li key={item} className="flex items-center gap-2">
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="space-y-3 md:border-l md:border-border/60 md:pl-8">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-bold tracking-tight md:text-5xl">{founderPrice}</span>
+                  <span className="text-xs text-muted-foreground">one-time</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  ≈ {founderMonths} months of Pro Yearly
+                </p>
+                <div className="space-y-1.5">
+                  <div
+                    role="progressbar"
+                    aria-label="Pro Lifetime seats claimed"
+                    aria-valuemin={0}
+                    aria-valuemax={founderCount?.cap ?? founderPlan.cap}
+                    aria-valuenow={founderCount?.count ?? 0}
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-border"
+                  >
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${founderClaimedPct}%` }} />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {founderCount
+                      ? `${founderCount.count} of ${founderCount.cap} claimed — ${founderCount.remaining} left`
+                      : `Limited to ${founderPlan.cap}`}
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={Boolean(checkoutTier) || founderSoldOut}
                   onClick={startFounderCheckout}
                 >
-                  {checkoutTier === "founder" ? "Opening checkout..." : (founderCount?.remaining ?? 1) <= 0 ? "Sold out" : "Claim Pro Lifetime"}
+                  {checkoutTier === "founder" ? "Opening checkout..." : founderSoldOut ? "Sold out" : "Claim Pro Lifetime"}
                 </Button>
-              </CardFooter>
-            </Card>
-          </div>
+                <p className="text-center text-[11px] text-muted-foreground">
+                  Secure checkout · instant access
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="mx-auto mt-20 max-w-5xl px-4">
             <h2 className="text-2xl font-bold">Compare plans</h2>

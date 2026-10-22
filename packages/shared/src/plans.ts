@@ -21,7 +21,7 @@ export const paidPlans = {
 
 export const founderPlan = {
   name: "Pro Lifetime",
-  price: { usd: 24, inr: 1999 },
+  price: { usd: 50, inr: 2999 },
   cap: 100,
 } as const
 
